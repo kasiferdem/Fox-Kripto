@@ -15,9 +15,29 @@ from db import (
 from exchange import execute_spot_trade
 from telegram_poller import start_poller
 
+import secrets
+from fastapi import Depends, status
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+
 load_dotenv()
 
 app_api = FastAPI(title="Fox-Kripto Multi-Tenant Autonomous Trading & Management Dashboard")
+
+security = HTTPBasic()
+
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "foxkripto2026")
+
+def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = secrets.compare_digest(credentials.username, ADMIN_USERNAME)
+    correct_password = secrets.compare_digest(credentials.password, ADMIN_PASSWORD)
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Hatalı Kullanıcı Adı veya Şifre",
+            headers={"WWW-Authenticate": "Basic realm='FoxKripto Admin'"},
+        )
+    return credentials.username
 
 def run_autonomous_trading_loop():
     """
@@ -163,7 +183,7 @@ def debug_binance_account():
     return res_dict
 
 @app_api.get("/api/tenants")
-def list_tenants():
+def list_tenants(username: str = Depends(authenticate_admin)):
     """Tüm kullanıcıları (Tenants) listeler."""
     tenants = get_all_active_tenants()
     for t in tenants:
@@ -175,7 +195,7 @@ def list_tenants():
     return {"status": "success", "count": len(tenants), "tenants": tenants}
 
 @app_api.post("/api/tenants")
-def create_tenant(req: TenantCreateRequest):
+def create_tenant(req: TenantCreateRequest, username: str = Depends(authenticate_admin)):
     """Yeni kullanıcı (Tenant) ekler veya günceller."""
     res = register_user_tenant(
         tenant_name=req.tenant_name,
@@ -190,7 +210,7 @@ def create_tenant(req: TenantCreateRequest):
     raise HTTPException(status_code=400, detail="Kullanıcı kaydedilemedi.")
 
 @app_api.delete("/api/tenants/{tenant_id}")
-def delete_tenant(tenant_id: str):
+def delete_tenant(tenant_id: str, username: str = Depends(authenticate_admin)):
     """Kullanıcıyı pasife alır / siler."""
     client = get_supabase()
     if not client:
@@ -202,7 +222,7 @@ def delete_tenant(tenant_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app_api.get("/api/trade-logs")
-def list_trade_logs():
+def list_trade_logs(username: str = Depends(authenticate_admin)):
     """Canlı Supabase işlem kararlarını ve loglarını listeler."""
     client = get_supabase()
     if not client: return {"logs": []}
@@ -213,7 +233,7 @@ def list_trade_logs():
         return {"logs": [], "error": str(e)}
 
 @app_api.post("/run-graph")
-def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTasks):
+def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTasks, username: str = Depends(authenticate_admin)):
     def _execute():
         print(f"🚀 [/run-graph]: Akış Başlatıldı -> Session: {req.session_id}")
         graph = create_crypto_graph()
@@ -232,7 +252,7 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
 # -----------------------------------------
 @app_api.get("/", response_class=HTMLResponse)
 @app_api.get("/dashboard", response_class=HTMLResponse)
-def get_dashboard_ui():
+def get_dashboard_ui(username: str = Depends(authenticate_admin)):
     html_content = """
     <!DOCTYPE html>
     <html lang="tr">
