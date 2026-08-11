@@ -65,27 +65,30 @@ def handle_update(update: dict):
     if not message: return
     
     chat_id = message["chat"]["id"]
-    text = (message.get("text") or "").strip()
+    raw_text = (message.get("text") or "").strip()
     first_name = message["chat"].get("first_name", "Kullanıcı")
+    text_clean = raw_text.lower().lstrip("/").strip()
 
-    # Komut İşleme
-    if text in ["/start", "/help"]:
+    print(f"📩 [Telegram Gelen Mesaj]: Chat ID={chat_id}, Text='{raw_text}' (Clean='{text_clean}')")
+
+    # Komut İşleme (Taksim / işaretli veya taksimsiz esnek eşleşme)
+    if text_clean in ["start", "help", "yardim", "merhaba"]:
         tenant = get_tenant_by_chat_id(chat_id)
         if tenant:
-            send_message(chat_id, f"👋 *Merhaba {first_name}!*\n\nSistemde **{tenant['tenant_name']}** olarak kayıtlısınız! ✅\n\n📌 *Kullanabileceğiniz Komutlar:*\n• `/durum` veya `/bakiye` - Canlı portföyünüzü görün.\n• `/bagla` - Borsa API anahtarlarınızı güncelleyin.")
+            send_message(chat_id, f"👋 *Merhaba {first_name}!*\n\nSistemde **{tenant['tenant_name']}** olarak kayıtlısınız! ✅\n\n📌 *Kullanabileceğiniz Komutlar:*\n• `durum` veya `bakiye` - Canlı portföyünüzü görün.\n• `bagla` - Borsa API anahtarlarınızı güncelleyin.")
         else:
-            send_message(chat_id, f"👋 *Merhaba {first_name}!* Fox-Kripto Otonom Ajan Sistemine Hoş Geldiniz!\n\nBinance hesabınızı bağlamak için `/bagla` komutunu yazabilirsiniz.")
+            send_message(chat_id, f"👋 *Merhaba {first_name}!* Fox-Kripto Otonom Ajan Sistemine Hoş Geldiniz!\n\nBinance hesabınızı bağlamak için `bagla` yazabilirsiniz.")
         return
 
-    if text in ["/durum", "/bakiye"]:
+    if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir"]:
         tenant = get_tenant_by_chat_id(chat_id)
         balance = fetch_portfolio_balance(tenant)
         send_message(chat_id, f"📊 *CANLI PORTFÖY DURUMUNUZ*\n\n💵 *Serbest USDT:* `${balance['free_usdt']:,.2f}`\n💰 *Toplam Değer:* `${balance['total_usdt']:,.2f}`\n🏢 *Borsa:* `{balance['exchange'].upper()}`\n🧪 *Mod:* `{'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}`")
         return
 
-    if text == "/bagla":
+    if text_clean in ["bagla", "register", "kayit"]:
         user_states[chat_id] = "AWAITING_API_KEY"
-        send_message(chat_id, "🔐 *Borsa Bağlantı Sihirbazı*\n\nLütfen **Binance API Key** bilginizi bu sobete mesaj olarak atın:")
+        send_message(chat_id, "🔐 *Borsa Bağlantı Sihirbazı*\n\nLütfen **Binance API Key** bilginizi bu sohbete mesaj olarak atın:")
         return
 
     # Çok Adımlı Kayıt Sihirbazı
