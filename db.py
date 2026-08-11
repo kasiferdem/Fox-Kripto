@@ -1,18 +1,18 @@
 import os, sys
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
 load_dotenv()
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://eodhhrokdmlltslqzerh.supabase.co")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://guxltqbzlquozniriznm.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 _supabase_client: Optional[Client] = None
 
 def get_supabase() -> Optional[Client]:
-    """Supabase istemcisini güvenli bir şekilde ilklendirir ve döndürür."""
+    """Supabase istemcisini güvenli bir şekilde ilklendirir."""
     global _supabase_client
     if _supabase_client is not None:
         return _supabase_client
@@ -25,16 +25,69 @@ def get_supabase() -> Optional[Client]:
             return None
     return None
 
-def log_trade_decision(trade_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """
-    Ajan kararlarını, bütçeyi, Stop-Loss seviyesini ve infaz sonuçlarını Supabase'e loglar.
-    """
+# -----------------------------------------
+# MULTI-TENANT KULLANICI / KİRACI YÖNETİMİ
+# -----------------------------------------
+
+def register_user_tenant(
+    tenant_name: str,
+    telegram_chat_id: int,
+    exchange_api_key: str,
+    exchange_secret_key: str,
+    exchange_id: str = "binance",
+    max_budget_percent: float = 10.0
+) -> Optional[Dict[str, Any]]:
+    """Sisteme yeni bir kullanıcı (Tenant) ve borsa API anahtarları ekler."""
     client = get_supabase()
-    if not client:
-        print("   [DB]: Supabase istemcisi aktif değil, loglama atlandı.")
-        return None
+    if not client: return None
     try:
         payload = {
+            "tenant_name": tenant_name,
+            "telegram_chat_id": telegram_chat_id,
+            "exchange_id": exchange_id,
+            "exchange_api_key": exchange_api_key,
+            "exchange_secret_key": exchange_secret_key,
+            "max_budget_percent": max_budget_percent,
+            "is_active": True
+        }
+        res = client.table("user_tenants").upsert(payload, on_conflict="telegram_chat_id").execute()
+        print(f"✅ [Multi-Tenant]: Kullanıcı '{tenant_name}' (Chat ID: {telegram_chat_id}) başarıyla kaydedildi.")
+        return res.data[0] if res.data else None
+    except Exception as e:
+        print(f"❌ [Multi-Tenant Kayıt Hatası]: {e}")
+        return None
+
+def get_tenant_by_chat_id(telegram_chat_id: int) -> Optional[Dict[str, Any]]:
+    """Telegram Chat ID'sine göre ilgili kullanıcının borsa ve bütçe ayarlarını getirir."""
+    client = get_supabase()
+    if not client: return None
+    try:
+        res = client.table("user_tenants").select("*").eq("telegram_chat_id", telegram_chat_id).eq("is_active", True).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+        return None
+    except Exception as e:
+        print(f"❌ [Multi-Tenant Sorgu Hatası]: {e}")
+        return None
+
+def get_all_active_tenants() -> List[Dict[str, Any]]:
+    """Sistemdeki tüm aktif kullanıcıları getirir (7/24 Otonom Tarama İçin)."""
+    client = get_supabase()
+    if not client: return []
+    try:
+        res = client.table("user_tenants").select("*").eq("is_active", True).execute()
+        return res.data or []
+    except Exception as e:
+        print(f"❌ [Multi-Tenant Liste Hatası]: {e}")
+        return []
+
+def log_trade_decision(trade_data: Dict[str, Any], tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Ajan kararlarını ve infaz sonuçlarını ilgili tenant_id ile Supabase'e kaydeder."""
+    client = get_supabase()
+    if not client: return None
+    try:
+        payload = {
+            "tenant_id": tenant_id or trade_data.get("tenant_id"),
             "symbol": trade_data.get("symbol", "BTC/USDT"),
             "direction": trade_data.get("direction", "BUY"),
             "amount_usd": trade_data.get("amount_usd", 0.0),
@@ -48,23 +101,24 @@ def log_trade_decision(trade_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "execution_details": trade_data.get("execution_details", {})
         }
         res = client.table("crypto_trade_logs").insert(payload).execute()
-        print(f"✅ [DB]: İşlem kararı Supabase'e başarıyla loglandı. ID: {res.data[0]['id'] if res.data else 'OK'}")
+        print(f"✅ [DB Multi-Tenant Log]: İşlem kararı Supabase'e kaydedildi. ID: {res.data[0]['id'] if res.data else 'OK'}")
         return res.data[0] if res.data else None
     except Exception as e:
         print(f"❌ [DB Loglama Hatası]: {e}")
         return None
 
-def save_graph_state(session_id: str, state_data: Dict[str, Any]) -> bool:
-    """LangGraph State kalıcılığını (Persistence) Supabase'e kaydeder."""
+def save_graph_state(session_id: str, state_data: Dict[str, Any], tenant_id: Optional[str] = None) -> bool:
+    """LangGraph State kalıcılığını (Persistence) tenant_id ile Supabase'e saklar."""
     client = get_supabase()
     if not client: return False
     try:
         payload = {
             "session_id": session_id,
+            "tenant_id": tenant_id or state_data.get("tenant_id"),
             "state_data": state_data
         }
         client.table("crypto_agent_states").upsert(payload).execute()
-        print(f"✅ [DB State]: LangGraph State '{session_id}' başarıyla saklandı.")
+        print(f"✅ [DB Multi-Tenant State]: State '{session_id}' başarıyla saklandı.")
         return True
     except Exception as e:
         print(f"❌ [DB State Kayıt Hatası]: {e}")
@@ -77,7 +131,6 @@ def load_graph_state(session_id: str) -> Optional[Dict[str, Any]]:
     try:
         res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
         if res.data and len(res.data) > 0:
-            print(f"✅ [DB State]: LangGraph State '{session_id}' geri yüklendi.")
             return res.data[0]["state_data"]
         return None
     except Exception as e:
@@ -85,9 +138,14 @@ def load_graph_state(session_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 if __name__ == "__main__":
-    print("🚀 Supabase db.py Modülü Test Ediliyor...")
+    print("🚀 Multi-Tenant db.py Modülü Test Ediliyor...")
     client = get_supabase()
     if client:
         print("✅ Supabase istemcisi başarıyla bağlandı!")
-    else:
-        print("⚠️ Supabase anahtarları bekleniyor...")
+        # Mevcut kullanıcıyı otomatik tenant olarak kaydet
+        register_user_tenant(
+            tenant_name="Ana Kullanıcı (S)",
+            telegram_chat_id=8739367825,
+            exchange_api_key=os.environ.get("EXCHANGE_API_KEY", ""),
+            exchange_secret_key=os.environ.get("EXCHANGE_SECRET_KEY", "")
+        )

@@ -1,10 +1,25 @@
 -- =========================================================
--- FOX-KRİPTO SUPABASE POSTGRESQL VERİTABANI ŞEMASI (STEP 2)
+-- FOX-KRİPTO MULTI-TENANT SUPABASE POSTGRESQL ŞEMASI
 -- =========================================================
 
--- 1. İşlem Kararları ve İnfaz Logları Tablosu
+-- 1. Kullanıcılar / Kiracılar (Tenants) Tablosu
+CREATE TABLE IF NOT EXISTS user_tenants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_name VARCHAR(100) NOT NULL,
+    telegram_chat_id BIGINT UNIQUE NOT NULL,
+    exchange_id VARCHAR(30) DEFAULT 'binance',
+    exchange_api_key TEXT NOT NULL,
+    exchange_secret_key TEXT NOT NULL,
+    max_budget_percent NUMERIC(5,2) DEFAULT 10.0,
+    stop_loss_percent NUMERIC(5,2) DEFAULT 4.0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. İşlem Kararları ve İnfaz Logları (Tenant Bağlantılı)
 CREATE TABLE IF NOT EXISTS crypto_trade_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES user_tenants(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     symbol VARCHAR(20) NOT NULL,
     direction VARCHAR(10) NOT NULL CHECK (direction IN ('BUY', 'SELL', 'LONG', 'SHORT')),
@@ -19,21 +34,19 @@ CREATE TABLE IF NOT EXISTS crypto_trade_logs (
     execution_details JSONB
 );
 
--- 2. LangGraph State Kalıcılık (Persistence) Tablosu
+-- 3. LangGraph State Kalıcılık (Tenant Bağlantılı)
 CREATE TABLE IF NOT EXISTS crypto_agent_states (
     session_id VARCHAR(100) PRIMARY KEY,
+    tenant_id UUID REFERENCES user_tenants(id),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     state_data JSONB NOT NULL
 );
 
--- RLS Güvenlik Politikaları (Service Role yetkili erişim)
+-- RLS Güvenlik Politikaları
+ALTER TABLE user_tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE crypto_trade_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE crypto_agent_states ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Service Role full access to crypto_trade_logs" 
-ON crypto_trade_logs FOR ALL 
-USING (true) WITH CHECK (true);
-
-CREATE POLICY "Service Role full access to crypto_agent_states" 
-ON crypto_agent_states FOR ALL 
-USING (true) WITH CHECK (true);
+CREATE POLICY "Service Role full access to user_tenants" ON user_tenants FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service Role full access to crypto_trade_logs" ON crypto_trade_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service Role full access to crypto_agent_states" ON crypto_agent_states FOR ALL USING (true) WITH CHECK (true);
