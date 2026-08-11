@@ -182,8 +182,8 @@ def debug_binance_account():
 
     return res_dict
 
-@app_api.get("/api/tenants")
-def list_tenants(username: str = Depends(authenticate_admin)):
+@app_api.get("/api/tenants", dependencies=[Depends(authenticate_admin)])
+def list_tenants():
     """Tüm kullanıcıları (Tenants) listeler."""
     tenants = get_all_active_tenants()
     for t in tenants:
@@ -194,8 +194,8 @@ def list_tenants(username: str = Depends(authenticate_admin)):
             t["exchange_secret_key"] = "***HIDDEN***"
     return {"status": "success", "count": len(tenants), "tenants": tenants}
 
-@app_api.post("/api/tenants")
-def create_tenant(req: TenantCreateRequest, username: str = Depends(authenticate_admin)):
+@app_api.post("/api/tenants", dependencies=[Depends(authenticate_admin)])
+def create_tenant(req: TenantCreateRequest):
     """Yeni kullanıcı (Tenant) ekler veya günceller."""
     res = register_user_tenant(
         tenant_name=req.tenant_name,
@@ -209,8 +209,8 @@ def create_tenant(req: TenantCreateRequest, username: str = Depends(authenticate
         return {"status": "success", "message": f"Kullanıcı '{req.tenant_name}' eklendi.", "tenant": res}
     raise HTTPException(status_code=400, detail="Kullanıcı kaydedilemedi.")
 
-@app_api.delete("/api/tenants/{tenant_id}")
-def delete_tenant(tenant_id: str, username: str = Depends(authenticate_admin)):
+@app_api.delete("/api/tenants/{tenant_id}", dependencies=[Depends(authenticate_admin)])
+def delete_tenant(tenant_id: str):
     """Kullanıcıyı pasife alır / siler."""
     client = get_supabase()
     if not client:
@@ -221,8 +221,8 @@ def delete_tenant(tenant_id: str, username: str = Depends(authenticate_admin)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app_api.get("/api/trade-logs")
-def list_trade_logs(username: str = Depends(authenticate_admin)):
+@app_api.get("/api/trade-logs", dependencies=[Depends(authenticate_admin)])
+def list_trade_logs():
     """Canlı Supabase işlem kararlarını ve loglarını listeler."""
     client = get_supabase()
     if not client: return {"logs": []}
@@ -232,8 +232,8 @@ def list_trade_logs(username: str = Depends(authenticate_admin)):
     except Exception as e:
         return {"logs": [], "error": str(e)}
 
-@app_api.post("/run-graph")
-def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTasks, username: str = Depends(authenticate_admin)):
+@app_api.post("/run-graph", dependencies=[Depends(authenticate_admin)])
+def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTasks):
     def _execute():
         print(f"🚀 [/run-graph]: Akış Başlatıldı -> Session: {req.session_id}")
         graph = create_crypto_graph()
@@ -250,9 +250,9 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
 # -----------------------------------------
 # DASHBOARD WEB ARAYÜZÜ (HTML + GLASSMORPHISM UI)
 # -----------------------------------------
-@app_api.get("/", response_class=HTMLResponse)
-@app_api.get("/dashboard", response_class=HTMLResponse)
-def get_dashboard_ui(username: str = Depends(authenticate_admin)):
+@app_api.get("/", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+def get_dashboard_ui():
     html_content = """
     <!DOCTYPE html>
     <html lang="tr">
