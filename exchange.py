@@ -84,16 +84,15 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
             }
         except Exception as e:
             print(f"⚠️ CCXT Multi-Tenant Bakiye Uyarısı: {e}")
-
-    # Fallback Paper Trading Bakiyesi
-    return {
-        "exchange": "binance",
-        "is_paper_trading": True,
-        "free_usdt": 1000.0,
-        "used_usdt": 0.0,
-        "total_usdt": 1000.0,
-        "crypto_holdings": {"BTC": 0.0}
-    }
+            return {
+                "exchange": "binance",
+                "is_paper_trading": True,
+                "free_usdt": 1000.0,
+                "used_usdt": 0.0,
+                "total_usdt": 1000.0,
+                "crypto_holdings": {"BTC": 0.0},
+                "api_error": str(e)
+            }
 
 def fetch_ticker_price(symbol: str = "BTC/USDT") -> Dict[str, Any]:
     """Borsadan anlık sembol fiyatı ve 24h değişimini okur."""

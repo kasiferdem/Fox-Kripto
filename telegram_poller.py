@@ -117,6 +117,8 @@ def handle_update(update: dict):
                 else:
                     holdings_text += f"🪙 {asset}: {amt:,.6f}\n"
 
+        err_info = f"\n⚠️ Binance Hata Nedeni: {balance['api_error']}\n" if balance.get("api_error") else ""
+
         msg_text = (
             f"📊 CANLI PORTFÖY DURUMUNUZ\n\n"
             f"💵 Serbest USDT: ${balance['free_usdt']:,.2f}\n"
@@ -124,6 +126,7 @@ def handle_update(update: dict):
             f"💰 Toplam Portföy Değeri: ~${balance['total_usdt']:,.2f} USD\n"
             f"🏢 Borsa: {balance['exchange'].upper()}\n"
             f"🧪 Mod: {'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}"
+            f"{err_info}"
         )
         send_message(chat_id, msg_text)
         return
