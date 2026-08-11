@@ -19,15 +19,71 @@ load_dotenv()
 
 app_api = FastAPI(title="Fox-Kripto Multi-Tenant Autonomous Trading & Management Dashboard")
 
+def run_autonomous_trading_loop():
+    """
+    7/24 Otonom Yapay Zeka Alım-Satım ve Piyasa Analiz Döngüsü.
+    Sistemdeki tüm aktif kullanıcılar (Tenants) için 15 dakikada bir piyasayı tarar.
+    """
+    print("🤖 [Yapay Zeka Otonom Ajan]: 7/24 Tam Otonom Alım-Satım Döngüsü Aktif!")
+    import time
+    time.sleep(10)
+    while True:
+        try:
+            tenants = get_all_active_tenants()
+            if tenants:
+                for tenant in tenants:
+                    chat_id = tenant.get("telegram_chat_id")
+                    tenant_name = tenant.get("tenant_name", "Kullanıcı")
+                    print(f"🧠 [Otonom Analiz]: Kullanıcı '{tenant_name}' (Chat ID: {chat_id}) için piyasa taranıyor...")
+                    
+                    graph = create_crypto_graph()
+                    initial_state = {
+                        "tenant_id": tenant.get("id"),
+                        "tenant_config": tenant,
+                        "news_data": "Crypto market showing volume breakout and bullish momentum.",
+                        "portfolio_state": {},
+                        "sentiment_score": 0.8,
+                        "trade_proposal": None,
+                        "human_approval": "Approved", # FULL AUTONOMOUS MODE
+                        "execution_result": None
+                    }
+                    res = graph.invoke(initial_state)
+                    save_graph_state(f"auto_{chat_id}", res)
+                    
+                    exec_res = res.get("execution_result")
+                    proposal = res.get("trade_proposal")
+                    if exec_res and exec_res.get("status") == "success" and chat_id:
+                        symbol = proposal.get("symbol", "Kripto") if proposal else "Kripto"
+                        action = proposal.get("direction", "ALIM") if proposal else "İŞLEM"
+                        amount = proposal.get("amount_usd", 0.0) if proposal else 0.0
+                        from telegram_poller import send_message
+                        msg = (
+                            f"🤖 *OTONOM YAPAY ZEKA İŞLEM İCRASI*\n\n"
+                            f"👤 Kullanıcı: {tenant_name}\n"
+                            f"⚡ İşlem: *{action}*\n"
+                            f"🪙 Sembol: `{symbol}`\n"
+                            f"💵 Tutar: ${amount:.2f}\n"
+                            f"✅ Durum: Başarıyla Gerçekleştirildi"
+                        )
+                        send_message(chat_id, msg)
+        except Exception as e:
+            print(f"⚠️ [Otonom Döngü Uyarısı]: {e}")
+            
+        time.sleep(900)
+
 # -----------------------------------------
-# OTOMATİK 7/24 TELEGRAM DİNLEYİCİ DÖNGÜSÜ
+# OTOMATİK 7/24 TELEGRAM DİNLEYİCİ & OTONOM DÖNGÜ
 # -----------------------------------------
 @app_api.on_event("startup")
 def startup_event():
-    """Uygulama ayağa kalktığında Telegram Poller'ı tek konteyner içinde arka planda başlatır."""
+    """Uygulama ayağa kalktığında Telegram Poller ve Otonom Ticaret Döngüsünü arka planda başlatır."""
     print("🚀 [FastAPI Startup]: Telegram Poller 7/24 Arka Plan Süreci Başlatılıyor...")
     poller_thread = threading.Thread(target=start_poller, daemon=True)
     poller_thread.start()
+
+    print("🤖 [FastAPI Startup]: 7/24 Tam Otonom Yapay Zeka Ticaret Döngüsü Başlatılıyor...")
+    auto_thread = threading.Thread(target=run_autonomous_trading_loop, daemon=True)
+    auto_thread.start()
 
 # -----------------------------------------
 # PYDANTIC MODEL TANIMLARI

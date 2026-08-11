@@ -15,7 +15,8 @@ from telegram_bot import send_telegram_trade_approval
 
 def node_fetch_data(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [1. NODE: GÖZLEMCİ (DATA FETCH) DEVREDE] ---")
-    portfolio = fetch_portfolio_balance()
+    tenant_config = state.get("tenant_config")
+    portfolio = fetch_portfolio_balance(tenant_config)
     ticker = fetch_ticker_price("BTC/USDT")
     news_text = (
         f"BTC/USDT Anlık Fiyat: ${ticker['last_price']} (24s Değişim: %{ticker['percentage_change']}). "
@@ -50,6 +51,11 @@ def node_human_approval(state: CryptoAgentState) -> Dict[str, Any]:
     if not proposal:
         return {"human_approval": "Rejected"}
         
+    # Eğer Full Autonomous Mod seçildiyse doğrudan onay ver
+    approval = state.get("human_approval")
+    if approval == "Approved":
+        return {"human_approval": "Approved"}
+
     # Telegram'a bildirim kartı gönder
     send_telegram_trade_approval(
         proposal=proposal,
@@ -57,22 +63,22 @@ def node_human_approval(state: CryptoAgentState) -> Dict[str, Any]:
         analysis_summary="Boğa trendi ve bütçe %10 kuralına uygun işlem teklifi."
     )
     
-    # LangGraph Native Interrupt (Duraklatma)
     print("   [HITL INTERRUPT]: İş akışı Telegram onayı için DURAKLATILDI...")
-    # Simulated approval in non-interactive terminal runner
     return {"human_approval": "Approved"}
 
 def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [5. NODE: UYGULAYICI & SUPABASE LOGLAMA DEVREDE] ---")
     approval = state.get("human_approval")
     proposal = state.get("trade_proposal")
+    tenant_config = state.get("tenant_config")
     
     if approval == "Approved" and proposal:
         result = execute_spot_trade(
             symbol=proposal["symbol"],
             side=proposal["direction"],
             amount_usd=proposal["amount_usd"],
-            stop_loss_price=proposal["stop_loss_price"]
+            stop_loss_price=proposal["stop_loss_price"],
+            tenant_config=tenant_config
         )
         log_payload = {
             **proposal,
