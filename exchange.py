@@ -49,9 +49,16 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
             total_usdt = float(usdt_info.get('total', 0.0))
             
             crypto_holdings = {}
-            for asset, details in balance.get('total', {}).items():
-                if float(details) > 0 and asset != 'USDT':
-                    crypto_holdings[asset] = float(details)
+            total_dict = balance.get('total', {})
+            for asset, details in total_dict.items():
+                if asset in ['info', 'free', 'used', 'total']:
+                    continue
+                try:
+                    amt = float(details) if not isinstance(details, dict) else float(details.get('total', 0.0))
+                    if amt > 0 and asset != 'USDT':
+                        crypto_holdings[asset] = amt
+                except Exception:
+                    pass
 
             estimated_total_usd = free_usdt
             holdings_details = {}
