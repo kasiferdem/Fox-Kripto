@@ -116,18 +116,19 @@ def handle_update(update: dict):
         return
 
 def start_poller():
-    """Telegram Poller Döngüsü (Long-Polling)."""
+    """Telegram Poller Döngüsü (Non-blocking Fast Polling)."""
     print(f"🤖 [Telegram Poller Başlatıldı]: @FoxKriptoBot 7/24 dinleniyor...")
     offset = None
     while True:
         try:
-            params = {"timeout": 10, "offset": offset}
-            res = requests.get(f"{BASE_URL}/getUpdates", params=params, timeout=15)
+            params = {"timeout": 0, "offset": offset}
+            res = requests.get(f"{BASE_URL}/getUpdates", params=params, timeout=5)
             if res.status_code == 200:
                 results = res.json().get("result", [])
                 for update in results:
                     offset = update["update_id"] + 1
                     handle_update(update)
+            time.sleep(1)
         except Exception as e:
             time.sleep(2)
 
