@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, time, requests, hmac, hashlib
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
 import ccxt
 from typing import Dict, Any, Optional
