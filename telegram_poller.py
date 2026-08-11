@@ -21,15 +21,20 @@ user_states = {}
 def send_message(chat_id: int, text: str, reply_markup=None):
     """
     Güvenli Telegram Mesaj Gönderme:
-    Markdown formatı hata verirse otomatik olarak sade metin olarak tekrar dener.
+    Markdown formatı veya reply_markup hatası almamak için dinamik payload oluşturur.
     """
-    payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown", "reply_markup": reply_markup}
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+
     try:
         res = requests.post(f"{BASE_URL}/sendMessage", json=payload, timeout=10)
         if res.status_code != 200:
-            # Fallback: Markdown formatı olmadan tekrar dene
-            payload.pop("parse_mode", None)
-            res_retry = requests.post(f"{BASE_URL}/sendMessage", json=payload, timeout=10)
+            # Fallback: Markdown formatını kaldırıp tekrar dene
+            payload_fallback = {"chat_id": chat_id, "text": text}
+            if reply_markup is not None:
+                payload_fallback["reply_markup"] = reply_markup
+            res_retry = requests.post(f"{BASE_URL}/sendMessage", json=payload_fallback, timeout=10)
             print(f"📩 Telegram Send Retry (Plain): {res_retry.status_code} - {res_retry.text}")
         else:
             print(f"✅ Telegram Send Success: Chat ID={chat_id}")
