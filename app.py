@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, asyncio, threading
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
 from dotenv import load_dotenv
 from typing import Dict, Any, Optional
@@ -13,10 +13,21 @@ from db import (
     register_user_tenant, get_all_active_tenants, get_supabase
 )
 from exchange import execute_spot_trade
+from telegram_poller import start_poller
 
 load_dotenv()
 
 app_api = FastAPI(title="Fox-Kripto Multi-Tenant Autonomous Trading & Management Dashboard")
+
+# -----------------------------------------
+# OTOMATİK 7/24 TELEGRAM DİNLEYİCİ DÖNGÜSÜ
+# -----------------------------------------
+@app_api.on_event("startup")
+def startup_event():
+    """Uygulama ayağa kalktığında Telegram Poller'ı tek konteyner içinde arka planda başlatır."""
+    print("🚀 [FastAPI Startup]: Telegram Poller 7/24 Arka Plan Süreci Başlatılıyor...")
+    poller_thread = threading.Thread(target=start_poller, daemon=True)
+    poller_thread.start()
 
 # -----------------------------------------
 # PYDANTIC MODEL TANIMLARI
@@ -44,7 +55,6 @@ def health_check():
 def list_tenants():
     """Tüm kullanıcıları (Tenants) listeler."""
     tenants = get_all_active_tenants()
-    # Güvenlik: API anahtarlarını maskele
     for t in tenants:
         if "exchange_api_key" in t and t["exchange_api_key"]:
             key = t["exchange_api_key"]
@@ -163,7 +173,7 @@ def get_dashboard_ui():
                 <h1>🦊 Fox-Kripto Multi-Tenant Yönetim Paneli</h1>
                 <p style="color: var(--text-muted); font-size: 14px;">Otonom Yapay Zeka Kripto Ticaret ve Kullanıcı Yönetimi</p>
             </div>
-            <button className="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
+            <button class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
         </div>
 
         <div class="grid">
