@@ -1,5 +1,11 @@
-import os, sys, time, requests
-if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
+import os, sys, time, requests, io
+
+# Windows Console Emoji UnicodeEncodeError Önleyici
+if hasattr(sys.stdout, 'buffer'):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'buffer'):
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from dotenv import load_dotenv
 from db import register_user_tenant, get_tenant_by_chat_id, get_supabase, log_trade_decision, save_graph_state, load_graph_state
 from exchange import fetch_portfolio_balance, execute_spot_trade
@@ -127,7 +133,10 @@ def start_poller():
                 results = res.json().get("result", [])
                 for update in results:
                     offset = update["update_id"] + 1
-                    handle_update(update)
+                    try:
+                        handle_update(update)
+                    except Exception as err:
+                        print(f"⚠️ [Poller Update Hatası]: {err}")
             time.sleep(1)
         except Exception as e:
             time.sleep(2)
