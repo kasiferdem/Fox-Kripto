@@ -51,6 +51,16 @@ class TriggerGraphRequest(BaseModel):
 def health_check():
     return {"status": "healthy", "service": "Fox-Kripto Multi-Tenant Dashboard", "version": "2.0.0"}
 
+@app_api.get("/api/my-ip")
+def get_my_egress_ip():
+    """DigitalOcean sunucusunun dışarıya çıkan (Egress) IP adresini söyler."""
+    import requests
+    try:
+        res = requests.get("https://api.ipify.org?format=json", timeout=5)
+        return res.json()
+    except Exception as e:
+        return {"error": str(e)}
+
 @app_api.get("/api/tenants")
 def list_tenants():
     """Tüm kullanıcıları (Tenants) listeler."""
