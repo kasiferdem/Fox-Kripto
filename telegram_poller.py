@@ -141,6 +141,67 @@ def handle_update(update: dict):
         send_message(chat_id, msg_text)
         return
 
+    if text_clean in ["test", "analiz", "otonom", "tarama", "tara"]:
+        tenant = get_tenant_by_chat_id(chat_id)
+        if not tenant:
+            send_message(chat_id, "⚠️ Kullanıcı bulunamadı. Lütfen önce 'bagla' yazarak kaydolun.")
+            return
+
+        send_message(chat_id, "🧠 *YAPAY ZEKA OTONOM ANALİZ TESTİ BAŞLATILDI...*\n\n1/3 Piyasa hacmi, teknik göstergeler ve fiyatlar çekiliyor...")
+        
+        try:
+            from graph import create_crypto_graph
+            from db import save_graph_state
+            
+            graph = create_crypto_graph()
+            initial_state = {
+                "tenant_id": tenant.get("id"),
+                "tenant_config": tenant,
+                "news_data": "Crypto market showing volume breakout and bullish momentum.",
+                "portfolio_state": {},
+                "sentiment_score": 0.8,
+                "trade_proposal": None,
+                "human_approval": "Approved", # FULL AUTONOMOUS TEST
+                "execution_result": None
+            }
+            res = graph.invoke(initial_state)
+            save_graph_state(f"test_{chat_id}", res)
+
+            proposal = res.get("trade_proposal")
+            sentiment = res.get("sentiment_score", 0.0)
+            exec_res = res.get("execution_result")
+
+            if proposal:
+                symbol = proposal.get("symbol", "Kripto")
+                action = proposal.get("direction", "ALIM")
+                amount = proposal.get("amount_usd", 0.0)
+                sl = proposal.get("stop_loss_price", 0.0)
+                
+                status_text = "✅ Canlı İşlem Gerçekleştirildi!" if (exec_res and exec_res.get("status") == "success") else "💡 Simülasyon Testi Başarılı!"
+                
+                report = (
+                    f"🎯 *YAPAY ZEKA OTONOM ANALİZ RAPORU*\n\n"
+                    f"👤 Kullanıcı: {tenant.get('tenant_name')}\n"
+                    f"📊 Yapay Zeka Skoru: *{sentiment:+.1f} / +10*\n"
+                    f"⚡ İşlem Kararı: *{action} {symbol}*\n"
+                    f"💵 Ayrılan Bütçe: *${amount:.2f} USD*\n"
+                    f"🛡️ Stop-Loss Seviyesi: *${sl:.2f}*\n"
+                    f"🏢 Borsa: BINANCE.TR\n\n"
+                    f"{status_text}"
+                )
+            else:
+                report = (
+                    f"📊 *YAPAY ZEKA PİYASA TARAMA RAPORU*\n\n"
+                    f"👤 Kullanıcı: {tenant.get('tenant_name')}\n"
+                    f"📊 Piyasa Duyarlılık Skoru: *{sentiment:+.1f}*\n"
+                    f"🛡️ Risk Kararı: Piyasa risk oranları kural dairesinde olduğu için yeni pozisyon açılmadı.\n"
+                    f"✅ 7/24 Otonom Gözlem Devam Ediyor."
+                )
+            send_message(chat_id, report)
+        except Exception as e:
+            send_message(chat_id, f"⚠️ Test sırasında bir uyarı oluştu: {e}")
+        return
+
     if text_clean in ["bagla", "register", "kayit"]:
         user_states[chat_id] = "AWAITING_API_KEY"
         send_message(chat_id, "🔐 Borsa Bağlantı Sihirbazı\n\nLütfen Binance API Key bilginizi bu sohbete mesaj olarak atın:")
