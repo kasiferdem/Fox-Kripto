@@ -104,6 +104,15 @@ def handle_update(update: dict):
 
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir"]:
         tenant = get_tenant_by_chat_id(chat_id)
+        if not tenant:
+            send_message(
+                chat_id, 
+                f"⚠️ *KAYITLI KULLANICI BULUNAMADI*\n\n"
+                f"Chat ID `{chat_id}` için Supabase veritabanında aktif borsa hesabı bulunamadı.\n\n"
+                f"Lütfen Web Yönetim Panelinizden (`/dashboard`) veya Telegram'da `bagla` yazarak Binance API anahtarlarınızı kaydedin."
+            )
+            return
+
         balance = fetch_portfolio_balance(tenant)
 
         holdings_text = ""
@@ -121,6 +130,7 @@ def handle_update(update: dict):
 
         msg_text = (
             f"📊 CANLI PORTFÖY DURUMUNUZ\n\n"
+            f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n"
             f"💵 Serbest USDT: ${balance['free_usdt']:,.2f}\n"
             f"{holdings_text}"
             f"💰 Toplam Portföy Değeri: ~${balance['total_usdt']:,.2f} USD\n"
