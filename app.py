@@ -63,7 +63,7 @@ def get_my_egress_ip():
 
 @app_api.get("/api/debug-binance")
 def debug_binance_account():
-    """DigitalOcean sunucusundan ham Binance bakiye yanıtını kontrol eder."""
+    """DigitalOcean sunucusundan tüm Binance cüzdanlarını (Spot + Earn + Funding) kontrol eder."""
     import requests, hmac, hashlib, time
     from db import get_tenant_by_chat_id
     tenant = get_tenant_by_chat_id(8739367825)
@@ -75,17 +75,36 @@ def debug_binance_account():
     ts = int(time.time() * 1000)
     query = f"timestamp={ts}"
     sig = hmac.new(secret_key.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
-    url = f"https://api.binance.com/api/v3/account?{query}&signature={sig}"
+    
+    # 1. Spot Account API
+    url_spot = f"https://api.binance.com/api/v3/account?{query}&signature={sig}"
+    # 2. All Capital Config API (Spot + Earn + Funding + Staking)
+    url_all = f"https://api.binance.com/sapi/v1/capital/config/getall?{query}&signature={sig}"
     headers = {"X-MBX-APIKEY": api_key}
+    
+    res_dict = {}
     try:
-        res = requests.get(url, headers=headers, timeout=10)
-        data = res.json()
-        if "balances" in data:
-            non_zero = [b for b in data["balances"] if float(b["free"]) > 0 or float(b["locked"]) > 0]
-            return {"status": res.status_code, "non_zero_balances": non_zero, "accountType": data.get("accountType")}
-        return {"status": res.status_code, "raw_binance_response": data}
+        r_all = requests.get(url_all, headers=headers, timeout=10)
+        data_all = r_all.json()
+        if isinstance(data_all, list):
+            non_zero_capital = []
+            for item in data_all:
+                coin = item.get("coin")
+                free = float(item.get("free", 0.0))
+                locked = float(item.get("locked", 0.0))
+                freeze = float(item.get("freeze", 0.0))
+                withdrawing = float(item.get("withdrawing", 0.0))
+                ipoing = float(item.get("ipoing", 0.0))
+                tot = free + locked + freeze + withdrawing + ipoing
+                if tot > 0:
+                    non_zero_capital.append({"coin": coin, "free": free, "locked": locked, "freeze": freeze, "total": tot})
+            res_dict["all_wallets_non_zero"] = non_zero_capital
+        else:
+            res_dict["all_wallets_error"] = data_all
     except Exception as e:
-        return {"error": str(e)}
+        res_dict["all_wallets_exception"] = str(e)
+
+    return res_dict
 
 @app_api.get("/api/tenants")
 def list_tenants():
