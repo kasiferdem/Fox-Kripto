@@ -54,19 +54,34 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                 total_usdt = free_usdt
             
             crypto_holdings = {}
-            # Metadata anahtarlarını ele (timestamp, datetime, info vb.)
-            metadata_keys = {'info', 'free', 'used', 'total', 'timestamp', 'datetime', 'USDT', 'code', 'msg'}
-            total_dict = balance.get('total', {})
-            if isinstance(total_dict, dict):
-                for asset, details in total_dict.items():
-                    if asset in metadata_keys or not isinstance(asset, str) or len(asset) > 10 or not asset.isupper():
-                        continue
-                    try:
-                        amt = float(details) if not isinstance(details, dict) else float(details.get('total') or details.get('free') or 0.0)
-                        if amt > 0:
-                            crypto_holdings[asset] = amt
-                    except Exception:
-                        pass
+            # 1. Öncelik: Binance Ham REST API 'info.balances' yanıtını doğrudan oku
+            info_balances = balance.get('info', {}).get('balances', [])
+            if isinstance(info_balances, list) and len(info_balances) > 0:
+                for item in info_balances:
+                    asset = item.get('asset')
+                    if asset and asset != 'USDT':
+                        try:
+                            free_val = float(item.get('free', 0.0))
+                            locked_val = float(item.get('locked', 0.0))
+                            tot_val = free_val + locked_val
+                            if tot_val > 0:
+                                crypto_holdings[asset] = tot_val
+                        except Exception:
+                            pass
+            else:
+                # 2. Öncelik: CCXT 'total' sözlük fallback'i
+                metadata_keys = {'info', 'free', 'used', 'total', 'timestamp', 'datetime', 'USDT', 'code', 'msg'}
+                total_dict = balance.get('total', {})
+                if isinstance(total_dict, dict):
+                    for asset, details in total_dict.items():
+                        if asset in metadata_keys or not isinstance(asset, str) or len(asset) > 10 or not asset.isupper():
+                            continue
+                        try:
+                            amt = float(details) if not isinstance(details, dict) else float(details.get('total') or details.get('free') or 0.0)
+                            if amt > 0:
+                                crypto_holdings[asset] = amt
+                        except Exception:
+                            pass
 
             estimated_total_usd = free_usdt
             holdings_details = {}
