@@ -44,29 +44,39 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
         try:
             balance = exchange.fetch_balance()
             usdt_info = balance.get('USDT', {})
-            free_usdt = float(usdt_info.get('free', 0.0))
-            used_usdt = float(usdt_info.get('used', 0.0))
-            total_usdt = float(usdt_info.get('total', 0.0))
+            if isinstance(usdt_info, dict):
+                free_usdt = float(usdt_info.get('free', 0.0))
+                used_usdt = float(usdt_info.get('used', 0.0))
+                total_usdt = float(usdt_info.get('total', 0.0))
+            else:
+                free_usdt = float(balance.get('free', {}).get('USDT', 0.0))
+                used_usdt = 0.0
+                total_usdt = free_usdt
             
             crypto_holdings = {}
-            total_dict = balance.get('total', {})
-            for asset, details in total_dict.items():
-                if asset in ['info', 'free', 'used', 'total']:
-                    continue
-                try:
-                    amt = float(details) if not isinstance(details, dict) else float(details.get('total', 0.0))
-                    if amt > 0 and asset != 'USDT':
-                        crypto_holdings[asset] = amt
-                except Exception:
-                    pass
+            sources = [balance.get('total', {}), balance.get('free', {}), balance]
+            for src in sources:
+                if isinstance(src, dict):
+                    for asset, details in src.items():
+                        if asset in ['info', 'free', 'used', 'total', 'USDT']:
+                            continue
+                        try:
+                            if isinstance(details, dict):
+                                amt = float(details.get('total') or details.get('free') or 0.0)
+                            else:
+                                amt = float(details)
+                            if amt > 0 and asset not in crypto_holdings:
+                                crypto_holdings[asset] = amt
+                        except Exception:
+                            pass
 
             estimated_total_usd = free_usdt
             holdings_details = {}
             for asset, amount in crypto_holdings.items():
                 if amount > 0:
                     try:
-                        ticker = exchange.fetch_ticker(f"{asset}/USDT")
-                        price = float(ticker.get('last', 0.0))
+                        ticker = fetch_ticker_price(f"{asset}/USDT")
+                        price = float(ticker.get('last_price', 0.0))
                         val_usd = amount * price
                         estimated_total_usd += val_usd
                         holdings_details[asset] = {"amount": amount, "price": price, "val_usd": val_usd}
