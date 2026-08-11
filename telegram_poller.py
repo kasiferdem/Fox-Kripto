@@ -19,14 +19,25 @@ BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 user_states = {}
 
 def send_message(chat_id: int, text: str, reply_markup=None):
+    """
+    Güvenli Telegram Mesaj Gönderme:
+    Markdown formatı hata verirse otomatik olarak sade metin olarak tekrar dener.
+    """
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown", "reply_markup": reply_markup}
     try:
-        requests.post(f"{BASE_URL}/sendMessage", json=payload, timeout=10)
+        res = requests.post(f"{BASE_URL}/sendMessage", json=payload, timeout=10)
+        if res.status_code != 200:
+            # Fallback: Markdown formatı olmadan tekrar dene
+            payload.pop("parse_mode", None)
+            res_retry = requests.post(f"{BASE_URL}/sendMessage", json=payload, timeout=10)
+            print(f"📩 Telegram Send Retry (Plain): {res_retry.status_code} - {res_retry.text}")
+        else:
+            print(f"✅ Telegram Send Success: Chat ID={chat_id}")
     except Exception as e:
         print(f"❌ Telegram Send Error: {e}")
 
 def handle_update(update: dict):
-    # 1. Buton Tıklamaları (Callback Query - ONAL / REDDET)
+    # 1. Buton Tıklamaları (Callback Query - ONAY / REDDET)
     callback = update.get("callback_query")
     if callback:
         cb_id = callback["id"]
@@ -47,7 +58,7 @@ def handle_update(update: dict):
         proposal = saved_state.get("trade_proposal")
         
         if action == "Approved" and proposal:
-            send_message(chat_id, f"✅ *İŞLEM ONAYLANDI!* Borsaya emir iletiliyor...\n`{proposal['symbol']} - ${proposal['amount_usd']} USD`")
+            send_message(chat_id, f"✅ İŞLEM ONAYLANDI! Borsaya emir iletiliyor...\n{proposal['symbol']} - ${proposal['amount_usd']} USD")
             result = execute_spot_trade(
                 symbol=proposal["symbol"],
                 side=proposal["direction"],
@@ -61,9 +72,9 @@ def handle_update(update: dict):
                 "order_id": result.get("order_id"), "execution_details": result
             }, tenant_id=tenant.get("id") if tenant else None)
             
-            send_message(chat_id, f"🚀 *İŞLEM BORSADA GERÇEKLEŞTİ!*\nEmir No: `{result.get('order_id')}`\nİnfaz Fiyatı: `${result.get('executed_price')}`")
+            send_message(chat_id, f"🚀 İŞLEM BORSADA GERÇEKLEŞTİ!\nEmir No: {result.get('order_id')}\nİnfaz Fiyatı: ${result.get('executed_price')}")
         else:
-            send_message(chat_id, "❌ *İŞLEM REDDEDİLDİ VEYA İPTAL EDİLDİ.*")
+            send_message(chat_id, "❌ İŞLEM REDDEDİLDİ VEYA İPTAL EDİLDİ.")
         return
 
     # 2. Normal Mesajlar ve Komutlar
@@ -81,31 +92,38 @@ def handle_update(update: dict):
     if text_clean in ["start", "help", "yardim", "merhaba"]:
         tenant = get_tenant_by_chat_id(chat_id)
         if tenant:
-            send_message(chat_id, f"👋 *Merhaba {first_name}!*\n\nSistemde **{tenant['tenant_name']}** olarak kayıtlısınız! ✅\n\n📌 *Kullanabileceğiniz Komutlar:*\n• `durum` veya `bakiye` - Canlı portföyünüzü görün.\n• `bagla` - Borsa API anahtarlarınızı güncelleyin.")
+            send_message(chat_id, f"👋 Merhaba {first_name}!\n\nSistemde {tenant['tenant_name']} olarak kayıtlısınız! ✅\n\n📌 Kullanabileceğiniz Komutlar:\n• durum veya bakiye - Canlı portföyünüzü görün.\n• bagla - Borsa API anahtarlarınızı güncelleyin.")
         else:
-            send_message(chat_id, f"👋 *Merhaba {first_name}!* Fox-Kripto Otonom Ajan Sistemine Hoş Geldiniz!\n\nBinance hesabınızı bağlamak için `bagla` yazabilirsiniz.")
+            send_message(chat_id, f"👋 Merhaba {first_name}! Fox-Kripto Otonom Ajan Sistemine Hoş Geldiniz!\n\nBinance hesabınızı bağlamak için bagla yazabilirsiniz.")
         return
 
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir"]:
         tenant = get_tenant_by_chat_id(chat_id)
         balance = fetch_portfolio_balance(tenant)
-        send_message(chat_id, f"📊 *CANLI PORTFÖY DURUMUNUZ*\n\n💵 *Serbest USDT:* `${balance['free_usdt']:,.2f}`\n💰 *Toplam Değer:* `${balance['total_usdt']:,.2f}`\n🏢 *Borsa:* `{balance['exchange'].upper()}`\n🧪 *Mod:* `{'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}`")
+        msg_text = (
+            f"📊 CANLI PORTFÖY DURUMUNUZ\n\n"
+            f"💵 Serbest USDT: ${balance['free_usdt']:,.2f}\n"
+            f"💰 Toplam Değer: ${balance['total_usdt']:,.2f}\n"
+            f"🏢 Borsa: {balance['exchange'].upper()}\n"
+            f"🧪 Mod: {'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}"
+        )
+        send_message(chat_id, msg_text)
         return
 
     if text_clean in ["bagla", "register", "kayit"]:
         user_states[chat_id] = "AWAITING_API_KEY"
-        send_message(chat_id, "🔐 *Borsa Bağlantı Sihirbazı*\n\nLütfen **Binance API Key** bilginizi bu sohbete mesaj olarak atın:")
+        send_message(chat_id, "🔐 Borsa Bağlantı Sihirbazı\n\nLütfen Binance API Key bilginizi bu sohbete mesaj olarak atın:")
         return
 
     # Çok Adımlı Kayıt Sihirbazı
     state = user_states.get(chat_id)
     if state == "AWAITING_API_KEY":
-        user_states[chat_id] = {"step": "AWAITING_SECRET_KEY", "api_key": text}
-        send_message(chat_id, "✅ API Key alındı!\n\nŞimdi lütfen **Binance Secret Key** bilginizi mesaj olarak atın:")
+        user_states[chat_id] = {"step": "AWAITING_SECRET_KEY", "api_key": raw_text}
+        send_message(chat_id, "✅ API Key alındı!\n\nŞimdi lütfen Binance Secret Key bilginizi mesaj olarak atın:")
         return
     elif isinstance(state, dict) and state.get("step") == "AWAITING_SECRET_KEY":
         api_key = state["api_key"]
-        secret_key = text
+        secret_key = raw_text
         del user_states[chat_id]
         
         # Veritabanına kaydet
@@ -116,7 +134,7 @@ def handle_update(update: dict):
             exchange_secret_key=secret_key
         )
         if res:
-            send_message(chat_id, f"🎉 *TEBRİKLER {first_name.upper()}!*\n\nBinance hesabınız başarıyla bağlandı! Artık otonom yapay zeka sinyalleri bu sohbet üzerinden onayınıza sunulacak. 🚀")
+            send_message(chat_id, f"🎉 TEBRİKLER {first_name.upper()}!\n\nBinance hesabınız başarıyla bağlandı! Artık otonom yapay zeka sinyalleri bu sohbet üzerinden onayınıza sunulacak. 🚀")
         else:
             send_message(chat_id, "❌ Bağlantı sırasında bir hata oluştu. Lütfen tekrar deneyin.")
         return
