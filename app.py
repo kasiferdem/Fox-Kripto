@@ -61,6 +61,32 @@ def get_my_egress_ip():
     except Exception as e:
         return {"error": str(e)}
 
+@app_api.get("/api/debug-binance")
+def debug_binance_account():
+    """DigitalOcean sunucusundan ham Binance bakiye yanıtını kontrol eder."""
+    import requests, hmac, hashlib, time
+    from db import get_tenant_by_chat_id
+    tenant = get_tenant_by_chat_id(8739367825)
+    if not tenant:
+        return {"error": "Tenant 8739367825 not found in Supabase"}
+    
+    api_key = tenant.get("exchange_api_key", "")
+    secret_key = tenant.get("exchange_secret_key", "")
+    ts = int(time.time() * 1000)
+    query = f"timestamp={ts}"
+    sig = hmac.new(secret_key.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
+    url = f"https://api.binance.com/api/v3/account?{query}&signature={sig}"
+    headers = {"X-MBX-APIKEY": api_key}
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        data = res.json()
+        if "balances" in data:
+            non_zero = [b for b in data["balances"] if float(b["free"]) > 0 or float(b["locked"]) > 0]
+            return {"status": res.status_code, "non_zero_balances": non_zero, "accountType": data.get("accountType")}
+        return {"status": res.status_code, "raw_binance_response": data}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app_api.get("/api/tenants")
 def list_tenants():
     """Tüm kullanıcıları (Tenants) listeler."""
