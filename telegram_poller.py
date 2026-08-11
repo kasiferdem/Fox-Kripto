@@ -105,10 +105,23 @@ def handle_update(update: dict):
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir"]:
         tenant = get_tenant_by_chat_id(chat_id)
         balance = fetch_portfolio_balance(tenant)
+
+        holdings_text = ""
+        details = balance.get("holdings_details", {})
+        if details:
+            for asset, info in details.items():
+                amt = info["amount"]
+                val = info["val_usd"]
+                if val > 0:
+                    holdings_text += f"🪙 {asset}: {amt:,.6f} (~${val:,.2f} USD)\n"
+                else:
+                    holdings_text += f"🪙 {asset}: {amt:,.6f}\n"
+
         msg_text = (
             f"📊 CANLI PORTFÖY DURUMUNUZ\n\n"
             f"💵 Serbest USDT: ${balance['free_usdt']:,.2f}\n"
-            f"💰 Toplam Değer: ${balance['total_usdt']:,.2f}\n"
+            f"{holdings_text}"
+            f"💰 Toplam Portföy Değeri: ~${balance['total_usdt']:,.2f} USD\n"
             f"🏢 Borsa: {balance['exchange'].upper()}\n"
             f"🧪 Mod: {'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}"
         )

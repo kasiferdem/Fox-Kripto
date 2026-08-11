@@ -53,13 +53,27 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                 if float(details) > 0 and asset != 'USDT':
                     crypto_holdings[asset] = float(details)
 
+            estimated_total_usd = free_usdt
+            holdings_details = {}
+            for asset, amount in crypto_holdings.items():
+                if amount > 0:
+                    try:
+                        ticker = exchange.fetch_ticker(f"{asset}/USDT")
+                        price = float(ticker.get('last', 0.0))
+                        val_usd = amount * price
+                        estimated_total_usd += val_usd
+                        holdings_details[asset] = {"amount": amount, "price": price, "val_usd": val_usd}
+                    except Exception:
+                        holdings_details[asset] = {"amount": amount, "price": 0.0, "val_usd": 0.0}
+
             return {
                 "exchange": exchange.id,
                 "is_paper_trading": False,
                 "free_usdt": free_usdt,
                 "used_usdt": used_usdt,
-                "total_usdt": total_usdt,
-                "crypto_holdings": crypto_holdings
+                "total_usdt": estimated_total_usd,
+                "crypto_holdings": crypto_holdings,
+                "holdings_details": holdings_details
             }
         except Exception as e:
             print(f"⚠️ CCXT Multi-Tenant Bakiye Uyarısı: {e}")
