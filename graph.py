@@ -14,35 +14,42 @@ from telegram_bot import send_telegram_trade_approval
 # -----------------------------------------
 
 def node_fetch_data(state: CryptoAgentState) -> Dict[str, Any]:
-    print("\n--- [1. NODE: GÖZLEMCİ (DATA FETCH) DEVREDE] ---")
+    print("\n--- [1. NODE: GÖZLEMCİ (MULTI-COIN ALTCOIN SCANNER) DEVREDE] ---")
     tenant_config = state.get("tenant_config")
     portfolio = fetch_portfolio_balance(tenant_config)
-    ticker = fetch_ticker_price("BTC/USDT")
-    news_text = (
-        f"BTC/USDT Anlık Fiyat: ${ticker['last_price']} (24s Değişim: %{ticker['percentage_change']}). "
-        f"Piyasa hacmi ${ticker['volume']:,.2f} seviyesinde. Kurumsal girişler boğa görünümünü destekliyor."
-    )
-    print(f"   [Portföy]: Serbest USDT: ${portfolio['free_usdt']}")
+    
+    symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "AVAX/USDT", "BNB/USDT", "DOGE/USDT", "PEPE/USDT", "RENDER/USDT", "XRP/USDT"]
+    tickers_summary = []
+    
+    for sym in symbols:
+        try:
+            t = fetch_ticker_price(sym)
+            tickers_summary.append(f"{sym}: Fiyat ${t['last_price']}, 24s Değişim %{t['percentage_change']}, Hacim ${t['volume']:,.0f}")
+        except Exception:
+            pass
+            
+    news_text = "CANLI BİNANCE PİYASA TARAMASI:\n" + "\n".join(tickers_summary)
+    print(f"   [Çoklu Piyasa Taraması]: {len(tickers_summary)} sembol tarandı (BTC, ETH, SOL, AVAX, PEPE, RENDER vb.)")
     return {"news_data": news_text, "portfolio_state": portfolio}
 
 def node_analyze_news(state: CryptoAgentState) -> Dict[str, Any]:
-    print("\n--- [2. NODE: HABER ANALİZ AJANI (GPT-4o) DEVREDE] ---")
+    print("\n--- [2. NODE: HABER & PİYASA ANALİZ AJANI (GPT-4o) DEVREDE] ---")
     analysis = analyze_crypto_news(state.get("news_data", ""), state.get("portfolio_state", {}))
     sentiment = float(analysis.get("sentiment_score", 0.0))
-    print(f"   [GPT-4o Haber Skoru]: {sentiment} (+10/-10) | Yön: {analysis.get('market_bias')}")
+    print(f"   [GPT-4o Piyasa Skoru]: {sentiment} (+10/-10) | Yön: {analysis.get('market_bias')}")
     return {"sentiment_score": sentiment}
 
 def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [3. NODE: STRATEJİ VE RİSK AJANI (GPT-4o) DEVREDE] ---")
-    ticker = fetch_ticker_price("BTC/USDT")
-    news_analysis = {"sentiment_score": state.get("sentiment_score", 0.0)}
-    proposal = formulate_trade_strategy(news_analysis, state.get("portfolio_state", {}), ticker["last_price"])
+    news_analysis = {"sentiment_score": state.get("sentiment_score", 0.0), "market_data": state.get("news_data", "")}
+    # Main coins ve altcoinler arasından en yüksek potansiyelli coini seçer
+    proposal = formulate_trade_strategy(news_analysis, state.get("portfolio_state", {}), 64000.0, symbol="AUTO")
     
     if not proposal.get("should_trade", True):
         print("   [Risk Reddi]: İşlem şartları oluşmadı. Akış sonlandırılıyor.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
         
-    print(f"   [İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Bütçe: ${proposal['amount_usd']} USD")
+    print(f"   [Seçilen İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Bütçe: ${proposal['amount_usd']} USD")
     return {"trade_proposal": proposal, "human_approval": "Pending"}
 
 def node_human_approval(state: CryptoAgentState) -> Dict[str, Any]:
