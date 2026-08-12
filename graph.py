@@ -46,24 +46,13 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     return {"trade_proposal": proposal, "human_approval": "Pending"}
 
 def node_human_approval(state: CryptoAgentState) -> Dict[str, Any]:
-    print("\n--- [4. NODE: TELEGRAM HITL DURAKLATMA (INTERRUPT) DEVREDE] ---")
+    print("\n--- [4. NODE: TAM OTONOM MOD ONAYI DEVREDE] ---")
     proposal = state.get("trade_proposal")
     if not proposal:
         return {"human_approval": "Rejected"}
         
-    # Eğer Full Autonomous Mod seçildiyse doğrudan onay ver
-    approval = state.get("human_approval")
-    if approval == "Approved":
-        return {"human_approval": "Approved"}
-
-    # Telegram'a bildirim kartı gönder
-    send_telegram_trade_approval(
-        proposal=proposal,
-        sentiment_score=state.get("sentiment_score", 0.0),
-        analysis_summary="Boğa trendi ve bütçe %10 kuralına uygun işlem teklifi."
-    )
-    
-    print("   [HITL INTERRUPT]: İş akışı Telegram onayı için DURAKLATILDI...")
+    # Tam Otonom Mod (Butonsuz Otomatik): Doğrudan onay ver ve borsada icra et
+    print("   [Tam Otonom Mod]: İzin verildi. Borsada otomatik işlem başlatılıyor...")
     return {"human_approval": "Approved"}
 
 def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
