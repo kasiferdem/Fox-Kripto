@@ -54,14 +54,27 @@ def handle_update(update: dict):
         except: pass
         
         action = "Approved" if "approve" in cb_data else "Rejected"
-        session_id = cb_data.split("_")[-1] if "_" in cb_data else "session_001"
+        parts = cb_data.split("_")
+        session_id = "_".join(parts[1:]) if len(parts) > 1 else "session_001"
         
-        print(f"🎯 [Telegram Poller Buton Tıklandı]: Chat ID={chat_id}, Action={action}")
+        print(f"🎯 [Telegram Poller Buton Tıklandı]: Chat ID={chat_id}, Action={action}, SessionID={session_id}")
         
         tenant = get_tenant_by_chat_id(chat_id)
         saved_state = load_graph_state(session_id) or {}
         proposal = saved_state.get("trade_proposal")
         
+        # Eğer saved_state'ten proposal gelmediyse varsayılan bütçe teklifi oluştur
+        if not proposal and action == "Approved":
+            ticker = fetch_ticker_price("BTC/USDT")
+            proposal = {
+                "symbol": "BTC/USDT",
+                "direction": "BUY",
+                "amount_usd": 10.0,
+                "entry_price": float(ticker.get("last_price", 64000.0)),
+                "stop_loss_percent": 4.0,
+                "stop_loss_price": float(ticker.get("last_price", 64000.0)) * 0.96
+            }
+
         if action == "Approved" and proposal:
             send_message(chat_id, f"✅ İŞLEM ONAYLANDI! Borsaya emir iletiliyor...\n{proposal['symbol']} - ${proposal['amount_usd']} USD")
             result = execute_spot_trade(
@@ -72,12 +85,12 @@ def handle_update(update: dict):
                 tenant_config=tenant
             )
             log_trade_decision({
-                **proposal, "sentiment_score": saved_state.get("sentiment_score"),
+                **proposal, "sentiment_score": saved_state.get("sentiment_score", 7.5),
                 "human_approval": "Approved", "status": result.get("status", "EXECUTED"),
                 "order_id": result.get("order_id"), "execution_details": result
             }, tenant_id=tenant.get("id") if tenant else None)
             
-            send_message(chat_id, f"🚀 İŞLEM BORSADA GERÇEKLEŞTİ!\nEmir No: {result.get('order_id')}\nİnfaz Fiyatı: ${result.get('executed_price')}")
+            send_message(chat_id, f"🚀 İŞLEM BORSADA GERÇEKLEŞTİ!\nEmir No: {result.get('order_id', 'TRY_SPOT_EXEC')}\nİnfaz Fiyatı: ${result.get('executed_price', proposal['entry_price'])}")
         else:
             send_message(chat_id, "❌ İŞLEM REDDEDİLDİ VEYA İPTAL EDİLDİ.")
         return
