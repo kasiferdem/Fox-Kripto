@@ -94,10 +94,18 @@ def formulate_trade_strategy(
 ) -> Dict[str, Any]:
     """
     Duyarlılık skoru ve portföy durumunu değerlendirerek işlem teklifi oluşturur.
-    KURAL 1: İşlem teklifi serbest USDT bütçesinin %10'unu aşamaz.
+    KURAL 1: İşlem teklifi toplam portföy likiditesinin (USDT/TRY) %10'unu aşamaz (Minimum $10 USD).
     KURAL 2: Her teklifte %3 ile %5 arası dinamik Stop-Loss belirlenmelidir.
     """
-    free_usdt = float(portfolio_state.get("free_usdt", 1000.0))
+    # Toplam kullanılabilir portföy değerini oku (USDT ve TRY toplamı)
+    total_val = float(portfolio_state.get("total_usdt") or 0.0)
+    free_val = float(portfolio_state.get("free_usdt") or 0.0)
+    
+    # Eğer serbest USDT 0 ise ama toplam portföy > 0 ise toplamı kullan, değilse varsayılan $50 likidite varsay
+    available_liquidity_usd = max(total_val, free_val)
+    if available_liquidity_usd < 5.0:
+        available_liquidity_usd = 50.0 # Min fallback liquidity for micro trading
+
     sentiment_score = float(news_analysis.get("sentiment_score", 0.0))
     
     # Skor zayıfsa işlem açma (END)
@@ -109,10 +117,10 @@ def formulate_trade_strategy(
         
     system_prompt = (
         "Sen kıdemli bir Kripto Strateji ve Risk Yönetim Ajanısın (Strategy & Risk Agent).\n"
-        "Görevin: Piyasa analizini ve portföydeki serbest bakiye bilgisini değerlendirerek "
+        "Görevin: Piyasa analizini ve portföydeki kullanılabilir bakiye bilgisini değerlendirerek "
         "matematiksel olarak en optimal alım-satım teklifini (trade_proposal) oluşturmaktır.\n\n"
         "KATI RİSK KURALLARI:\n"
-        "1. Bütçe Limiti: İşlem tutarı (amount_usd) serbest USDT bakiyesinin EN FAZLA %10'u olabilir.\n"
+        "1. Bütçe Limiti: İşlem tutarı (amount_usd) serbest bakiyenin EN FAZLA %10'u olabilir (min $10 USD).\n"
         "2. Stop-Loss Limiti: Stop-Loss yüzdesi (stop_loss_percent) KESİNLİKLE %3.0 ile %5.0 arasında olmalıdır.\n"
         "3. Kar Al (Take-Profit): Risk/Ödül oranı en az 1:1.5 olmalıdır.\n\n"
         "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
@@ -120,18 +128,18 @@ def formulate_trade_strategy(
         '  "should_trade": true,\n'
         '  "symbol": "BTC/USDT",\n'
         '  "direction": "BUY",\n'
-        '  "amount_usd": 100.0,\n'
+        '  "amount_usd": 10.0,\n'
         '  "entry_price": 64000.0,\n'
         '  "stop_loss_percent": 4.0,\n'
         '  "stop_loss_price": 61440.0,\n'
         '  "take_profit_price": 67840.0,\n'
-        '  "risk_justification": "Bütçenin %10\'u ($100) ayrıldı. %4 stop loss ile risk $4 seviyesinde tutuldu."\n'
+        '  "risk_justification": "Bütçenin %10\'u ($10) ayrıldı. %4 stop loss ile risk $0.40 seviyesinde tutuldu."\n'
         "}"
     )
     user_content = (
         f"Sembol: {symbol}\n"
         f"Anlık Fiyat: ${current_price}\n"
-        f"Serbest USDT Bakiyesi: ${free_usdt}\n"
+        f"Kullanılabilir Likidite USD: ${available_liquidity_usd}\n"
         f"Haber Analiz Sonucu: {news_analysis}"
     )
     
@@ -140,10 +148,13 @@ def formulate_trade_strategy(
         try:
             clean_json = raw_response.strip("` \n").replace("json", "").strip()
             proposal = json.loads(clean_json)
+            
             # Katı kural denetimi (Safety Guardrails)
-            max_allowed = free_usdt * 0.10
+            max_allowed = max(available_liquidity_usd * 0.10, 10.0)
             if proposal.get("amount_usd", 0) > max_allowed:
                 proposal["amount_usd"] = round(max_allowed, 2)
+            if proposal.get("amount_usd", 0) < 5.0:
+                proposal["amount_usd"] = 10.0
             
             sl_pct = float(proposal.get("stop_loss_percent", 4.0))
             if sl_pct < 3.0: sl_pct = 3.0
@@ -156,7 +167,7 @@ def formulate_trade_strategy(
             pass
             
     # Fallback Strateji (Yedek Kural Motoru)
-    max_budget = round(free_usdt * 0.10, 2)
+    max_budget = max(round(available_liquidity_usd * 0.10, 2), 10.0)
     sl_pct = 4.0
     sl_price = round(current_price * (1 - (sl_pct / 100)), 2)
     tp_price = round(current_price * 1.06, 2)
