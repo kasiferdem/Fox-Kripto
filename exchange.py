@@ -27,7 +27,8 @@ class BinanceTRClient:
         res = requests.get(url, headers=headers, timeout=10)
         data = res.json()
         if data.get("code") == 0:
-            assets = data.get("data", {}).get("accountAssets", [])
+            data_obj = data.get("data") or {}
+            assets = data_obj.get("accountAssets") or [] if isinstance(data_obj, dict) else []
             total_dict = {}
             free_dict = {}
             for a in assets:
@@ -37,6 +38,11 @@ class BinanceTRClient:
                 tot = free_v + locked_v
                 if tot > 0:
                     total_dict[coin] = tot
+                    free_dict[coin] = free_v
+            return {"total": total_dict, "free": free_dict, "info": data}
+        else:
+            raise Exception(f"Binance TR Hata ({data.get('code')}): {data.get('msg')}")
+
     def create_order(self, symbol: str, type: str, side: str, amount: float, price: Optional[float] = None, amount_usd: float = 10.0) -> dict:
         """
         Binance TR Spot Market/Limit Order Execution API:
