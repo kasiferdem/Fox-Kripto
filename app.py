@@ -121,6 +121,9 @@ def run_autonomous_trading_loop():
                             status_title = "🎉 Canlı Satış Gerçekleşti ve TL Cüzdanına Aktarıldı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
                             
                         amount = proposal.get("amount_usd", 10.0) if proposal else 10.0
+                        amount_try = round(amount * 34.80, 2)
+                        amount_display = f"₺{amount_try:.2f} TL (${amount:.2f} USD)"
+                        
                         order_id = exec_res.get("order_id")
                         order_text = f"\n📄 Emir No: #{order_id}" if (is_exec_success and order_id) else ""
                         
@@ -158,7 +161,7 @@ def run_autonomous_trading_loop():
                             f"👤 Kullanıcı: {tenant_name}\n"
                             f"⚡ İşlem Tipi: *{action_title}*\n"
                             f"🪙 Sembol: `{symbol}`\n"
-                            f"💵 Bütçe / Tutar: ${amount:.2f} USD{price_detail_line}\n"
+                            f"💵 Bütçe / Tutar: {amount_display}{price_detail_line}\n"
                             f"🏢 Borsa: BINANCE.TR\n"
                             f"{status_title}{order_text}"
                         )

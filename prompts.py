@@ -159,11 +159,11 @@ def formulate_trade_strategy(
                 sym = "SOL/USDT"
             proposal["symbol"] = sym
             
-            # Dinamik Bakiye Oranlama: Hesaptaki tüm kullanılabilir nakdin oranına göre esnek alım yapar
-            if available_liquidity_usd <= 20.0: # ₺700 TL altı küçük bakiyelerde nakdin %90'ı ile alım yapar (₺199 TL -> ₺180 TL)
+            # Dinamik Bakiye Oranlama: Hesaptaki tüm kullanılabilir nakdin %33'ü (1/3 oran - ~₺500 TL) ile işlem yapar
+            if available_liquidity_usd <= 25.0: # ₺800 TL altı küçük bakiyelerde nakdin %90'ı ile alım yapar (₺199 TL -> ₺180 TL)
                 proposal["amount_usd"] = round(available_liquidity_usd * 0.90, 2)
             else:
-                proposal["amount_usd"] = round(available_liquidity_usd * 0.10, 2)
+                proposal["amount_usd"] = round(available_liquidity_usd * 0.33, 2)
             
             sl_pct = float(proposal.get("stop_loss_percent", 1.2))
             if sl_pct < 1.0: sl_pct = 1.0
