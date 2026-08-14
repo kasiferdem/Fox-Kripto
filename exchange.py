@@ -37,7 +37,7 @@ class BinanceTRClient:
                 tot = free_v + locked_v
                 if tot > 0:
                     total_dict[coin] = tot
-    def create_order(self, symbol: str, type: str, side: str, amount: float, price: Optional[float] = None) -> dict:
+    def create_order(self, symbol: str, type: str, side: str, amount: float, price: Optional[float] = None, amount_usd: float = 10.0) -> dict:
         """
         Binance TR Spot Market/Limit Order Execution API:
         POST /open/v1/orders
@@ -55,8 +55,17 @@ class BinanceTRClient:
             "symbol": clean_symbol,
             "side": side_code,
             "type": type_code,
-            "quantity": f"{amount:.6f}"
         }
+
+        # Market Buy emrinde Binance TR quoteOrderQty (TL tutarı) bekler
+        if side_code == 0 and type_code == 2:
+            ticker = fetch_ticker_price("USDT/TRY")
+            usdt_try_price = float(ticker.get('last_price', 35.0))
+            amount_try = round(max(amount_usd, 10.0) * usdt_try_price, 2)
+            params["quoteOrderQty"] = f"{amount_try:.2f}"
+        else:
+            params["quantity"] = f"{amount:.6f}"
+
         if price and type_code == 1:
             params["price"] = f"{price:.2f}"
 
@@ -71,7 +80,7 @@ class BinanceTRClient:
             return {
                 "id": str(order_data.get("orderId") or order_data.get("id") or int(time.time())),
                 "symbol": symbol,
-                "price": float(order_data.get("price", price or 0.0)),
+                "price": float(order_data.get("executedPrice") or price or 0.0),
                 "amount": amount,
                 "status": "closed" if type_code == 2 else "open",
                 "info": data
@@ -273,7 +282,8 @@ def execute_spot_trade(
                 symbol=symbol,
                 type='market',
                 side=side.lower(),
-                amount=quantity
+                amount=quantity,
+                amount_usd=amount_usd
             )
             print(f"✅ [CANLI MULTI-TENANT EMİR İNFAZ EDİLDİ]: Order ID #{order.get('id')}")
             return {
