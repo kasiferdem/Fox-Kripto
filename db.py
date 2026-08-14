@@ -85,43 +85,57 @@ def log_trade_decision(trade_data: Dict[str, Any], tenant_id: Optional[str] = No
     """Ajan kararlarını ve infaz sonuçlarını ilgili tenant_id ile Supabase'e kaydeder."""
     client = get_supabase()
     if not client: return None
+    payload = {
+        "tenant_id": tenant_id or trade_data.get("tenant_id"),
+        "symbol": trade_data.get("symbol", "BTC/USDT"),
+        "direction": trade_data.get("direction", "BUY"),
+        "amount_usd": trade_data.get("amount_usd", 0.0),
+        "entry_price": trade_data.get("entry_price"),
+        "stop_loss_price": trade_data.get("stop_loss_price"),
+        "take_profit_price": trade_data.get("take_profit_price"),
+        "sentiment_score": trade_data.get("sentiment_score", 0.0),
+        "human_approval": trade_data.get("human_approval", "Pending"),
+        "status": trade_data.get("status", "CREATED"),
+        "order_id": trade_data.get("order_id"),
+        "execution_details": trade_data.get("execution_details", {})
+    }
     try:
-        payload = {
-            "tenant_id": tenant_id or trade_data.get("tenant_id"),
-            "symbol": trade_data.get("symbol", "BTC/USDT"),
-            "direction": trade_data.get("direction", "BUY"),
-            "amount_usd": trade_data.get("amount_usd", 0.0),
-            "entry_price": trade_data.get("entry_price"),
-            "stop_loss_price": trade_data.get("stop_loss_price"),
-            "take_profit_price": trade_data.get("take_profit_price"),
-            "sentiment_score": trade_data.get("sentiment_score", 0.0),
-            "human_approval": trade_data.get("human_approval", "Pending"),
-            "status": trade_data.get("status", "CREATED"),
-            "order_id": trade_data.get("order_id"),
-            "execution_details": trade_data.get("execution_details", {})
-        }
         res = client.table("crypto_trade_logs").insert(payload).execute()
         print(f"✅ [DB Multi-Tenant Log]: İşlem kararı Supabase'e kaydedildi. ID: {res.data[0]['id'] if res.data else 'OK'}")
         return res.data[0] if res.data else None
     except Exception as e:
-        print(f"❌ [DB Loglama Hatası]: {e}")
+        # Şema uyumsuzluğunda tenant_id olmadan yedek deneme
+        if "tenant_id" in payload:
+            payload.pop("tenant_id", None)
+            try:
+                res = client.table("crypto_trade_logs").insert(payload).execute()
+                return res.data[0] if res.data else None
+            except Exception:
+                pass
+        print(f"⚠️ [DB Loglama Uyarısı]: {e}")
         return None
 
 def save_graph_state(session_id: str, state_data: Dict[str, Any], tenant_id: Optional[str] = None) -> bool:
     """LangGraph State kalıcılığını (Persistence) tenant_id ile Supabase'e saklar."""
     client = get_supabase()
     if not client: return False
+    payload = {
+        "session_id": session_id,
+        "tenant_id": tenant_id or state_data.get("tenant_id"),
+        "state_data": state_data
+    }
     try:
-        payload = {
-            "session_id": session_id,
-            "tenant_id": tenant_id or state_data.get("tenant_id"),
-            "state_data": state_data
-        }
         client.table("crypto_agent_states").upsert(payload).execute()
-        print(f"✅ [DB Multi-Tenant State]: State '{session_id}' başarıyla saklandı.")
         return True
     except Exception as e:
-        print(f"❌ [DB State Kayıt Hatası]: {e}")
+        if "tenant_id" in payload:
+            payload.pop("tenant_id", None)
+            try:
+                client.table("crypto_agent_states").upsert(payload).execute()
+                return True
+            except Exception:
+                pass
+        print(f"⚠️ [DB State Kayıt Uyarısı]: {e}")
         return False
 
 def load_graph_state(session_id: str) -> Optional[Dict[str, Any]]:
