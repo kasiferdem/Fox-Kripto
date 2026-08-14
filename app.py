@@ -77,7 +77,14 @@ def run_autonomous_trading_loop():
                         symbol = exec_res.get("symbol") or (proposal.get("symbol") if proposal else "BTC/USDT")
                         if not symbol or "AUTO" in symbol.upper():
                             symbol = "BTC/USDT"
-                        action = proposal.get("direction", "ALIM") if proposal else "ALIM"
+                        raw_action = str(proposal.get("direction", "BUY")).upper() if proposal else "BUY"
+                        if raw_action in ["BUY", "ALIM"]:
+                            action_title = "🛒 ALIM (BUY)"
+                            status_title = "✅ Canlı Alım Başarıyla Gerçekleştirildi"
+                        else:
+                            action_title = "🎯 SATIM (SELL / KÂR ALMA)"
+                            status_title = "🎉 Canlı Satış Gerçekleşti ve TL Cüzdanına Aktarıldı"
+                            
                         amount = proposal.get("amount_usd", 10.0) if proposal else 10.0
                         order_id = exec_res.get("order_id")
                         order_text = f"\n📄 Emir No: #{order_id}" if order_id else ""
@@ -86,11 +93,11 @@ def run_autonomous_trading_loop():
                         msg = (
                             f"🤖 *OTONOM YAPAY ZEKA İŞLEM İCRASI*\n\n"
                             f"👤 Kullanıcı: {tenant_name}\n"
-                            f"⚡ İşlem: *{action}*\n"
+                            f"⚡ İşlem Tipi: *{action_title}*\n"
                             f"🪙 Sembol: `{symbol}`\n"
-                            f"💵 Tutar: ${amount:.2f} USD\n"
+                            f"💵 Bütçe / Tutar: ${amount:.2f} USD\n"
                             f"🏢 Borsa: BINANCE.TR\n"
-                            f"✅ Durum: Başarıyla Gerçekleştirildi{order_text}"
+                            f"{status_title}{order_text}"
                         )
                         send_message(chat_id, msg)
         except Exception as e:
