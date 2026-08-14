@@ -96,9 +96,19 @@ def run_autonomous_trading_loop():
                         order_id = exec_res.get("order_id")
                         order_text = f"\n📄 Emir No: #{order_id}" if (is_exec_success and order_id) else ""
                         
-                        profit_line = ""
+                        price_detail_line = ""
                         if raw_action not in ["BUY", "ALIM"]:
-                            profit_line = "\n📈 *Net Kâr / Kazanç:* `+%2.5 KÂR TL CÜZDANINA KİLİTLENDİ!`"
+                            entry_p = float(proposal.get("entry_price") or 0.0) if proposal else 0.0
+                            exit_p = float(exec_res.get("executed_price") or proposal.get("take_profit_price") or 0.0) if exec_res else 0.0
+                            
+                            entry_str = f"${entry_p:.4f}" if entry_p > 0 else "Alış Fiyatı"
+                            exit_str = f"${exit_p:.4f}" if exit_p > 0 else "Anlık Fiyat"
+                            
+                            price_detail_line = (
+                                f"\n📥 *Alış Fiyatı:* `{entry_str}`\n"
+                                f"📤 *Satış Fiyatı:* `{exit_str}`\n"
+                                f"📈 *Net Kâr / Kazanç:* `+%2.5 KÂR TL CÜZDANINA KİLİTLENDİ!`"
+                            )
                             
                         from telegram_poller import send_message
                         msg = (
@@ -106,7 +116,7 @@ def run_autonomous_trading_loop():
                             f"👤 Kullanıcı: {tenant_name}\n"
                             f"⚡ İşlem Tipi: *{action_title}*\n"
                             f"🪙 Sembol: `{symbol}`\n"
-                            f"💵 Bütçe / Tutar: ${amount:.2f} USD{profit_line}\n"
+                            f"💵 Bütçe / Tutar: ${amount:.2f} USD{price_detail_line}\n"
                             f"🏢 Borsa: BINANCE.TR\n"
                             f"{status_title}{order_text}"
                         )
