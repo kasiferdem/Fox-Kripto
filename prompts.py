@@ -108,11 +108,11 @@ def formulate_trade_strategy(
 
     sentiment_score = float(news_analysis.get("sentiment_score", 0.0))
     
-    # Skor zayıfsa işlem açma (END)
-    if abs(sentiment_score) < 3.0:
+    # Aktif Ticaret Modu (Active Scalping & Trend Mode): Ufak pozitif hareketlerde dahi işleme girer
+    if sentiment_score < 1.0:
         return {
             "should_trade": False,
-            "reason": f"Duyarlılık skoru ({sentiment_score}) işlem açmak için yetersiz. Akış sonlandırılıyor."
+            "reason": f"Duyarlılık skoru ({sentiment_score}) olumsuz veya aşırı nötr. Akış sonlandırılıyor."
         }
         
     system_prompt = (
