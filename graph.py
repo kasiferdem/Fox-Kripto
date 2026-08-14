@@ -46,7 +46,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         return {"trade_proposal": None, "human_approval": "Rejected"}
         
     print(f"   [Seçilen İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Bütçe: ${proposal['amount_usd']} USD")
-    return {"trade_proposal": proposal, "human_approval": "Pending"}
+    return {"trade_proposal": proposal, "human_approval": "Approved"}
 
 def node_human_approval(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [4. NODE: TAM OTONOM MOD ONAYI DEVREDE] ---")
