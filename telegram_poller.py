@@ -193,7 +193,15 @@ def handle_update(update: dict):
                 
                 is_success = exec_res and exec_res.get("status") in ["success", "EXECUTED", "EXECUTED_SIMULATED"]
                 order_no = f"\n📄 Emir No: #{exec_res.get('order_id')}" if (is_success and exec_res.get('order_id')) else ""
-                status_text = f"✅ Canlı İşlem Binance TR Hesabınızda Gerçekleştirildi!{order_no}" if is_success else "💡 İşlem Şartları Sağlandı (İnceleniyor)."
+                
+                if is_success:
+                    status_text = f"✅ Canlı İşlem Binance TR Hesabınızda Gerçekleştirildi!{order_no}"
+                else:
+                    err_msg = exec_res.get("error", "Bakiye Yetersiz") if exec_res else "Bakiye Yetersiz"
+                    if "2202" in err_msg or "balance" in err_msg.lower():
+                        status_text = "⚠️ Alım Emri Verilemedi: Binance TR TL Bakiyeniz Yetersiz (Kalan bakiye miktarını aşan emir)."
+                    else:
+                        status_text = f"⚠️ Alım Emri İletilemedi: {err_msg}"
                 
                 report = (
                     f"🎯 *YAPAY ZEKA OTONOM ANALİZ RAPORU*\n\n"

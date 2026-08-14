@@ -67,7 +67,18 @@ class BinanceTRClient:
         if side_code == 0 and type_code == 2:
             ticker = fetch_ticker_price("USDT/TRY")
             usdt_try_price = float(ticker.get('last_price', 35.0))
-            amount_try = round(max(amount_usd, 10.0) * usdt_try_price, 2)
+            calc_try = round(amount_usd * usdt_try_price, 2)
+            
+            # Cüzdandaki serbest TL bakiyesini oku ve aşmayı engelle
+            try:
+                bal = self.fetch_balance()
+                free_try = float(bal.get("free", {}).get("TRY", 0.0))
+                if free_try >= 10.0 and (calc_try > free_try or calc_try < 10.0):
+                    calc_try = round(free_try * 0.95, 2)
+            except Exception:
+                pass
+                
+            amount_try = max(calc_try, 10.0)
             params["quoteOrderQty"] = f"{amount_try:.2f}"
         else:
             params["quantity"] = f"{amount:.6f}"
