@@ -116,13 +116,13 @@ def formulate_trade_strategy(
         }
         
     system_prompt = (
-        "Sen kıdemli bir Kripto Strateji ve Risk Yönetim Ajanısın (Strategy & Risk Agent).\n"
+        "Sen kıdemli bir Hızlı Kripto Scalper ve Risk Yönetim Ajanısın (Fast Scalper & Risk Agent).\n"
         "Görevin: Piyasa analizini ve portföydeki kullanılabilir bakiye bilgisini değerlendirerek "
-        "matematiksel olarak en optimal alım-satım teklifini (trade_proposal) oluşturmaktır.\n\n"
+        "hızlı kâr kitlemeyi hedefleyen optimal alım-satım teklifini (trade_proposal) oluşturmaktır.\n\n"
         "KATI RİSK KURALLARI:\n"
-        "1. Bütçe Limiti: İşlem tutarı (amount_usd) serbest bakiyenin EN FAZLA %10'u olabilir (min $10 USD).\n"
-        "2. Stop-Loss Limiti: Stop-Loss yüzdesi (stop_loss_percent) KESİNLİKLE %3.0 ile %5.0 arasında olmalıdır.\n"
-        "3. Kar Al (Take-Profit): Risk/Ödül oranı en az 1:1.5 olmalıdır.\n\n"
+        "1. Bütçe Limiti: İşlem tutarı (amount_usd) serbest bakiyenin EN FAZLA %10'u olabilir.\n"
+        "2. Stop-Loss Limiti: Stop-Loss yüzdesi (stop_loss_percent) KESİNLİKLE %1.5 ile %2.5 arasında olmalıdır.\n"
+        "3. Hızlı Kâr Al (Take-Profit): Kâr al hedefi KESİNLİKLE +%2.0 ile +%3.5 arasında olmalıdır (Hızlı Pozisyon Kapatma).\n\n"
         "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
         "{\n"
         '  "should_trade": true,\n'
@@ -130,10 +130,10 @@ def formulate_trade_strategy(
         '  "direction": "BUY",\n'
         '  "amount_usd": 10.0,\n'
         '  "entry_price": 64000.0,\n'
-        '  "stop_loss_percent": 4.0,\n'
-        '  "stop_loss_price": 61440.0,\n'
-        '  "take_profit_price": 67840.0,\n'
-        '  "risk_justification": "Bütçenin %10\'u ($10) ayrıldı. %4 stop loss ile risk $0.40 seviyesinde tutuldu."\n'
+        '  "stop_loss_percent": 2.0,\n'
+        '  "stop_loss_price": 62720.0,\n'
+        '  "take_profit_price": 65600.0,\n'
+        '  "risk_justification": "Hızlı kâr alma modu: +%2.5 kâr hedefi ve %2.0 dar stop-loss koyuldu."\n'
         "}"
     )
     user_content = (
@@ -153,21 +153,22 @@ def formulate_trade_strategy(
             exact_10_percent = round(available_liquidity_usd * 0.10, 2)
             proposal["amount_usd"] = exact_10_percent if exact_10_percent >= 1.0 else 5.0
             
-            sl_pct = float(proposal.get("stop_loss_percent", 4.0))
-            if sl_pct < 3.0: sl_pct = 3.0
-            if sl_pct > 5.0: sl_pct = 5.0
+            sl_pct = float(proposal.get("stop_loss_percent", 2.0))
+            if sl_pct < 1.5: sl_pct = 1.5
+            if sl_pct > 2.5: sl_pct = 2.5
             proposal["stop_loss_percent"] = sl_pct
             proposal["stop_loss_price"] = round(current_price * (1 - (sl_pct / 100)), 2)
+            proposal["take_profit_price"] = round(current_price * 1.025, 2) # %2.5 Hızlı Kâr Alma
             proposal["should_trade"] = True
             return proposal
         except Exception:
             pass
             
-    # Fallback Strateji (Yedek Kural Motoru)
+    # Fallback Strateji (Hızlı Scalp Kural Motoru)
     max_budget = max(round(available_liquidity_usd * 0.10, 2), 10.0)
-    sl_pct = 4.0
+    sl_pct = 2.0
     sl_price = round(current_price * (1 - (sl_pct / 100)), 2)
-    tp_price = round(current_price * 1.06, 2)
+    tp_price = round(current_price * 1.025, 2) # %2.5 Hızlı Kâr
     
     return {
         "should_trade": True,
@@ -178,7 +179,7 @@ def formulate_trade_strategy(
         "stop_loss_percent": sl_pct,
         "stop_loss_price": sl_price,
         "take_profit_price": tp_price,
-        "risk_justification": f"Duyarlılık ({sentiment_score}) doğrultusunda %10 bütçe (${max_budget}) ve %{sl_pct} Stop-Loss ile işlem açıldı."
+        "risk_justification": f"Hızlı kâr modu: Duyarlılık ({sentiment_score}) doğrultusunda %10 bütçe ve +%2.5 kâr alma hedefiyle işlem açıldı."
     }
 
 if __name__ == "__main__":
