@@ -96,7 +96,7 @@ def run_autonomous_trading_loop():
         except Exception as e:
             print(f"⚠️ [Otonom Döngü Uyarısı]: {e}")
             
-        time.sleep(900)
+        time.sleep(180) # Ultra-Fast Scalp Loop: Her 3 dakikada bir piyasayı tarar
 
 # -----------------------------------------
 # OTOMATİK 7/24 TELEGRAM DİNLEYİCİ & OTONOM DÖNGÜ
