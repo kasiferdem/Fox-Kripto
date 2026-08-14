@@ -39,7 +39,10 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [3. NODE: STRATEJİ VE OTONOM KÂR ALMA MOTORU DEVREDE] ---")
     portfolio_state = state.get("portfolio_state") or {}
     
-    # 1. ÖNCELİK: Eldeki Mevcut Pozisyonlarda Otomatik Kâr Alma / Satış Kontrolü
+    # Active Position Buy Prices (Alış fiyatı takip hafızası)
+    active_buy_prices = state.get("active_buy_prices") or {}
+    
+    # 1. ÖNCELİK: Eldeki Pozisyonlarda Kâr Alma (+%1.5) ve Stop-Loss (-%1.5) Denetimi
     holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
     if isinstance(holdings, dict):
         for coin_asset, details in holdings.items():
@@ -50,32 +53,36 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             coin_amount = details.get("amount", 0.0) if isinstance(details, dict) else float(details or 0.0)
             val_usd = details.get("val_usd", 0.0) if isinstance(details, dict) else 0.0
             
-            if coin_amount > 0.0001:
-                if val_usd == 0.0:
-                    ticker = fetch_ticker_price(f"{asset_upper}/USDT")
-                    curr_p = float(ticker.get("last_price", 0.0))
-                    val_usd = coin_amount * curr_p
+            if coin_amount > 0.0001 and val_usd >= 1.0:
+                ticker = fetch_ticker_price(f"{asset_upper}/USDT")
+                curr_p = float(ticker.get("last_price", 0.0))
+                
+                # Alış Fiyatını Bul (Geçmiş alış fiyatı veya tahmin)
+                recorded_buy_p = active_buy_prices.get(asset_upper) or details.get("price", 0.0) if isinstance(details, dict) else 0.0
+                if not recorded_buy_p or recorded_buy_p <= 0.0:
+                    recorded_buy_p = round(curr_p / 1.015, 4) # Varsayılan giriş seviyesi
                     
-                # Cüzdanda kârda duran pozisyonu (minimum $1.0 USD / ~₺35 TL) anında SATAR ve kârı TL cüzdanına kilitler
-                if val_usd >= 1.0:
-                    ticker = fetch_ticker_price(f"{asset_upper}/USDT")
-                    curr_p = float(ticker.get("last_price", 0.0))
-                    estimated_entry_p = round(curr_p / 1.025, 4) if curr_p > 0 else 0.0
-                    
-                    print(f"   🎯 [Otonom Kâr Alma Tetiklendi]: {asset_upper} pozisyonu ({coin_amount} adet, ~${val_usd:.2f}) piyasa emriyle satılıyor...")
+                price_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
+                
+                # KÂR ALMA (+%1.5) VEYA STOP-LOSS (-%1.5) TETİKLENME KONTROLÜ
+                if price_change_pct >= 1.5 or price_change_pct <= -1.5:
+                    reason_type = "Kâr Alma (+%1.5)" if price_change_pct >= 1.5 else "Stop-Loss (-%1.5)"
+                    print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} pozisyonu ({price_change_pct:+.2f}%) piyasa emriyle satılıyor...")
                     sell_proposal = {
                         "should_trade": True,
                         "symbol": f"{asset_upper}/TRY",
                         "direction": "SELL",
                         "amount_usd": round(val_usd, 2),
                         "amount_coin": coin_amount,
-                        "entry_price": estimated_entry_p,
-                        "stop_loss_percent": 0.0,
-                        "stop_loss_price": 0.0,
-                        "take_profit_price": curr_p,
-                        "risk_justification": f"Otonom Kâr Alma: Cüzdandaki {asset_upper} pozisyonu ({coin_amount} adet) kârla TL cüzdanına dönüştürülüyor."
+                        "entry_price": recorded_buy_p,
+                        "stop_loss_percent": 1.5,
+                        "stop_loss_price": round(recorded_buy_p * 0.985, 4),
+                        "take_profit_price": round(recorded_buy_p * 1.015, 4),
+                        "risk_justification": f"Otonom {reason_type}: {asset_upper} pozisyonu ({price_change_pct:+.2f}%) TL cüzdanına dönüştürülüyor."
                     }
                     return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
+                else:
+                    print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} pozisyonu henüz kâr hedefinde değil ({price_change_pct:+.2f}%). Satış yapılmıyor.")
 
     news_analysis = {"sentiment_score": state.get("sentiment_score", 0.0), "market_data": state.get("news_data", "")}
     # Main coins ve altcoinler arasından en yüksek potansiyelli coini seçer
