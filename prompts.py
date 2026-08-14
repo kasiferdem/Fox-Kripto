@@ -149,12 +149,9 @@ def formulate_trade_strategy(
             clean_json = raw_response.strip("` \n").replace("json", "").strip()
             proposal = json.loads(clean_json)
             
-            # Katı kural denetimi (Safety Guardrails)
-            max_allowed = max(available_liquidity_usd * 0.10, 10.0)
-            if proposal.get("amount_usd", 0) > max_allowed:
-                proposal["amount_usd"] = round(max_allowed, 2)
-            if proposal.get("amount_usd", 0) < 5.0:
-                proposal["amount_usd"] = 10.0
+            # Katı kural denetimi: İşlem bütçesi HER ZAMAN hesabın %10'u olarak hesaplanır
+            exact_10_percent = round(available_liquidity_usd * 0.10, 2)
+            proposal["amount_usd"] = exact_10_percent if exact_10_percent >= 1.0 else 5.0
             
             sl_pct = float(proposal.get("stop_loss_percent", 4.0))
             if sl_pct < 3.0: sl_pct = 3.0
