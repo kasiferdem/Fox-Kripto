@@ -91,8 +91,13 @@ class BinanceTRClient:
             except Exception:
                 pass
             
-            # Binance TR adım hassasiyeti (Step Size) için 2 basamaklı güvenli hassasiyet
-            params["quantity"] = f"{qty_to_sell:.2f}" if qty_to_sell >= 1.0 else f"{qty_to_sell:.4f}"
+            # Binance TR adım hassasiyeti (Step Size): miktar < 1 olan altcoinlerde güvenli 3 basamak keserek yuvarlar (0.03994 -> 0.039)
+            import math
+            if qty_to_sell >= 1.0:
+                params["quantity"] = f"{qty_to_sell:.2f}"
+            else:
+                safe_qty = math.floor(qty_to_sell * 1000) / 1000.0
+                params["quantity"] = f"{safe_qty:.3f}"
 
         if price and type_code == 1:
             params["price"] = f"{price:.2f}"
