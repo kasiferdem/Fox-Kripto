@@ -90,7 +90,9 @@ class BinanceTRClient:
                     qty_to_sell = free_coin_amount
             except Exception:
                 pass
-            params["quantity"] = f"{qty_to_sell:.4f}"
+            
+            # Binance TR adım hassasiyeti (Step Size) için 2 basamaklı güvenli hassasiyet
+            params["quantity"] = f"{qty_to_sell:.2f}" if qty_to_sell >= 1.0 else f"{qty_to_sell:.4f}"
 
         if price and type_code == 1:
             params["price"] = f"{price:.2f}"
