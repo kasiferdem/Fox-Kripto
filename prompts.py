@@ -152,9 +152,18 @@ def formulate_trade_strategy(
             clean_json = raw_response.strip("` \n").replace("json", "").strip()
             proposal = json.loads(clean_json)
             
-            # Katı kural denetimi: İşlem bütçesi HER ZAMAN hesabın %10'u olarak hesaplanır
-            exact_10_percent = round(available_liquidity_usd * 0.10, 2)
-            proposal["amount_usd"] = exact_10_percent if exact_10_percent >= 1.0 else 5.0
+            valid_base_coins = ["BTC", "ETH", "SOL", "AVAX", "PEPE", "RENDER", "XRP", "DOGE", "SUI", "NEAR", "FET", "LINK", "TIA", "SHIB", "ADA"]
+            sym = str(proposal.get("symbol", "SOL/USDT")).upper()
+            base = sym.split("/")[0].split("_")[0]
+            if base not in valid_base_coins:
+                sym = "SOL/USDT"
+            proposal["symbol"] = sym
+            
+            # Dinamik Bakiye Oranlama: Hesaptaki tüm kullanılabilir nakdin oranına göre esnek alım yapar
+            if available_liquidity_usd <= 20.0: # ₺700 TL altı küçük bakiyelerde nakdin %90'ı ile alım yapar (₺199 TL -> ₺180 TL)
+                proposal["amount_usd"] = round(available_liquidity_usd * 0.90, 2)
+            else:
+                proposal["amount_usd"] = round(available_liquidity_usd * 0.10, 2)
             
             sl_pct = float(proposal.get("stop_loss_percent", 1.2))
             if sl_pct < 1.0: sl_pct = 1.0
