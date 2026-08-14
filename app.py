@@ -75,7 +75,35 @@ def run_autonomous_trading_loop():
                     
                     exec_res = res.get("execution_result")
                     proposal = res.get("trade_proposal")
+                    human_app = res.get("human_approval")
                     
+                    if proposal and (proposal.get("requires_user_approval") or human_app == "Pending_Approval") and chat_id:
+                        symbol = proposal.get("symbol", "SOL/USDT")
+                        amount = proposal.get("amount_usd", 4.26)
+                        score = float(res.get("sentiment_score") or 8.5)
+                        base_c = symbol.split("/")[0].split("_")[0]
+                        
+                        from telegram_poller import send_message
+                        reply_markup = {
+                            "inline_keyboard": [
+                                [
+                                    {"text": f"✅ Evet, Ek Alım Yap (${amount:.2f})", "callback_data": f"approve_scalein_{chat_id}"},
+                                    {"text": "❌ Hayır, Pas Geç", "callback_data": f"reject_scalein_{chat_id}"}
+                                ]
+                            ]
+                        }
+                        msg = (
+                            f"🚨 *YÜKSEK SKORLU EK ALIM TAVSİYESİ*\n\n"
+                            f"👤 Kullanıcı: {tenant_name}\n"
+                            f"🪙 Sembol: `{symbol}`\n"
+                            f"📊 Yapay Zeka Skoru: *+{score:.1f} / 10* (Zirve Beklenti!)\n"
+                            f"💵 Önerilen Bütçe: ${amount:.2f} USD\n"
+                            f"🏢 Borsa: BINANCE.TR\n\n"
+                            f"💡 *Açıklama:* Cüzdanınızda zaten `{base_c}` var ancak yapay zeka skoru zirvededir (+{score:.1f}). Ek kademeli alım yapılsın mı?"
+                        )
+                        send_message(chat_id, msg, reply_markup=reply_markup)
+                        continue
+                        
                     if exec_res and chat_id:
                         status_str = str(exec_res.get("status", "")).upper()
                         is_exec_success = status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]

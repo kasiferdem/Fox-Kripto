@@ -103,22 +103,31 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
 
     proposed_symbol = str(proposal.get("symbol", "BTC/USDT")).upper()
     proposed_base = proposed_symbol.split("/")[0].split("_")[0].upper()
+    sentiment_score = float(state.get("sentiment_score") or 0.0)
     
     if proposed_base in current_assets:
-        candidate_pool = ["PEPE/USDT", "AVAX/USDT", "RENDER/USDT", "SUI/USDT", "NEAR/USDT", "XRP/USDT", "DOGE/USDT", "BTC/USDT", "ETH/USDT"]
-        fresh_coin = None
-        for c in candidate_pool:
-            c_base = c.split("/")[0]
-            if c_base not in current_assets:
-                fresh_coin = c
-                break
-        
-        if fresh_coin:
-            print(f"   🔄 [Portföy Çeşitlendirme Koruması]: '{proposed_base}' zaten cüzdanda var. İkinci defa almak yerine cüzdanda olmayan '{fresh_coin}' seçildi.")
-            proposal["symbol"] = fresh_coin
+        # EĞER YAPAY ZEKA SKORU ZİRVEDE VE ÇOK YÜKSEKSE (>= 8.5 / 10), KULLANICIYA INTERAKTİF SORSUN!
+        if sentiment_score >= 8.5:
+            print(f"   🚨 [Aşırı Yükseliş Beklentisi (+{sentiment_score:.1f})]: '{proposed_base}' zaten cüzdanda var ancak skoru zirvede! Kullanıcıya onay butonu gönderiliyor...")
+            proposal["requires_user_approval"] = True
+            proposal["scale_in_reason"] = f"Zirve Yapay Zeka Skoru (+{sentiment_score:.1f})"
+            return {"trade_proposal": proposal, "human_approval": "Pending_Approval"}
         else:
-            print(f"   [Çeşitlendirme Reddi]: Tüm altcoinler cüzdanda mevcut. Yeni alım yapılmıyor.")
-            return {"trade_proposal": None, "human_approval": "Rejected"}
+            # Skor çok yüksek değilse (küçük farklar için) otomatik olarak cüzdanda olmayan başka bir sıcak altcoine geç
+            candidate_pool = ["PEPE/USDT", "AVAX/USDT", "RENDER/USDT", "SUI/USDT", "NEAR/USDT", "XRP/USDT", "DOGE/USDT", "BTC/USDT", "ETH/USDT"]
+            fresh_coin = None
+            for c in candidate_pool:
+                c_base = c.split("/")[0]
+                if c_base not in current_assets:
+                    fresh_coin = c
+                    break
+            
+            if fresh_coin:
+                print(f"   🔄 [Portföy Çeşitlendirme Koruması]: '{proposed_base}' skoru normal (+{sentiment_score:.1f}). İkinci defa almak yerine cüzdanda olmayan '{fresh_coin}' seçildi.")
+                proposal["symbol"] = fresh_coin
+            else:
+                print(f"   [Çeşitlendirme Reddi]: Tüm altcoinler cüzdanda mevcut. Yeni alım yapılmıyor.")
+                return {"trade_proposal": None, "human_approval": "Rejected"}
             
     print(f"   [Seçilen İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Bütçe: ${proposal['amount_usd']} USD")
     return {"trade_proposal": proposal, "human_approval": "Approved"}
