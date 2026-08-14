@@ -4,7 +4,7 @@ from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from langgraph.types import interrupt
 from state import CryptoAgentState
-from exchange import fetch_portfolio_balance, fetch_ticker_price, execute_spot_trade
+from exchange import fetch_portfolio_balance, fetch_ticker_price, execute_spot_trade, fetch_top_volume_gainers
 from db import log_trade_decision, save_graph_state
 from prompts import analyze_crypto_news, formulate_trade_strategy
 from telegram_bot import send_telegram_trade_approval
@@ -14,22 +14,18 @@ from telegram_bot import send_telegram_trade_approval
 # -----------------------------------------
 
 def node_fetch_data(state: CryptoAgentState) -> Dict[str, Any]:
-    print("\n--- [1. NODE: GÖZLEMCİ (MULTI-COIN ALTCOIN SCANNER) DEVREDE] ---")
+    print("\n--- [1. NODE: DİNAMİK TÜM BORSA PİYASA TARAYICI (TOP 20 GAINERS) DEVREDE] ---")
     tenant_config = state.get("tenant_config")
     portfolio = fetch_portfolio_balance(tenant_config)
     
-    symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "AVAX/USDT", "BNB/USDT", "DOGE/USDT", "PEPE/USDT", "RENDER/USDT", "XRP/USDT"]
+    top_gainers = fetch_top_volume_gainers(limit=20)
     tickers_summary = []
     
-    for sym in symbols:
-        try:
-            t = fetch_ticker_price(sym)
-            tickers_summary.append(f"{sym}: Fiyat ${t['last_price']}, 24s Değişim %{t['percentage_change']}, Hacim ${t['volume']:,.0f}")
-        except Exception:
-            pass
+    for t in top_gainers:
+        tickers_summary.append(f"{t['symbol']}: Fiyat ${t['last_price']}, 24s Değişim %{t['percentage_change']:.2f}, Hacim ${t['volume']:,.0f}")
             
-    news_text = "CANLI BİNANCE PİYASA TARAMASI:\n" + "\n".join(tickers_summary)
-    print(f"   [Çoklu Piyasa Taraması]: {len(tickers_summary)} sembol tarandı (BTC, ETH, SOL, AVAX, PEPE, RENDER vb.)")
+    news_text = "CANLI BİNANCE TÜM PİYASA VE EN ÇOK YÜKSELEN DİNAMİK ALTCOIN TARAMASI:\n" + "\n".join(tickers_summary)
+    print(f"   [Dinamik Borsa Taraması]: Borsadaki en çok işlem gören {len(top_gainers)} sıcak altcoin başarıyla tarandı.")
     return {"news_data": news_text, "portfolio_state": portfolio}
 
 def node_analyze_news(state: CryptoAgentState) -> Dict[str, Any]:
