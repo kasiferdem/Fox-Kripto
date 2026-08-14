@@ -115,32 +115,35 @@ def formulate_trade_strategy(
             "reason": f"Duyarlılık skoru ({sentiment_score}) olumsuz. Akış sonlandırılıyor."
         }
         
+    current_holdings = list(portfolio_state.get("crypto_holdings", {}).keys()) if isinstance(portfolio_state.get("crypto_holdings"), dict) else []
+    
     system_prompt = (
         "Sen kıdemli bir Hızlı Kripto Scalper ve Risk Yönetim Ajanısın (Fast Scalper & Risk Agent).\n"
         "Görevin: Piyasa analizini ve portföydeki kullanılabilir bakiye bilgisini değerlendirerek "
         "hızlı kâr kitlemeyi hedefleyen optimal alım-satım teklifini (trade_proposal) oluşturmaktır.\n\n"
-        "KATI RİSK KURALLARI:\n"
+        "KATI RİSK VE ÇEŞİTLİLİK (DIVERSIFICATION) KURALLARI:\n"
         "1. Bütçe Limiti: İşlem tutarı (amount_usd) serbest bakiyenin EN FAZLA %10'u olabilir.\n"
-        "2. Stop-Loss Limiti: Stop-Loss yüzdesi (stop_loss_percent) KESİNLİKLE %1.0 ile %1.5 arasında olmalıdır.\n"
-        "3. Hızlı Kâr Al (Take-Profit): Kâr al hedefi KESİNLİKLE +%1.0 ile +%2.0 arasında olmalıdır (Hızlı Mikro Pozisyon Kapatma).\n\n"
+        "2. PORTFÖY ÇEŞİTLİLİĞİ: Kullanıcının elinde ZATEN BULUNAN coinleri tekrar alma! Portföyde olmayan diğer sıcak yeni ALTCOIN'i (SOL, AVAX, PEPE, SUI, NEAR, RENDER vb.) seç.\n"
+        "3. Stop-Loss Limiti: Stop-Loss yüzdesi (stop_loss_percent) KESİNLİKLE %1.0 ile %1.5 arasında olmalıdır.\n"
+        "4. Hızlı Kâr Al (Take-Profit): Kâr al hedefi KESİNLİKLE +%1.0 ile +%2.0 arasında olmalıdır (Hızlı Mikro Pozisyon Kapatma).\n\n"
         "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
         "{\n"
         '  "should_trade": true,\n'
-        '  "symbol": "BTC/USDT",\n'
+        '  "symbol": "SOL/USDT",\n'
         '  "direction": "BUY",\n'
         '  "amount_usd": 10.0,\n'
-        '  "entry_price": 64000.0,\n'
+        '  "entry_price": 145.0,\n'
         '  "stop_loss_percent": 1.2,\n'
-        '  "stop_loss_price": 63232.0,\n'
-        '  "take_profit_price": 64960.0,\n'
-        '  "risk_justification": "Ultra hızlı mikro kâr modu: +%1.5 kâr hedefi ve %1.2 dar stop-loss koyuldu."\n'
+        '  "stop_loss_price": 143.26,\n'
+        '  "take_profit_price": 147.17,\n'
+        '  "risk_justification": "Portföy çeşitlendirildi: Portföyde olmayan yeni sıcak altcoin SOL seçildi."\n'
         "}"
     )
     user_content = (
-        f"Sembol: {symbol}\n"
-        f"Anlık Fiyat: ${current_price}\n"
-        f"Kullanılabilir Likidite USD: ${available_liquidity_usd}\n"
-        f"Haber Analiz Sonucu: {news_analysis}"
+        f"Kullanıcının Elindeki Mevcut Coinler: {current_holdings}\n"
+        f"KURAL: Mevcut elindeki coinleri tekrar alma, taranan diğer yüksek hacimli sıcak altcoinlerden yeni bir tane seç!\n"
+        f"Piyasa ve Altcoin Verileri: {news_analysis}\n"
+        f"Kullanılabilir Likidite USD: ${available_liquidity_usd}"
     )
     
     raw_response = call_gpt4o(system_prompt, user_content)
