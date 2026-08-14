@@ -96,13 +96,17 @@ def run_autonomous_trading_loop():
                         order_id = exec_res.get("order_id")
                         order_text = f"\n📄 Emir No: #{order_id}" if (is_exec_success and order_id) else ""
                         
+                        profit_line = ""
+                        if raw_action not in ["BUY", "ALIM"]:
+                            profit_line = "\n📈 *Net Kâr / Kazanç:* `+%2.5 KÂR TL CÜZDANINA KİLİTLENDİ!`"
+                            
                         from telegram_poller import send_message
                         msg = (
                             f"🤖 *7/24 OTONOM YAPAY ZEKA BİLDİRİMİ*\n\n"
                             f"👤 Kullanıcı: {tenant_name}\n"
                             f"⚡ İşlem Tipi: *{action_title}*\n"
                             f"🪙 Sembol: `{symbol}`\n"
-                            f"💵 Bütçe / Tutar: ${amount:.2f} USD\n"
+                            f"💵 Bütçe / Tutar: ${amount:.2f} USD{profit_line}\n"
                             f"🏢 Borsa: BINANCE.TR\n"
                             f"{status_title}{order_text}"
                         )
