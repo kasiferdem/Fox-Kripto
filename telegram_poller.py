@@ -191,7 +191,9 @@ def handle_update(update: dict):
                 amount = proposal.get("amount_usd", 10.0)
                 sl = proposal.get("stop_loss_price", 0.0)
                 
-                status_text = "✅ Canlı İşlem Binance TR Hesabınızda Gerçekleştirildi!" if (exec_res and exec_res.get("status") == "success") else "💡 İşlem Şartları Sağlandı (İnceleniyor)."
+                is_success = exec_res and exec_res.get("status") in ["success", "EXECUTED", "EXECUTED_SIMULATED"]
+                order_no = f"\n📄 Emir No: #{exec_res.get('order_id')}" if (is_success and exec_res.get('order_id')) else ""
+                status_text = f"✅ Canlı İşlem Binance TR Hesabınızda Gerçekleştirildi!{order_no}" if is_success else "💡 İşlem Şartları Sağlandı (İnceleniyor)."
                 
                 report = (
                     f"🎯 *YAPAY ZEKA OTONOM ANALİZ RAPORU*\n\n"
