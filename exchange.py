@@ -81,7 +81,16 @@ class BinanceTRClient:
             amount_try = max(calc_try, 10.0)
             params["quoteOrderQty"] = f"{amount_try:.2f}"
         else:
-            params["quantity"] = f"{amount:.6f}"
+            asset_coin = clean_symbol.replace("_TRY", "").replace("_USDT", "")
+            qty_to_sell = amount
+            try:
+                bal = self.fetch_balance()
+                free_coin_amount = float(bal.get("free", {}).get(asset_coin, 0.0))
+                if free_coin_amount > 0.0:
+                    qty_to_sell = free_coin_amount
+            except Exception:
+                pass
+            params["quantity"] = f"{qty_to_sell:.4f}"
 
         if price and type_code == 1:
             params["price"] = f"{price:.2f}"

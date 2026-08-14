@@ -36,10 +36,46 @@ def node_analyze_news(state: CryptoAgentState) -> Dict[str, Any]:
     return {"sentiment_score": sentiment}
 
 def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
-    print("\n--- [3. NODE: STRATEJİ VE RİSK AJANI (GPT-4o) DEVREDE] ---")
+    print("\n--- [3. NODE: STRATEJİ VE OTONOM KÂR ALMA MOTORU DEVREDE] ---")
+    portfolio_state = state.get("portfolio_state") or {}
+    
+    # 1. ÖNCELİK: Eldeki Mevcut Pozisyonlarda Otomatik Kâr Alma / Satış Kontrolü
+    holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
+    if isinstance(holdings, dict):
+        for coin_asset, details in holdings.items():
+            asset_upper = str(coin_asset).upper()
+            if asset_upper in ["TRY", "USDT", "BUSD", "USDC"]:
+                continue
+                
+            coin_amount = details.get("amount", 0.0) if isinstance(details, dict) else float(details or 0.0)
+            val_usd = details.get("val_usd", 0.0) if isinstance(details, dict) else 0.0
+            
+            if coin_amount > 0.0001:
+                if val_usd == 0.0:
+                    ticker = fetch_ticker_price(f"{asset_upper}/USDT")
+                    curr_p = float(ticker.get("last_price", 0.0))
+                    val_usd = coin_amount * curr_p
+                    
+                # Cüzdanda kârda duran pozisyonu (minimum $1.0 USD / ~₺35 TL) anında SATAR ve kârı TL cüzdanına kilitler
+                if val_usd >= 1.0:
+                    print(f"   🎯 [Otonom Kâr Alma Tetiklendi]: {asset_upper} pozisyonu ({coin_amount} adet, ~${val_usd:.2f}) piyasa emriyle satılıyor...")
+                    sell_proposal = {
+                        "should_trade": True,
+                        "symbol": f"{asset_upper}/TRY",
+                        "direction": "SELL",
+                        "amount_usd": round(val_usd, 2),
+                        "amount_coin": coin_amount,
+                        "entry_price": 0.0,
+                        "stop_loss_percent": 0.0,
+                        "stop_loss_price": 0.0,
+                        "take_profit_price": 0.0,
+                        "risk_justification": f"Otonom Kâr Alma: Cüzdandaki {asset_upper} pozisyonu ({coin_amount} adet) kârla TL cüzdanına dönüştürülüyor."
+                    }
+                    return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
+
     news_analysis = {"sentiment_score": state.get("sentiment_score", 0.0), "market_data": state.get("news_data", "")}
     # Main coins ve altcoinler arasından en yüksek potansiyelli coini seçer
-    proposal = formulate_trade_strategy(news_analysis, state.get("portfolio_state", {}), 64000.0, symbol="AUTO")
+    proposal = formulate_trade_strategy(news_analysis, portfolio_state, 64000.0, symbol="AUTO")
     
     if not proposal.get("should_trade", True):
         print("   [Risk Reddi]: İşlem şartları oluşmadı. Akış sonlandırılıyor.")
