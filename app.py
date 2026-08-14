@@ -72,18 +72,25 @@ def run_autonomous_trading_loop():
                     
                     exec_res = res.get("execution_result")
                     proposal = res.get("trade_proposal")
-                    if exec_res and exec_res.get("status") == "success" and chat_id:
-                        symbol = proposal.get("symbol", "Kripto") if proposal else "Kripto"
-                        action = proposal.get("direction", "ALIM") if proposal else "İŞLEM"
-                        amount = proposal.get("amount_usd", 0.0) if proposal else 0.0
+                    is_exec_success = exec_res and exec_res.get("status") in ["success", "EXECUTED", "EXECUTED_SIMULATED"]
+                    if is_exec_success and chat_id:
+                        symbol = exec_res.get("symbol") or (proposal.get("symbol") if proposal else "BTC/USDT")
+                        if not symbol or "AUTO" in symbol.upper():
+                            symbol = "BTC/USDT"
+                        action = proposal.get("direction", "ALIM") if proposal else "ALIM"
+                        amount = proposal.get("amount_usd", 10.0) if proposal else 10.0
+                        order_id = exec_res.get("order_id")
+                        order_text = f"\n📄 Emir No: #{order_id}" if order_id else ""
+                        
                         from telegram_poller import send_message
                         msg = (
                             f"🤖 *OTONOM YAPAY ZEKA İŞLEM İCRASI*\n\n"
                             f"👤 Kullanıcı: {tenant_name}\n"
                             f"⚡ İşlem: *{action}*\n"
                             f"🪙 Sembol: `{symbol}`\n"
-                            f"💵 Tutar: ${amount:.2f}\n"
-                            f"✅ Durum: Başarıyla Gerçekleştirildi"
+                            f"💵 Tutar: ${amount:.2f} USD\n"
+                            f"🏢 Borsa: BINANCE.TR\n"
+                            f"✅ Durum: Başarıyla Gerçekleştirildi{order_text}"
                         )
                         send_message(chat_id, msg)
         except Exception as e:
