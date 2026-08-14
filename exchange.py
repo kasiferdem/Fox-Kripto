@@ -91,11 +91,16 @@ class BinanceTRClient:
             except Exception:
                 pass
             
-            # Binance TR adım hassasiyeti (Step Size): miktar < 1 olan altcoinlerde güvenli 3 basamak keserek yuvarlar (0.03994 -> 0.039)
+            # Binance TR adım hassasiyeti (Evrensel Hassasiyet Motoru):
             import math
-            if qty_to_sell >= 1.0:
+            if qty_to_sell >= 100.0:
+                # PEPE, SHIB, FLOKI gibi yüksek adetli meme coinlerde tam sayı (Integer) hassasiyeti
+                params["quantity"] = f"{int(qty_to_sell)}"
+            elif qty_to_sell >= 1.0:
+                # ACE, AVAX, XRP gibi standart altcoinlerde 2 basamak
                 params["quantity"] = f"{qty_to_sell:.2f}"
             else:
+                # SOL, BTC, ETH gibi 1'den küçük hassasiyetli coinlerde 3 basamak keserek yuvarlar
                 safe_qty = math.floor(qty_to_sell * 1000) / 1000.0
                 params["quantity"] = f"{safe_qty:.3f}"
 
