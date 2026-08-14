@@ -97,15 +97,23 @@ def formulate_trade_strategy(
     KURAL 1: İşlem teklifi toplam portföy likiditesinin (USDT/TRY) %10'unu aşamaz (Minimum $10 USD).
     KURAL 2: Her teklifte %3 ile %5 arası dinamik Stop-Loss belirlenmelidir.
     """
-    # Toplam kullanılabilir portföy değerini oku (USDT ve TRY toplamı)
-    total_val = float(portfolio_state.get("total_usdt") or 0.0)
-    free_val = float(portfolio_state.get("free_usdt") or 0.0)
+    # Serbest Nakit TL/USDT Bakiyesini Oku (Sadece kullanılabilir serbest nakdi baz alır)
+    holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
+    try_details = holdings.get("TRY", {}) if isinstance(holdings, dict) else {}
+    free_try = try_details.get("amount", 0.0) if isinstance(try_details, dict) else float(try_details or 0.0)
+    free_usdt = float(portfolio_state.get("free_usdt") or 0.0)
     
-    # Eğer serbest USDT 0 ise ama toplam portföy > 0 ise toplamı kullan, değilse varsayılan $50 likidite varsay
-    available_liquidity_usd = max(total_val, free_val)
-    if available_liquidity_usd < 5.0:
-        available_liquidity_usd = 50.0 # Min fallback liquidity for micro trading
-
+    free_cash_usd = (free_try / 34.80) + free_usdt
+    
+    # EĞER SERBEST NAKİT TL/USDT $1.50 USD (~₺52 TL) ALTINDA İSE YENİ ALIM YAPMA (HOLD)!
+    if free_cash_usd < 1.50:
+        print(f"   ⏳ [Nakit Bakiye Yetersiz]: Serbest TL bakiyesi (₺{free_try:.2f} TL) tükenmiştir. Alım yapılmıyor (HOLD).")
+        return {
+            "should_trade": False,
+            "reason": f"Serbest nakit bakiye tükenmiştir (₺{free_try:.2f} TL). Tüm sermaye kârlı pozisyonlardadır. Bekletiliyor (HOLD)."
+        }
+        
+    available_liquidity_usd = free_cash_usd
     sentiment_score = float(news_analysis.get("sentiment_score", 0.0))
     
     # Ultra-Hızlı Ticaret Modu (Ultra-Fast Scalping & Micro Trend): En ufak pozitif mikro hareketlerde derhal işleme girer

@@ -108,6 +108,12 @@ def run_autonomous_trading_loop():
                         status_str = str(exec_res.get("status", "")).upper()
                         is_exec_success = status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]
                         
+                        # TEKRARLAYAN HATALAR İÇİN SPAM ENGELLEYİCİ:
+                        # Eğer emir bakiye vb. nedenlerle başarısız olduysa Telegram'ı mesajla darlama, sessizce logla!
+                        if not is_exec_success:
+                            print(f"   ⚠️ [Sessiz Filtre]: İşlem borsa tarafında gerçekleştirilemedi ({exec_res.get('error')}). Telegram spam engellendi.")
+                            continue
+                        
                         symbol = exec_res.get("symbol") or (proposal.get("symbol") if proposal else "BTC/USDT")
                         if not symbol or "AUTO" in symbol.upper():
                             symbol = "BTC/USDT"
