@@ -121,8 +121,8 @@ def formulate_trade_strategy(
         "hızlı kâr kitlemeyi hedefleyen optimal alım-satım teklifini (trade_proposal) oluşturmaktır.\n\n"
         "KATI RİSK KURALLARI:\n"
         "1. Bütçe Limiti: İşlem tutarı (amount_usd) serbest bakiyenin EN FAZLA %10'u olabilir.\n"
-        "2. Stop-Loss Limiti: Stop-Loss yüzdesi (stop_loss_percent) KESİNLİKLE %1.5 ile %2.5 arasında olmalıdır.\n"
-        "3. Hızlı Kâr Al (Take-Profit): Kâr al hedefi KESİNLİKLE +%2.0 ile +%3.5 arasında olmalıdır (Hızlı Pozisyon Kapatma).\n\n"
+        "2. Stop-Loss Limiti: Stop-Loss yüzdesi (stop_loss_percent) KESİNLİKLE %1.0 ile %1.5 arasında olmalıdır.\n"
+        "3. Hızlı Kâr Al (Take-Profit): Kâr al hedefi KESİNLİKLE +%1.0 ile +%2.0 arasında olmalıdır (Hızlı Mikro Pozisyon Kapatma).\n\n"
         "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
         "{\n"
         '  "should_trade": true,\n'
@@ -130,10 +130,10 @@ def formulate_trade_strategy(
         '  "direction": "BUY",\n'
         '  "amount_usd": 10.0,\n'
         '  "entry_price": 64000.0,\n'
-        '  "stop_loss_percent": 2.0,\n'
-        '  "stop_loss_price": 62720.0,\n'
-        '  "take_profit_price": 65600.0,\n'
-        '  "risk_justification": "Hızlı kâr alma modu: +%2.5 kâr hedefi ve %2.0 dar stop-loss koyuldu."\n'
+        '  "stop_loss_percent": 1.2,\n'
+        '  "stop_loss_price": 63232.0,\n'
+        '  "take_profit_price": 64960.0,\n'
+        '  "risk_justification": "Ultra hızlı mikro kâr modu: +%1.5 kâr hedefi ve %1.2 dar stop-loss koyuldu."\n'
         "}"
     )
     user_content = (
@@ -153,22 +153,22 @@ def formulate_trade_strategy(
             exact_10_percent = round(available_liquidity_usd * 0.10, 2)
             proposal["amount_usd"] = exact_10_percent if exact_10_percent >= 1.0 else 5.0
             
-            sl_pct = float(proposal.get("stop_loss_percent", 2.0))
-            if sl_pct < 1.5: sl_pct = 1.5
-            if sl_pct > 2.5: sl_pct = 2.5
+            sl_pct = float(proposal.get("stop_loss_percent", 1.2))
+            if sl_pct < 1.0: sl_pct = 1.0
+            if sl_pct > 1.5: sl_pct = 1.5
             proposal["stop_loss_percent"] = sl_pct
             proposal["stop_loss_price"] = round(current_price * (1 - (sl_pct / 100)), 2)
-            proposal["take_profit_price"] = round(current_price * 1.025, 2) # %2.5 Hızlı Kâr Alma
+            proposal["take_profit_price"] = round(current_price * 1.015, 2) # %1.5 Ultra-Hızlı Kâr Alma
             proposal["should_trade"] = True
             return proposal
         except Exception:
             pass
             
-    # Fallback Strateji (Hızlı Scalp Kural Motoru)
+    # Fallback Strateji (Hızlı Mikro Scalp Kural Motoru)
     max_budget = max(round(available_liquidity_usd * 0.10, 2), 10.0)
-    sl_pct = 2.0
+    sl_pct = 1.2
     sl_price = round(current_price * (1 - (sl_pct / 100)), 2)
-    tp_price = round(current_price * 1.025, 2) # %2.5 Hızlı Kâr
+    tp_price = round(current_price * 1.015, 2) # %1.5 Hızlı Kâr
     
     return {
         "should_trade": True,
