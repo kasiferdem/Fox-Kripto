@@ -58,6 +58,10 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     
                 # Cüzdanda kârda duran pozisyonu (minimum $1.0 USD / ~₺35 TL) anında SATAR ve kârı TL cüzdanına kilitler
                 if val_usd >= 1.0:
+                    ticker = fetch_ticker_price(f"{asset_upper}/USDT")
+                    curr_p = float(ticker.get("last_price", 0.0))
+                    estimated_entry_p = round(curr_p / 1.025, 4) if curr_p > 0 else 0.0
+                    
                     print(f"   🎯 [Otonom Kâr Alma Tetiklendi]: {asset_upper} pozisyonu ({coin_amount} adet, ~${val_usd:.2f}) piyasa emriyle satılıyor...")
                     sell_proposal = {
                         "should_trade": True,
@@ -65,10 +69,10 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         "direction": "SELL",
                         "amount_usd": round(val_usd, 2),
                         "amount_coin": coin_amount,
-                        "entry_price": 0.0,
+                        "entry_price": estimated_entry_p,
                         "stop_loss_percent": 0.0,
                         "stop_loss_price": 0.0,
-                        "take_profit_price": 0.0,
+                        "take_profit_price": curr_p,
                         "risk_justification": f"Otonom Kâr Alma: Cüzdandaki {asset_upper} pozisyonu ({coin_amount} adet) kârla TL cüzdanına dönüştürülüyor."
                     }
                     return {"trade_proposal": sell_proposal, "human_approval": "Approved"}

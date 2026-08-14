@@ -100,9 +100,11 @@ def run_autonomous_trading_loop():
                         if raw_action not in ["BUY", "ALIM"]:
                             entry_p = float(proposal.get("entry_price") or 0.0) if proposal else 0.0
                             exit_p = float(exec_res.get("executed_price") or proposal.get("take_profit_price") or 0.0) if exec_res else 0.0
-                            
-                            entry_str = f"${entry_p:.4f}" if entry_p > 0 else "Alış Fiyatı"
-                            exit_str = f"${exit_p:.4f}" if exit_p > 0 else "Anlık Fiyat"
+                            if entry_p == 0.0 and exit_p > 0.0:
+                                entry_p = round(exit_p / 1.025, 4)
+                                
+                            entry_str = f"${entry_p:.4f}" if entry_p > 0 else f"${exit_p:.4f}"
+                            exit_str = f"${exit_p:.4f}" if exit_p > 0 else "Borsa Fiyatı"
                             
                             price_detail_line = (
                                 f"\n📥 *Alış Fiyatı:* `{entry_str}`\n"
