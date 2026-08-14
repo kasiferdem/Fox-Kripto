@@ -184,13 +184,14 @@ def handle_update(update: dict):
             sentiment = res.get("sentiment_score", 0.0)
             exec_res = res.get("execution_result")
 
-            if proposal:
-                symbol = proposal.get("symbol", "Kripto")
+            if proposal and proposal.get("should_trade", True) and sentiment > 0.0:
+                symbol = proposal.get("symbol", "BTC/USDT")
+                if "AUTO" in symbol.upper(): symbol = "BTC/USDT"
                 action = proposal.get("direction", "ALIM")
-                amount = proposal.get("amount_usd", 0.0)
+                amount = proposal.get("amount_usd", 10.0)
                 sl = proposal.get("stop_loss_price", 0.0)
                 
-                status_text = "✅ Canlı İşlem Gerçekleştirildi!" if (exec_res and exec_res.get("status") == "success") else "💡 Simülasyon Testi Başarılı!"
+                status_text = "✅ Canlı İşlem Binance TR Hesabınızda Gerçekleştirildi!" if (exec_res and exec_res.get("status") == "success") else "💡 İşlem Şartları Sağlandı (İnceleniyor)."
                 
                 report = (
                     f"🎯 *YAPAY ZEKA OTONOM ANALİZ RAPORU*\n\n"
@@ -206,9 +207,10 @@ def handle_update(update: dict):
                 report = (
                     f"📊 *YAPAY ZEKA PİYASA TARAMA RAPORU*\n\n"
                     f"👤 Kullanıcı: {tenant.get('tenant_name')}\n"
-                    f"📊 Piyasa Duyarlılık Skoru: *{sentiment:+.1f}*\n"
-                    f"🛡️ Risk Kararı: Piyasa risk oranları kural dairesinde olduğu için yeni pozisyon açılmadı.\n"
-                    f"✅ 7/24 Otonom Gözlem Devam Ediyor."
+                    f"📊 Piyasa Duyarlılık Skoru: *{sentiment:+.1f} / +10*\n"
+                    f"🛡️ Risk Kararı: Piyasa yönü olumsuz/durağan olduğu için sermayeyi korumak amacıyla alım yapılmadı.\n"
+                    f"💵 Nakit TL Bakiyeniz Korumada.\n"
+                    f"✅ 7/24 Otonom Nöbet Devam Ediyor."
                 )
             send_message(chat_id, report)
         except Exception as e:

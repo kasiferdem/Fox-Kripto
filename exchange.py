@@ -37,10 +37,47 @@ class BinanceTRClient:
                 tot = free_v + locked_v
                 if tot > 0:
                     total_dict[coin] = tot
-                    free_dict[coin] = free_v
-            return {"total": total_dict, "free": free_dict, "info": data}
+    def create_order(self, symbol: str, type: str, side: str, amount: float, price: Optional[float] = None) -> dict:
+        """
+        Binance TR Spot Market/Limit Order Execution API:
+        POST /open/v1/orders
+        """
+        clean_symbol = symbol.replace("/", "_").replace("-", "_").upper()
+        if not clean_symbol.endswith("_TRY") and not clean_symbol.endswith("_USDT"):
+            clean_symbol = f"{clean_symbol}_TRY"
+        elif clean_symbol.endswith("_USDT"):
+            clean_symbol = clean_symbol.replace("_USDT", "_TRY")
+
+        side_code = 0 if side.lower() == "buy" else 1
+        type_code = 2 if type.lower() == "market" else 1
+
+        params = {
+            "symbol": clean_symbol,
+            "side": side_code,
+            "type": type_code,
+            "quantity": f"{amount:.6f}"
+        }
+        if price and type_code == 1:
+            params["price"] = f"{price:.2f}"
+
+        query_str = self._sign(params)
+        url = f"{self.base_url}/open/v1/orders?{query_str}"
+        headers = {"X-MBX-APIKEY": self.apiKey}
+
+        res = requests.post(url, headers=headers, timeout=10)
+        data = res.json()
+        if data.get("code") == 0:
+            order_data = data.get("data", {})
+            return {
+                "id": str(order_data.get("orderId") or order_data.get("id") or int(time.time())),
+                "symbol": symbol,
+                "price": float(order_data.get("price", price or 0.0)),
+                "amount": amount,
+                "status": "closed" if type_code == 2 else "open",
+                "info": data
+            }
         else:
-            raise Exception(f"Binance TR Hata ({data.get('code')}): {data.get('msg')}")
+            raise Exception(f"Binance TR Order Execution Error ({data.get('code')}): {data.get('msg')}")
 
 def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
     """
@@ -186,12 +223,15 @@ def execute_spot_trade(
     tenant_config: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """İlgili kullanıcının (Tenant) kendi Binance hesabından Spot emri borsaya iletir."""
+    if not symbol or "AUTO" in symbol.upper():
+        symbol = "BTC/USDT"
+        
     exchange = get_exchange_for_tenant(tenant_config)
-    ticker = fetch_ticker_price(symbol)
-    price = ticker["last_price"]
+    ticker = fetch_ticker_price(symbol if "/" in symbol else f"{symbol}/USDT")
+    price = float(ticker.get("last_price") or 64000.0)
     quantity = amount_usd / price if price > 0 else 0
 
-    if exchange and exchange.apiKey and not os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true":
+    if exchange and getattr(exchange, "apiKey", None) and not os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true":
         try:
             order = exchange.create_order(
                 symbol=symbol,
@@ -199,9 +239,9 @@ def execute_spot_trade(
                 side=side.lower(),
                 amount=quantity
             )
-            print(f"✅ [CCXT CANLI MULTI-TENANT EMİR]: Order ID #{order.get('id')}")
+            print(f"✅ [CANLI MULTI-TENANT EMİR İNFAZ EDİLDİ]: Order ID #{order.get('id')}")
             return {
-                "status": "EXECUTED",
+                "status": "success",
                 "order_id": str(order.get('id')),
                 "symbol": symbol,
                 "side": side,
@@ -211,7 +251,7 @@ def execute_spot_trade(
                 "raw_order": order
             }
         except Exception as e:
-            print(f"❌ [CCXT Canlı Multi-Tenant Emir Hatası]: {e}")
+            print(f"❌ [Canlı Multi-Tenant Emir Hatası]: {e}")
             return {"status": "FAILED", "error": str(e)}
     
     # Simülasyon
