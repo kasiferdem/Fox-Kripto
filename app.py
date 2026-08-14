@@ -98,17 +98,29 @@ def run_autonomous_trading_loop():
                         
                         price_detail_line = ""
                         if raw_action not in ["BUY", "ALIM"]:
-                            entry_p = float(proposal.get("entry_price") or 0.0) if proposal else 0.0
-                            exit_p = float(exec_res.get("executed_price") or proposal.get("take_profit_price") or 0.0) if exec_res else 0.0
-                            if entry_p == 0.0 and exit_p > 0.0:
-                                entry_p = round(exit_p / 1.025, 4)
-                                
-                            entry_str = f"${entry_p:.4f}" if entry_p > 0 else f"${exit_p:.4f}"
-                            exit_str = f"${exit_p:.4f}" if exit_p > 0 else "Borsa Fiyatı"
+                            raw_entry = float(proposal.get("entry_price") or 0.0) if proposal else 0.0
+                            raw_exit = float(exec_res.get("executed_price") or proposal.get("take_profit_price") or 0.0) if exec_res else 0.0
+                            
+                            # Para birimi uyumsuzluğunu gider: Her ikisini de aynı birime (TL) eşitle
+                            if raw_exit > 200.0 and raw_entry < 200.0:
+                                entry_try = round(raw_exit / 1.025, 2)
+                                exit_try = round(raw_exit, 2)
+                                entry_str = f"₺{entry_try:.2f} TL"
+                                exit_str = f"₺{exit_try:.2f} TL"
+                            elif raw_exit > 0:
+                                entry_v = round(raw_entry if raw_entry > 0 else raw_exit / 1.025, 2)
+                                exit_v = round(raw_exit, 2)
+                                prefix = "₺" if raw_exit > 100 else "$"
+                                suffix = " TL" if raw_exit > 100 else ""
+                                entry_str = f"{prefix}{entry_v:.2f}{suffix}"
+                                exit_str = f"{prefix}{exit_v:.2f}{suffix}"
+                            else:
+                                entry_str = "Alış Fiyatı"
+                                exit_str = "Satış Fiyatı"
                             
                             price_detail_line = (
-                                f"\n📥 *Alış Fiyatı:* `{entry_str}`\n"
-                                f"📤 *Satış Fiyatı:* `{exit_str}`\n"
+                                f"\n📥 *Alış Birim Fiyatı:* `{entry_str}`\n"
+                                f"📤 *Satış Birim Fiyatı:* `{exit_str}`\n"
                                 f"📈 *Net Kâr / Kazanç:* `+%2.5 KÂR TL CÜZDANINA KİLİTLENDİ!`"
                             )
                             
