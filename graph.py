@@ -92,6 +92,34 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         print("   [Risk Reddi]: İşlem şartları oluşmadı. Akış sonlandırılıyor.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
         
+    # KATI PORTFÖY ÇEŞİTLİLİK ENGELİ: Cüzdanda MADDETEN BULUNAN coinleri tekrar almayı KESİNLİKLE engeller
+    current_assets = []
+    if isinstance(holdings, dict):
+        for k, v in holdings.items():
+            amt = v.get("amount", 0.0) if isinstance(v, dict) else float(v or 0.0)
+            val = v.get("val_usd", 0.0) if isinstance(v, dict) else 0.0
+            if amt > 0.0001 and val >= 1.0:
+                current_assets.append(str(k).upper())
+
+    proposed_symbol = str(proposal.get("symbol", "BTC/USDT")).upper()
+    proposed_base = proposed_symbol.split("/")[0].split("_")[0].upper()
+    
+    if proposed_base in current_assets:
+        candidate_pool = ["PEPE/USDT", "AVAX/USDT", "RENDER/USDT", "SUI/USDT", "NEAR/USDT", "XRP/USDT", "DOGE/USDT", "BTC/USDT", "ETH/USDT"]
+        fresh_coin = None
+        for c in candidate_pool:
+            c_base = c.split("/")[0]
+            if c_base not in current_assets:
+                fresh_coin = c
+                break
+        
+        if fresh_coin:
+            print(f"   🔄 [Portföy Çeşitlendirme Koruması]: '{proposed_base}' zaten cüzdanda var. İkinci defa almak yerine cüzdanda olmayan '{fresh_coin}' seçildi.")
+            proposal["symbol"] = fresh_coin
+        else:
+            print(f"   [Çeşitlendirme Reddi]: Tüm altcoinler cüzdanda mevcut. Yeni alım yapılmıyor.")
+            return {"trade_proposal": None, "human_approval": "Rejected"}
+            
     print(f"   [Seçilen İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Bütçe: ${proposal['amount_usd']} USD")
     return {"trade_proposal": proposal, "human_approval": "Approved"}
 
