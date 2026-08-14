@@ -56,12 +56,15 @@ def run_autonomous_trading_loop():
                     tenant_name = tenant.get("tenant_name", "Kullanıcı")
                     print(f"🧠 [Otonom Analiz]: Kullanıcı '{tenant_name}' (Chat ID: {chat_id}) için piyasa taranıyor...")
                     
+                    from exchange import fetch_portfolio_balance
+                    live_bal = fetch_portfolio_balance(tenant)
+                    
                     graph = create_crypto_graph()
                     initial_state = {
                         "tenant_id": tenant.get("id"),
                         "tenant_config": tenant,
                         "news_data": "Crypto market showing volume breakout and bullish momentum.",
-                        "portfolio_state": {},
+                        "portfolio_state": live_bal,
                         "sentiment_score": 0.8,
                         "trade_proposal": None,
                         "human_approval": "Approved", # FULL AUTONOMOUS MODE
@@ -72,26 +75,30 @@ def run_autonomous_trading_loop():
                     
                     exec_res = res.get("execution_result")
                     proposal = res.get("trade_proposal")
-                    is_exec_success = exec_res and exec_res.get("status") in ["success", "EXECUTED", "EXECUTED_SIMULATED"]
-                    if is_exec_success and chat_id:
+                    
+                    if exec_res and chat_id:
+                        status_str = str(exec_res.get("status", "")).upper()
+                        is_exec_success = status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]
+                        
                         symbol = exec_res.get("symbol") or (proposal.get("symbol") if proposal else "BTC/USDT")
                         if not symbol or "AUTO" in symbol.upper():
                             symbol = "BTC/USDT"
+                            
                         raw_action = str(proposal.get("direction", "BUY")).upper() if proposal else "BUY"
                         if raw_action in ["BUY", "ALIM"]:
                             action_title = "🛒 ALIM (BUY)"
-                            status_title = "✅ Canlı Alım Başarıyla Gerçekleştirildi"
+                            status_title = "✅ Canlı Alım Başarıyla Gerçekleştirildi" if is_exec_success else f"⚠️ Alım İletilemedi: {exec_res.get('error', 'Bakiye/Emir Limiti')}"
                         else:
                             action_title = "🎯 SATIM (SELL / KÂR ALMA)"
-                            status_title = "🎉 Canlı Satış Gerçekleşti ve TL Cüzdanına Aktarıldı"
+                            status_title = "🎉 Canlı Satış Gerçekleşti ve TL Cüzdanına Aktarıldı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
                             
                         amount = proposal.get("amount_usd", 10.0) if proposal else 10.0
                         order_id = exec_res.get("order_id")
-                        order_text = f"\n📄 Emir No: #{order_id}" if order_id else ""
+                        order_text = f"\n📄 Emir No: #{order_id}" if (is_exec_success and order_id) else ""
                         
                         from telegram_poller import send_message
                         msg = (
-                            f"🤖 *OTONOM YAPAY ZEKA İŞLEM İCRASI*\n\n"
+                            f"🤖 *7/24 OTONOM YAPAY ZEKA BİLDİRİMİ*\n\n"
                             f"👤 Kullanıcı: {tenant_name}\n"
                             f"⚡ İşlem Tipi: *{action_title}*\n"
                             f"🪙 Sembol: `{symbol}`\n"
