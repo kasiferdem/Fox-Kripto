@@ -165,20 +165,22 @@ def run_autonomous_trading_loop():
                                 entry_str = "Alış Fiyatı"
                                 exit_str = "Satış Fiyatı"
                             
+                            quote_label = "TL" if symbol.upper().endswith("TRY") else "USDT"
                             price_detail_line = (
                                 f"\n📥 *Alış Birim Fiyatı:* `{entry_str}`\n"
                                 f"📤 *Satış Birim Fiyatı:* `{exit_str}`\n"
-                                f"📈 *Net Kâr / Kazanç:* `+%2.5 KÂR TL CÜZDANINA KİLİTLENDİ!`"
+                                f"📈 *Net Kâr / Kazanç:* `+%1.5+ KÂR {quote_label} CÜZDANINA KİLİTLENDİ!`"
                             )
                             
                         from telegram_poller import send_message
+                        exch_display = "BINANCE.TR 🇹🇷" if symbol.upper().endswith("TRY") else "BINANCE GLOBAL 🌍"
                         msg = (
                             f"🤖 *7/24 OTONOM YAPAY ZEKA BİLDİRİMİ*\n\n"
                             f"👤 Kullanıcı: {tenant_name}\n"
                             f"⚡ İşlem Tipi: *{action_title}*\n"
                             f"🪙 Sembol: `{symbol}`\n"
                             f"💵 Bütçe / Tutar: {amount_display}{price_detail_line}\n"
-                            f"🏢 Borsa: BINANCE.TR\n"
+                            f"🏢 Borsa: {exch_display}\n"
                             f"{status_title}{order_text}"
                         )
                         send_message(chat_id, msg)
