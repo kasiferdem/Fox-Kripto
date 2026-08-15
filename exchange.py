@@ -166,6 +166,7 @@ def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
             'apiKey': api_key,
             'secret': secret_key,
             'enableRateLimit': True,
+            'timeout': 6000,
             'options': {'defaultType': 'spot'}
         })
         is_testnet = os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true"
@@ -263,9 +264,16 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                 "api_error": str(e)
             }
 
+_global_ccxt_binance = None
+def get_global_binance_public():
+    global _global_ccxt_binance
+    if _global_ccxt_binance is None:
+        _global_ccxt_binance = ccxt.binance({'enableRateLimit': True, 'timeout': 5000})
+    return _global_ccxt_binance
+
 def fetch_ticker_price(symbol: str = "BTC/USDT") -> Dict[str, Any]:
-    """Borsadan anlık sembol fiyatı ve 24h değişimini okur."""
-    exchange = ccxt.binance({'enableRateLimit': True})
+    """Borsadan anlık sembol fiyatı ve 24h değişimini hızlı okur."""
+    exchange = get_global_binance_public()
     try:
         ticker = exchange.fetch_ticker(symbol)
         return {
@@ -277,8 +285,15 @@ def fetch_ticker_price(symbol: str = "BTC/USDT") -> Dict[str, Any]:
             "volume": float(ticker.get('quoteVolume', 0.0))
         }
     except Exception as e:
-        print(f"❌ CCXT Fiyat Çekme Hatası ({symbol}): {e}")
-        return {"symbol": symbol, "last_price": 64280.0, "percentage_change": 0.0, "volume": 0.0}
+        try:
+            clean = symbol.replace("/", "").replace("_", "").upper()
+            r = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={clean}", timeout=3)
+            p = float(r.json().get("price", 0.0))
+            if p > 0:
+                return {"symbol": symbol, "last_price": p, "percentage_change": 0.0, "volume": 0.0}
+        except Exception:
+            pass
+        return {"symbol": symbol, "last_price": 0.0, "percentage_change": 0.0, "volume": 0.0}
 
 def fetch_top_volume_gainers(limit: int = 20) -> list:
     """
