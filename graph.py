@@ -48,6 +48,7 @@ def node_analyze_news(state: CryptoAgentState) -> Dict[str, Any]:
 def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [3. NODE: STRATEJİ VE OTONOM KÂR ALMA MOTORU DEVREDE] ---")
     portfolio_state = state.get("portfolio_state") or {}
+    tenant_config = state.get("tenant_config") or {}
     
     # 1. ÖNCELİK: Eldeki Pozisyonlarda Kalıcı Alış Takibi & Kâr Alma (+%1.0) / Stop-Loss (-%1.5) Denetimi
     pos_file = os.path.join(os.path.dirname(__file__), "active_positions.json")
