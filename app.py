@@ -233,7 +233,7 @@ def get_my_egress_ip():
     except Exception as e:
         return {"error": str(e)}
 
-@app_api.post("/api/admin/demo-swap-moonwalker")
+@app_api.api_route("/api/admin/demo-swap-moonwalker", methods=["GET", "POST"])
 def demo_swap_moonwalker():
     """DigitalOcean sunucusundan (IP: 104.248.135.128) Moonwalker için 0.01 BNB satıp SOL alır."""
     import time
