@@ -145,12 +145,17 @@ def run_autonomous_trading_loop():
                                 entry_str = f"₺{entry_try:.2f} TL"
                                 exit_str = f"₺{exit_try:.2f} TL"
                             elif raw_exit > 0:
-                                entry_v = round(raw_entry if raw_entry > 0 else raw_exit / 1.025, 2)
-                                exit_v = round(raw_exit, 2)
-                                prefix = "₺" if raw_exit > 100 else "$"
-                                suffix = " TL" if raw_exit > 100 else ""
-                                entry_str = f"{prefix}{entry_v:.2f}{suffix}"
-                                exit_str = f"{prefix}{exit_v:.2f}{suffix}"
+                                entry_val = raw_entry if raw_entry > 0 else (raw_exit / 1.025)
+                                exit_val = raw_exit
+                                if exit_val < 0.01:
+                                    entry_str = f"${entry_val:.8f}"
+                                    exit_str = f"${exit_val:.8f}"
+                                elif exit_val > 100:
+                                    entry_str = f"₺{entry_val:.2f} TL"
+                                    exit_str = f"₺{exit_val:.2f} TL"
+                                else:
+                                    entry_str = f"${entry_val:.4f}"
+                                    exit_str = f"${exit_val:.4f}"
                             else:
                                 entry_str = "Alış Fiyatı"
                                 exit_str = "Satış Fiyatı"
