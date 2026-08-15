@@ -91,18 +91,36 @@ class BinanceTRClient:
             except Exception:
                 pass
             
-            # Binance TR adım hassasiyeti (Evrensel Hassasiyet Motoru):
+            # Sembole Özel Katı Adım Hassasiyeti (Exact Step Size Mapping for Binance TR)
             import math
-            if qty_to_sell >= 100.0:
-                # PEPE, SHIB, FLOKI gibi yüksek adetli meme coinlerde tam sayı (Integer) hassasiyeti
+            decimals_map = {
+                "BTC": 6,
+                "ETH": 4,
+                "SOL": 3,
+                "BNB": 3,
+                "AVAX": 2,
+                "SUI": 2,
+                "RENDER": 2,
+                "NEAR": 2,
+                "XRP": 1,
+                "DOGE": 1,
+                "ADA": 1,
+                "PEPE": 0,
+                "SHIB": 0,
+                "BONK": 0,
+                "FLOKI": 0,
+                "ACE": 2
+            }
+            
+            base_coin = clean_symbol.split("_")[0].upper()
+            num_decimals = decimals_map.get(base_coin, 2 if qty_to_sell >= 1.0 else 3)
+            
+            if num_decimals == 0:
                 params["quantity"] = f"{int(qty_to_sell)}"
-            elif qty_to_sell >= 1.0:
-                # ACE, AVAX, XRP gibi standart altcoinlerde 2 basamak
-                params["quantity"] = f"{qty_to_sell:.2f}"
             else:
-                # SOL, BTC, ETH gibi 1'den küçük hassasiyetli coinlerde 3 basamak keserek yuvarlar
-                safe_qty = math.floor(qty_to_sell * 1000) / 1000.0
-                params["quantity"] = f"{safe_qty:.3f}"
+                multiplier = 10 ** num_decimals
+                safe_qty = math.floor(qty_to_sell * multiplier) / float(multiplier)
+                params["quantity"] = f"{safe_qty:.{num_decimals}f}"
 
         if price and type_code == 1:
             params["price"] = f"{price:.2f}"
