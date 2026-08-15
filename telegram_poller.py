@@ -53,6 +53,14 @@ def handle_update(update: dict):
         try: requests.post(f"{BASE_URL}/answerCallbackQuery", json={"callback_query_id": cb_id})
         except: pass
         
+        # Borsa Seçim Butonları
+        if cb_data.startswith("select_exchange_"):
+            selected_ex = cb_data.replace("select_exchange_", "")
+            user_states[chat_id] = {"step": "AWAITING_API_KEY", "exchange_id": selected_ex}
+            label = "🇹🇷 Binance TR" if selected_ex == "binancetr" else "🌍 Binance Global"
+            send_message(chat_id, f"✅ Seçilen Borsa: *{label}*\n\nLütfen hesabınıza ait *API Key* bilginizi bu sohbete mesaj olarak gönderin:")
+            return
+
         action = "Approved" if "approve" in cb_data else "Rejected"
         parts = cb_data.split("_")
         session_id = "_".join(parts[1:]) if len(parts) > 1 else "session_001"
@@ -248,20 +256,32 @@ def handle_update(update: dict):
             send_message(chat_id, f"⚠️ Test sırasında bir uyarı oluştu: {e}")
         return
 
-    if text_clean in ["bagla", "register", "kayit"]:
-        user_states[chat_id] = "AWAITING_API_KEY"
-        send_message(chat_id, "🔐 Borsa Bağlantı Sihirbazı\n\nLütfen Binance API Key bilginizi bu sohbete mesaj olarak atın:")
+    if text_clean in ["bagla", "register", "kayit", "borsa"]:
+        markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "🇹🇷 Binance TR (TL Cüzdanı)", "callback_data": "select_exchange_binancetr"},
+                    {"text": "🌍 Binance Global (USDT Cüzdanı)", "callback_data": "select_exchange_binance"}
+                ]
+            ]
+        }
+        send_message(chat_id, "🔐 *BORSA BAĞLANTI SİHİRBAZI*\n\nLütfen kullanmak istediğiniz borsa hesabını seçin:", reply_markup=markup)
         return
 
     # Çok Adımlı Kayıt Sihirbazı
     state = user_states.get(chat_id)
-    if state == "AWAITING_API_KEY":
-        user_states[chat_id] = {"step": "AWAITING_SECRET_KEY", "api_key": raw_text}
-        send_message(chat_id, "✅ API Key alındı!\n\nŞimdi lütfen Binance Secret Key bilginizi mesaj olarak atın:")
+    if isinstance(state, dict) and state.get("step") == "AWAITING_API_KEY":
+        user_states[chat_id] = {
+            "step": "AWAITING_SECRET_KEY",
+            "exchange_id": state.get("exchange_id", "binance"),
+            "api_key": raw_text
+        }
+        send_message(chat_id, "✅ *API Key Alındı!*\n\nŞimdi lütfen *Secret Key* bilginizi mesaj olarak gönderin:")
         return
     elif isinstance(state, dict) and state.get("step") == "AWAITING_SECRET_KEY":
         api_key = state["api_key"]
         secret_key = raw_text
+        exchange_id = state.get("exchange_id", "binance")
         del user_states[chat_id]
         
         # Veritabanına kaydet
@@ -269,10 +289,12 @@ def handle_update(update: dict):
             tenant_name=first_name,
             telegram_chat_id=chat_id,
             exchange_api_key=api_key,
-            exchange_secret_key=secret_key
+            exchange_secret_key=secret_key,
+            exchange_id=exchange_id
         )
+        exch_label = "Binance TR 🇹🇷" if exchange_id == "binancetr" else "Binance Global 🌍"
         if res:
-            send_message(chat_id, f"🎉 TEBRİKLER {first_name.upper()}!\n\nBinance hesabınız başarıyla bağlandı! Artık otonom yapay zeka sinyalleri bu sohbet üzerinden onayınıza sunulacak. 🚀")
+            send_message(chat_id, f"🎉 *TEBRİKLER {first_name.upper()}!*\n\n*{exch_label}* hesabınız başarıyla bağlandı! Artık 7/24 otonom yapay zeka alım-satım ve kâr alma sistemi sizin hesabınız için de devrede! 🚀")
         else:
             send_message(chat_id, "❌ Bağlantı sırasında bir hata oluştu. Lütfen tekrar deneyin.")
         return
