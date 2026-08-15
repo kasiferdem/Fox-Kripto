@@ -359,13 +359,21 @@ def execute_spot_trade(
 
     if exchange and getattr(exchange, "apiKey", None) and not os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true":
         try:
-            order = exchange.create_order(
-                symbol=symbol,
-                type='market',
-                side=side.lower(),
-                amount=quantity,
-                amount_usd=amount_usd
-            )
+            if isinstance(exchange, BinanceTRClient):
+                order = exchange.create_order(
+                    symbol=symbol,
+                    type='market',
+                    side=side.lower(),
+                    amount=quantity,
+                    amount_usd=amount_usd
+                )
+            else:
+                order = exchange.create_order(
+                    symbol=symbol,
+                    type='market',
+                    side=side.lower(),
+                    amount=quantity
+                )
             print(f"✅ [CANLI MULTI-TENANT EMİR İNFAZ EDİLDİ]: Order ID #{order.get('id')}")
             return {
                 "status": "success",

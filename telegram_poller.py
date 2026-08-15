@@ -299,6 +299,137 @@ def handle_update(update: dict):
             send_message(chat_id, "❌ Bağlantı sırasında bir hata oluştu. Lütfen tekrar deneyin.")
         return
 
+    # ---------------------------------------------------------
+    # 3. DOĞAL DİL İLE AKILLI ALIM/SATIM & ASİSTAN MOTORU (GPT-4o)
+    # ---------------------------------------------------------
+    tenant = get_tenant_by_chat_id(chat_id)
+    if not tenant:
+        send_message(chat_id, f"👋 Merhaba {first_name}! Sizi sisteme bağlamak için lütfen `bagla` yazın.")
+        return
+
+    is_tr_user = bool(tenant.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
+    quote_curr = "TRY" if is_tr_user else "USDT"
+    exch_label = "BINANCE.TR 🇹🇷" if is_tr_user else "BINANCE GLOBAL 🌍"
+
+    try:
+        from prompts import call_gpt4o
+        from exchange import fetch_ticker_price
+        import json
+
+        system_prompt = (
+            "Sen kıdemli bir Telegram Kripto Ticaret ve Asistan Robotusun.\n"
+            "Kullanıcının Türkçe mesajını analiz et ve niyetini (intent) belirle.\n\n"
+            "OLASI NİYETLER (intent):\n"
+            "1. 'TRADE': Kullanıcı doğrudan bir alım veya satım emri veriyor.\n"
+            "   Örnekler: '500 TL sol al', '10 dolar btc al', '10 adet sol al', 'elimdeki avaxı sat', '50 TL pepe sat', '1 sol al', 'bnb sat', '10$ usdt sat', 'sol al', 'near sat'\n"
+            "2. 'PRICE_QUERY': Kullanıcı bir coinin anlık fiyatını veya durumunu soruyor.\n"
+            "   Örnekler: 'sol ne kadar', 'bitcoin kaç dolar', 'pepe ne durumda', 'eth fiyatı'\n"
+            "3. 'CHAT': Genel soru, sohbet veya selamlama.\n\n"
+            "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
+            "{\n"
+            '  "intent": "TRADE" | "PRICE_QUERY" | "CHAT",\n'
+            '  "action": "BUY" | "SELL" | null,\n'
+            '  "coin": "SOL" | "BTC" | "AVAX" | "PEPE" | "BNB" | "ETH" | "NEAR" | "SUI" | "RENDER" | null,\n'
+            '  "amount_type": "FIAT_TRY" | "FIAT_USD" | "COIN_QTY" | "ALL_BALANCE" | null,\n'
+            '  "amount_value": 500.0 | 10.0 | 1.0 | null,\n'
+            '  "chat_reply": "Kullanıcıya samimi ve profesyonel yanıt"\n'
+            "}"
+        )
+
+        user_text = raw_text.strip()
+        parsed_res = call_gpt4o(system_prompt, f"Kullanıcı Mesajı: {user_text}")
+        clean_json = parsed_res.strip("` \n").replace("json", "").strip() if parsed_res else "{}"
+        intent_data = json.loads(clean_json) if clean_json.startswith("{") else {}
+        
+        intent = intent_data.get("intent", "CHAT")
+        
+        if intent == "TRADE" and intent_data.get("coin") and intent_data.get("action"):
+            coin = str(intent_data["coin"]).upper()
+            action = str(intent_data["action"]).upper()
+            amt_type = intent_data.get("amount_type", "FIAT_TRY" if is_tr_user else "FIAT_USD")
+            amt_val = float(intent_data.get("amount_value") or 10.0)
+            
+            target_symbol = f"{coin}/{quote_curr}"
+            ticker = fetch_ticker_price(target_symbol)
+            curr_price = float(ticker.get("last_price", 0.0))
+            
+            if amt_type == "FIAT_TRY":
+                amount_usd = amt_val / 34.80
+                amount_display = f"₺{amt_val:,.2f} TL"
+            elif amt_type == "FIAT_USD":
+                amount_usd = amt_val
+                amount_display = f"${amt_val:.2f} USD"
+            elif amt_type == "COIN_QTY":
+                if curr_price > 0:
+                    tot_fiat = amt_val * curr_price
+                    amount_usd = (tot_fiat / 34.80) if is_tr_user else tot_fiat
+                    amount_display = f"{amt_val} {coin} (~₺{tot_fiat:,.2f} TL)" if is_tr_user else f"{amt_val} {coin} (~${tot_fiat:,.2f} USD)"
+                else:
+                    amount_usd = 10.0
+                    amount_display = f"${amount_usd:.2f} USD"
+            else: # ALL_BALANCE
+                amount_usd = 10.0
+                amount_display = f"Tüm {coin} Varlığı"
+                
+            send_message(chat_id, f"⚡ *TALİMAT ALINDI: {action} {target_symbol}*\n💵 Bütçe / Miktar: `{amount_display}`\n🏢 Borsa: {exch_label}\n\nEmir borsaya iletiliyor...")
+            
+            trade_res = execute_spot_trade(
+                symbol=target_symbol,
+                side=action,
+                amount_usd=amount_usd,
+                tenant_config=tenant
+            )
+            
+            if trade_res.get("status") in ["success", "EXECUTED", "EXECUTED_SIMULATED"]:
+                order_id = trade_res.get("order_id", "LIVE_EXEC")
+                exec_p = trade_res.get("executed_price") or curr_price
+                price_str = f"₺{exec_p:,.2f} TL" if is_tr_user else f"${exec_p:,.4f}"
+                success_card = (
+                    f"🚀 *CANLI TALİMAT BORSADA İNFAZ EDİLDİ!* ✅\n\n"
+                    f"👤 Kullanıcı: {first_name}\n"
+                    f"⚡ İşlem Tipi: *{action}*\n"
+                    f"🪙 Sembol: `{target_symbol}`\n"
+                    f"💵 İnfaz Tutarı: `{amount_display}`\n"
+                    f"📥 İnfaz Fiyatı: `{price_str}`\n"
+                    f"📄 Emir No: `#{order_id}`\n"
+                    f"🏢 Borsa: {exch_label}\n\n"
+                    f"🎉 *İşlem canlı olarak gerçekleştirildi!*"
+                )
+                send_message(chat_id, success_card)
+            else:
+                err = trade_res.get("error", "Borsa reddetti")
+                send_message(chat_id, f"⚠️ *Emir İletilemedi:*\n\n`{err}`\n\nLütfen bakiyenizi veya borsa kısıtlamalarını kontrol edin.")
+            return
+
+        elif intent == "PRICE_QUERY" and intent_data.get("coin"):
+            coin = str(intent_data["coin"]).upper()
+            t_usd = fetch_ticker_price(f"{coin}/USDT")
+            t_try = fetch_ticker_price(f"{coin}/TRY")
+            p_usd = t_usd.get("last_price", 0.0)
+            p_try = t_try.get("last_price", p_usd * 34.80)
+            chg = t_usd.get("percentage_change", 0.0)
+            high = t_usd.get("high", 0.0)
+            low = t_usd.get("low", 0.0)
+            
+            reply = (
+                f"🪙 *{coin} CANLI PİYASA DURUMU*\n\n"
+                f"💵 *Fiyat:* `${p_usd:,.4f}` (₺{p_try:,.2f} TL)\n"
+                f"📈 *24s Değişim:* `%{chg:+.2f}`\n"
+                f"📊 *24s En Yüksek:* `${high:,.4f}`\n"
+                f"📉 *24s En Düşük:* `${low:,.4f}`\n\n"
+                f"💡 _Talimat vermek için '500 TL {coin} al' veya '10$ {coin} sat' yazabilirsiniz._"
+            )
+            send_message(chat_id, reply)
+            return
+            
+        else:
+            chat_reply = intent_data.get("chat_reply") or f"Merhaba {first_name}! Bana '500 TL SOL al', '10$ BNB sat', 'durum', 'haberler' veya 'analiz' şeklinde talimat verebilirsiniz! 🚀"
+            send_message(chat_id, chat_reply)
+            return
+    except Exception as nle:
+        send_message(chat_id, f"🤖 Merhaba {first_name}! '500 TL SOL al', 'durum' veya 'haberler' yazarak işlem yapabilirsiniz.")
+        return
+
 def start_poller():
     """Telegram Poller Döngüsü (Non-blocking Fast Polling)."""
     print(f"🤖 [Telegram Poller Başlatıldı]: @FoxKriptoBot 7/24 dinleniyor...")
