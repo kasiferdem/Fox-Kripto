@@ -118,17 +118,22 @@ def run_autonomous_trading_loop():
                         if not symbol or "AUTO" in symbol.upper():
                             symbol = "BTC/USDT"
                             
+                        is_tr_pair = symbol.upper().endswith("TRY")
+                        wallet_label = "TL" if is_tr_pair else "USDT"
                         raw_action = str(proposal.get("direction", "BUY")).upper() if proposal else "BUY"
                         if raw_action in ["BUY", "ALIM"]:
                             action_title = "🛒 ALIM (BUY)"
-                            status_title = "✅ Canlı Alım Başarıyla Gerçekleştirildi" if is_exec_success else f"⚠️ Alım İletilemedi: {exec_res.get('error', 'Bakiye/Emir Limiti')}"
+                            status_title = f"✅ Canlı Alım Başarıyla Gerçekleştirildi ({wallet_label} Cüzdanı)" if is_exec_success else f"⚠️ Alım İletilemedi: {exec_res.get('error', 'Bakiye/Emir Limiti')}"
                         else:
                             action_title = "🎯 SATIM (SELL / KÂR ALMA)"
-                            status_title = "🎉 Canlı Satış Gerçekleşti ve TL Cüzdanına Aktarıldı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
+                            status_title = f"🎉 Canlı Satış Gerçekleşti ve {wallet_label} Cüzdanına Aktarıldı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
                             
                         amount = proposal.get("amount_usd", 10.0) if proposal else 10.0
-                        amount_try = round(amount * 34.80, 2)
-                        amount_display = f"₺{amount_try:.2f} TL (${amount:.2f} USD)"
+                        if is_tr_pair:
+                            amount_try = round(amount * 34.80, 2)
+                            amount_display = f"₺{amount_try:.2f} TL"
+                        else:
+                            amount_display = f"${amount:.2f} USD"
                         
                         order_id = exec_res.get("order_id")
                         order_text = f"\n📄 Emir No: #{order_id}" if (is_exec_success and order_id) else ""
