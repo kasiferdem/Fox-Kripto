@@ -13,8 +13,10 @@ from telegram_bot import send_telegram_trade_approval
 # DÜĞÜM (NODE) TANIMLARI
 # -----------------------------------------
 
+from news_service import fetch_live_global_crypto_news
+
 def node_fetch_data(state: CryptoAgentState) -> Dict[str, Any]:
-    print("\n--- [1. NODE: DİNAMİK TÜM BORSA PİYASA TARAYICI (TOP 20 GAINERS) DEVREDE] ---")
+    print("\n--- [1. NODE: DİNAMİK TÜM BORSA VE KÜRESEL HABER TARAYICI DEVREDE] ---")
     tenant_config = state.get("tenant_config")
     portfolio = fetch_portfolio_balance(tenant_config)
     
@@ -24,8 +26,16 @@ def node_fetch_data(state: CryptoAgentState) -> Dict[str, Any]:
     for t in top_gainers:
         tickers_summary.append(f"{t['symbol']}: Fiyat ${t['last_price']}, 24s Değişim %{t['percentage_change']:.2f}, Hacim ${t['volume']:,.0f}")
             
-    news_text = "CANLI BİNANCE TÜM PİYASA VE EN ÇOK YÜKSELEN DİNAMİK ALTCOIN TARAMASI:\n" + "\n".join(tickers_summary)
-    print(f"   [Dinamik Borsa Taraması]: Borsadaki en çok işlem gören {len(top_gainers)} sıcak altcoin başarıyla tarandı.")
+    global_headlines = fetch_live_global_crypto_news(limit_per_source=4)
+    headlines_text = "\n".join(global_headlines) if global_headlines else "Küresel piyasada sakin haber akışı."
+    
+    news_text = (
+        "🌍 DÜNYA VE OTORİTELERDEN ANLIK KRİPTO HABERLERİ (CoinDesk, CoinTelegraph, Decrypt):\n"
+        + headlines_text
+        + "\n\n📊 CANLI BİNANCE TÜM PİYASA VE EN ÇOK YÜKSELEN DİNAMİK ALTCOIN TARAMASI:\n"
+        + "\n".join(tickers_summary)
+    )
+    print(f"   [Küresel Haber & Borsa Taraması]: {len(global_headlines)} Canlı Dünya Haberi ve {len(top_gainers)} Sıcak Altcoin başarıyla tarandı.")
     return {"news_data": news_text, "portfolio_state": portfolio}
 
 def node_analyze_news(state: CryptoAgentState) -> Dict[str, Any]:
