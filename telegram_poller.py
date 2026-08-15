@@ -303,21 +303,20 @@ def start_poller():
     """Telegram Poller Döngüsü (Non-blocking Fast Polling)."""
     print(f"🤖 [Telegram Poller Başlatıldı]: @FoxKriptoBot 7/24 dinleniyor...")
     offset = None
+    import threading
     while True:
         try:
-            params = {"timeout": 0, "offset": offset}
-            res = requests.get(f"{BASE_URL}/getUpdates", params=params, timeout=5)
+            params = {"timeout": 1, "offset": offset}
+            res = requests.get(f"{BASE_URL}/getUpdates", params=params, timeout=6)
             if res.status_code == 200:
                 results = res.json().get("result", [])
                 for update in results:
                     offset = update["update_id"] + 1
-                    try:
-                        handle_update(update)
-                    except Exception as err:
-                        print(f"⚠️ [Poller Update Hatası]: {err}")
-            time.sleep(1)
+                    # Her mesajı paralel arka plan iş parçacığında (Thread) çalıştır - Sıfır Bloklanma!
+                    threading.Thread(target=handle_update, args=(update,), daemon=True).start()
+            time.sleep(0.5)
         except Exception as e:
-            time.sleep(2)
+            time.sleep(1)
 
 if __name__ == "__main__":
     start_poller()
