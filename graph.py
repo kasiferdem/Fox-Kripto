@@ -39,10 +39,26 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [3. NODE: STRATEJİ VE OTONOM KÂR ALMA MOTORU DEVREDE] ---")
     portfolio_state = state.get("portfolio_state") or {}
     
-    # Active Position Buy Prices (Alış fiyatı takip hafızası)
-    active_buy_prices = state.get("active_buy_prices") or {}
+    # 1. ÖNCELİK: Eldeki Pozisyonlarda Kalıcı Alış Takibi & Kâr Alma (+%1.0) / Stop-Loss (-%1.5) Denetimi
+    pos_file = os.path.join(os.path.dirname(__file__), "active_positions.json")
+    saved_positions = {}
+    if os.path.exists(pos_file):
+        try:
+            with open(pos_file, "r", encoding="utf-8") as pf:
+                saved_positions = json.load(pf)
+        except Exception:
+            pass
+            
+    default_entries = {
+        "SOL": 74.80,
+        "SUI": 0.6720,
+        "PEPE": 0.00000262,
+        "AVAX": 6.420,
+        "RENDER": 1.250,
+        "BTC": 62900.0,
+        "NEAR": 1.580
+    }
     
-    # 1. ÖNCELİK: Eldeki Pozisyonlarda Kâr Alma (+%1.5) ve Stop-Loss (-%1.5) Denetimi
     holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
     if isinstance(holdings, dict):
         for coin_asset, details in holdings.items():
@@ -56,17 +72,30 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             if coin_amount > 0.0001 and val_usd >= 1.0:
                 ticker = fetch_ticker_price(f"{asset_upper}/USDT")
                 curr_p = float(ticker.get("last_price", 0.0))
-                
-                # Alış Fiyatını Bul (Geçmiş alış fiyatı veya tahmin)
-                recorded_buy_p = active_buy_prices.get(asset_upper) or details.get("price", 0.0) if isinstance(details, dict) else 0.0
-                if not recorded_buy_p or recorded_buy_p <= 0.0:
-                    recorded_buy_p = round(curr_p / 1.015, 4) # Varsayılan giriş seviyesi
+                if curr_p <= 0:
+                    continue
                     
+                # Kalıcı Alış Fiyatını Oku
+                recorded_buy_p = 0.0
+                if asset_upper in saved_positions and isinstance(saved_positions[asset_upper], dict):
+                    recorded_buy_p = float(saved_positions[asset_upper].get("buy_price", 0.0))
+                elif asset_upper in saved_positions and isinstance(saved_positions[asset_upper], (int, float)):
+                    recorded_buy_p = float(saved_positions[asset_upper])
+                
+                if recorded_buy_p <= 0.0:
+                    recorded_buy_p = default_entries.get(asset_upper, round(curr_p / 1.012, 4))
+                    saved_positions[asset_upper] = {"buy_price": recorded_buy_p, "time": time.time()}
+                    try:
+                        with open(pos_file, "w", encoding="utf-8") as pf:
+                            json.dump(saved_positions, pf, indent=2)
+                    except Exception:
+                        pass
+                        
                 price_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
                 
-                # KÂR ALMA (+%1.5) VEYA STOP-LOSS (-%1.5) TETİKLENME KONTROLÜ
-                if price_change_pct >= 1.5 or price_change_pct <= -1.5:
-                    reason_type = "Kâr Alma (+%1.5)" if price_change_pct >= 1.5 else "Stop-Loss (-%1.5)"
+                # KÂR ALMA (+%1.0) VEYA STOP-LOSS (-%1.5) TETİKLENME KONTROLÜ
+                if price_change_pct >= 1.0 or price_change_pct <= -1.5:
+                    reason_type = f"Kâr Alma (+%{price_change_pct:.2f})" if price_change_pct >= 1.0 else f"Stop-Loss (%{price_change_pct:.2f})"
                     print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} pozisyonu ({price_change_pct:+.2f}%) piyasa emriyle satılıyor...")
                     sell_proposal = {
                         "should_trade": True,
@@ -77,7 +106,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         "entry_price": recorded_buy_p,
                         "stop_loss_percent": 1.5,
                         "stop_loss_price": round(recorded_buy_p * 0.985, 4),
-                        "take_profit_price": round(recorded_buy_p * 1.015, 4),
+                        "take_profit_price": round(recorded_buy_p * 1.010, 4),
                         "risk_justification": f"Otonom {reason_type}: {asset_upper} pozisyonu ({price_change_pct:+.2f}%) TL cüzdanına dönüştürülüyor."
                     }
                     return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
@@ -156,6 +185,29 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
             stop_loss_price=proposal["stop_loss_price"],
             tenant_config=tenant_config
         )
+        
+        # Pozisyon Hafızasını Güncelle (active_positions.json)
+        try:
+            pos_file = os.path.join(os.path.dirname(__file__), "active_positions.json")
+            saved_positions = {}
+            if os.path.exists(pos_file):
+                with open(pos_file, "r", encoding="utf-8") as pf:
+                    saved_positions = json.load(pf)
+                    
+            base_sym = proposal["symbol"].split("/")[0].split("_")[0].upper()
+            status_str = str(result.get("status", "")).upper()
+            if status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]:
+                if proposal["direction"].upper() in ["BUY", "ALIM"]:
+                    exec_p = float(result.get("executed_price") or proposal.get("entry_price") or 0.0)
+                    saved_positions[base_sym] = {"buy_price": exec_p, "time": time.time()}
+                else: # SELL
+                    saved_positions.pop(base_sym, None)
+                    
+                with open(pos_file, "w", encoding="utf-8") as pf:
+                    json.dump(saved_positions, pf, indent=2)
+        except Exception as pe:
+            print(f"⚠️ [Pozisyon Hafıza Uyarısı]: {pe}")
+            
         log_payload = {
             **proposal,
             "sentiment_score": state.get("sentiment_score"),
