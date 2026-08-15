@@ -233,6 +233,54 @@ def get_my_egress_ip():
     except Exception as e:
         return {"error": str(e)}
 
+@app_api.post("/api/admin/demo-swap-moonwalker")
+def demo_swap_moonwalker():
+    """DigitalOcean sunucusundan (IP: 104.248.135.128) Moonwalker için 0.01 BNB satıp SOL alır."""
+    import time
+    from db import get_tenant_by_chat_id
+    from exchange import get_exchange_for_tenant
+    
+    tenant = get_tenant_by_chat_id(757146559)
+    if not tenant:
+        return {"error": "Tenant 757146559 not found"}
+        
+    ex = get_exchange_for_tenant(tenant)
+    results = {}
+    
+    # 1. 0.01 BNB Sat
+    try:
+        sell_order = ex.create_order(symbol="BNB/USDT", type="market", side="sell", amount=0.01)
+        results["sell_bnb"] = {
+            "status": "success",
+            "order_id": sell_order.get("id"),
+            "price": sell_order.get("price"),
+            "cost": sell_order.get("cost"),
+            "filled": sell_order.get("filled")
+        }
+    except Exception as se:
+        results["sell_bnb"] = {"status": "error", "error": str(se)}
+        return results
+
+    time.sleep(2)
+
+    # 2. SOL Al
+    try:
+        sol_ticker = ex.fetch_ticker("SOL/USDT")
+        sol_p = float(sol_ticker.get("last", 150.0))
+        sol_qty = round(5.5 / sol_p, 2)
+        buy_order = ex.create_order(symbol="SOL/USDT", type="market", side="buy", amount=sol_qty)
+        results["buy_sol"] = {
+            "status": "success",
+            "order_id": buy_order.get("id"),
+            "price": buy_order.get("price"),
+            "cost": buy_order.get("cost"),
+            "filled": buy_order.get("filled")
+        }
+    except Exception as be:
+        results["buy_sol"] = {"status": "error", "error": str(be)}
+
+    return results
+
 @app_api.get("/api/debug-binance")
 def debug_binance_account():
     """DigitalOcean sunucusundan tüm Binance cüzdanlarını (Spot + Earn + Funding) kontrol eder."""
