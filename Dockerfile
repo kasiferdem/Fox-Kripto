@@ -19,8 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Proje dosyalarını kopyala
 COPY . .
 
-# Port tanımı (FastAPI & Webhook için)
+# Port tanımı
 EXPOSE 8000
 
-# Varsayılan başlangıç komutu
-CMD ["uvicorn", "app:app_api", "--host", "0.0.0.0", "--port", "8000"]
+# Varsayılan başlangıç komutu (Dinamik PORT destekli)
+CMD ["sh", "-c", "uvicorn app:app_api --host 0.0.0.0 --port ${PORT:-8000}"]
