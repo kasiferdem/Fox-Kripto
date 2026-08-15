@@ -178,13 +178,16 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     break
             
             if fresh_coin:
-                print(f"   🔄 [Portföy Çeşitlendirme Koruması]: '{proposed_base}' skoru normal (+{sentiment_score:.1f}). İkinci defa almak yerine cüzdanda olmayan '{fresh_coin}' seçildi.")
-                proposal["symbol"] = fresh_coin
+                fresh_base = fresh_coin.split("/")[0].upper()
+                print(f"   🔄 [Portföy Çeşitlendirme Koruması]: '{proposed_base}' skoru normal (+{sentiment_score:.1f}). İkinci defa almak yerine cüzdanda olmayan '{fresh_base}/{pair_quote}' seçildi.")
+                proposal["symbol"] = f"{fresh_base}/{pair_quote}"
             else:
                 print(f"   [Çeşitlendirme Reddi]: Tüm altcoinler cüzdanda mevcut. Yeni alım yapılmıyor.")
                 return {"trade_proposal": None, "human_approval": "Rejected"}
-            
-    print(f"   [Seçilen İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Bütçe: ${proposal['amount_usd']} USD")
+                
+    final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
+    proposal["symbol"] = f"{final_base}/{pair_quote}"
+    print(f"   [Seçilen İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Bütçe: ${proposal['amount_usd']} USD ({pair_quote})")
     return {"trade_proposal": proposal, "human_approval": "Approved"}
 
 def node_human_approval(state: CryptoAgentState) -> Dict[str, Any]:

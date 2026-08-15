@@ -118,8 +118,12 @@ def run_autonomous_trading_loop():
                         if not symbol or "AUTO" in symbol.upper():
                             symbol = "BTC/USDT"
                             
-                        is_tr_pair = symbol.upper().endswith("TRY")
-                        wallet_label = "TL" if is_tr_pair else "USDT"
+                        is_tr_tenant = bool(tenant and tenant.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
+                        wallet_label = "TL" if is_tr_tenant else "USDT"
+                        quote_sym = "TRY" if is_tr_tenant else "USDT"
+                        base_sym = symbol.split("/")[0].split("_")[0].upper()
+                        symbol = f"{base_sym}/{quote_sym}"
+                        
                         raw_action = str(proposal.get("direction", "BUY")).upper() if proposal else "BUY"
                         if raw_action in ["BUY", "ALIM"]:
                             action_title = "🛒 ALIM (BUY)"
@@ -129,7 +133,7 @@ def run_autonomous_trading_loop():
                             status_title = f"🎉 Canlı Satış Gerçekleşti ve {wallet_label} Cüzdanına Aktarıldı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
                             
                         amount = proposal.get("amount_usd", 10.0) if proposal else 10.0
-                        if is_tr_pair:
+                        if is_tr_tenant:
                             amount_try = round(amount * 34.80, 2)
                             amount_display = f"₺{amount_try:.2f} TL"
                         else:
@@ -207,7 +211,7 @@ def run_autonomous_trading_loop():
                             )
                             
                         from telegram_poller import send_message
-                        exch_display = "BINANCE.TR 🇹🇷" if symbol.upper().endswith("TRY") else "BINANCE GLOBAL 🌍"
+                        exch_display = "BINANCE.TR 🇹🇷" if is_tr_tenant else "BINANCE GLOBAL 🌍"
                         msg = (
                             f"🤖 *7/24 OTONOM YAPAY ZEKA BİLDİRİMİ*\n\n"
                             f"👤 Kullanıcı: {tenant_name}\n"
