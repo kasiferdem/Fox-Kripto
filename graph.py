@@ -128,6 +128,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         "amount_usd": round(val_usd, 2),
                         "amount_coin": coin_amount,
                         "entry_price": recorded_buy_p,
+                        "net_profit_pct": round(net_profit_pct, 2),
+                        "gross_change_pct": round(gross_change_pct, 2),
                         "stop_loss_percent": 1.5,
                         "stop_loss_price": round(recorded_buy_p * 0.985, 4),
                         "take_profit_price": round(recorded_buy_p * 1.015, 4),

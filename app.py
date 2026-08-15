@@ -142,39 +142,68 @@ def run_autonomous_trading_loop():
                         if raw_action not in ["BUY", "ALIM"]:
                             raw_entry = float(proposal.get("entry_price") or 0.0) if proposal else 0.0
                             raw_exit = float(exec_res.get("executed_price") or proposal.get("take_profit_price") or 0.0) if exec_res else 0.0
+                            coin_qty = float(proposal.get("amount_coin") or 0.0) if proposal else 0.0
+                            
+                            is_tr_pair = symbol.upper().endswith("TRY")
+                            quote_label = "TL" if is_tr_pair else "USDT"
                             
                             if raw_exit > 0:
-                                if symbol.upper().endswith("TRY"):
+                                if is_tr_pair:
+                                    entry_try = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
                                     exit_try = raw_exit
-                                    if raw_entry > 0 and raw_entry < (exit_try / 15.0):
-                                        entry_try = raw_entry * 34.80
-                                        entry_usd = raw_entry
-                                    else:
-                                        entry_try = raw_entry if raw_entry > 0 else (exit_try / 1.025)
-                                        entry_usd = entry_try / 34.80
-                                    exit_usd = exit_try / 34.80
                                     
+                                    # Net Kâr Hesaplama (TL)
+                                    gross_pct = ((exit_try - entry_try) / entry_try * 100) if entry_try > 0 else 1.7
+                                    net_pct = gross_pct - 0.20 # %0.20 borsa komisyonu düşülür
+                                    
+                                    tot_sell_try = (coin_qty * exit_try) if coin_qty > 0 else (amount * 34.80)
+                                    tot_buy_try = (coin_qty * entry_try) if coin_qty > 0 else (tot_sell_try / (1 + (gross_pct/100.0) if gross_pct > 0 else 1.0))
+                                    net_profit_fiat = tot_sell_try - tot_buy_try - (tot_sell_try * 0.002)
+                                    if net_profit_fiat < 0.01:
+                                        net_profit_fiat = tot_sell_try * (net_pct / 100.0)
+                                        
                                     if exit_try < 0.01:
-                                        entry_str = f"₺{entry_try:.8f} (${entry_usd:.8f})"
-                                        exit_str = f"₺{exit_try:.8f} (${exit_usd:.8f})"
+                                        entry_str = f"₺{entry_try:.8f}"
+                                        exit_str = f"₺{exit_try:.8f}"
                                     elif exit_try < 1.0:
-                                        entry_str = f"₺{entry_try:.4f} (${entry_usd:.4f})"
-                                        exit_str = f"₺{exit_try:.4f} (${exit_usd:.4f})"
+                                        entry_str = f"₺{entry_try:.4f}"
+                                        exit_str = f"₺{exit_try:.4f}"
                                     else:
-                                        entry_str = f"₺{entry_try:.2f} TL (${entry_usd:.2f})"
-                                        exit_str = f"₺{exit_try:.2f} TL (${exit_usd:.2f})"
+                                        entry_str = f"₺{entry_try:,.2f} TL"
+                                        exit_str = f"₺{exit_try:,.2f} TL"
+                                        
+                                    profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL Net Kazanç)"
                                 else:
-                                    entry_str = f"${raw_entry:.4f}"
-                                    exit_str = f"${raw_exit:.4f}"
+                                    # Binance Global (USDT)
+                                    entry_usd = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
+                                    exit_usd = raw_exit
+                                    
+                                    gross_pct = ((exit_usd - entry_usd) / entry_usd * 100) if entry_usd > 0 else 1.7
+                                    net_pct = gross_pct - 0.20
+                                    
+                                    tot_sell_usd = (coin_qty * exit_usd) if coin_qty > 0 else amount
+                                    tot_buy_usd = (coin_qty * entry_usd) if coin_qty > 0 else (tot_sell_usd / (1 + (gross_pct/100.0) if gross_pct > 0 else 1.0))
+                                    net_profit_fiat = tot_sell_usd - tot_buy_usd - (tot_sell_usd * 0.002)
+                                    if net_profit_fiat < 0.01:
+                                        net_profit_fiat = tot_sell_usd * (net_pct / 100.0)
+                                        
+                                    if exit_usd < 0.01:
+                                        entry_str = f"${entry_usd:.8f}"
+                                        exit_str = f"${exit_usd:.8f}"
+                                    else:
+                                        entry_str = f"${entry_usd:,.2f}"
+                                        exit_str = f"${exit_usd:,.2f}"
+                                        
+                                    profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT Net Kazanç)"
                             else:
                                 entry_str = "Alış Fiyatı"
                                 exit_str = "Satış Fiyatı"
+                                profit_badge = "+%1.50+ Net Kazanç"
                             
-                            quote_label = "TL" if symbol.upper().endswith("TRY") else "USDT"
                             price_detail_line = (
                                 f"\n📥 *Alış Birim Fiyatı:* `{entry_str}`\n"
                                 f"📤 *Satış Birim Fiyatı:* `{exit_str}`\n"
-                                f"📈 *Net Kâr / Kazanç:* `+%1.5+ KÂR {quote_label} CÜZDANINA KİLİTLENDİ!`"
+                                f"📈 *Net Kâr / Kazanç:* `{profit_badge} {quote_label} Cüzdanına Kilitlendi!`"
                             )
                             
                         from telegram_poller import send_message
