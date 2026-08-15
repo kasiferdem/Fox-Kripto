@@ -70,6 +70,9 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         "NEAR": 1.580
     }
     
+    is_tr_user = bool(tenant_config and tenant_config.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
+    pair_quote = "TRY" if is_tr_user else "USDT"
+    
     holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
     if isinstance(holdings, dict):
         for coin_asset, details in holdings.items():
@@ -81,21 +84,26 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             val_usd = details.get("val_usd", 0.0) if isinstance(details, dict) else 0.0
             
             if coin_amount > 0.0001 and val_usd >= 1.0:
-                ticker = fetch_ticker_price(f"{asset_upper}/USDT")
+                # KULLANICININ BORSA PARA BİRİMİNDE GERÇEK FİYAT OKU (TRY veya USDT)
+                target_symbol = f"{asset_upper}/{pair_quote}"
+                ticker = fetch_ticker_price(target_symbol)
                 curr_p = float(ticker.get("last_price", 0.0))
                 if curr_p <= 0:
                     continue
                     
-                # Kalıcı Alış Fiyatını Oku
+                # Kalıcı Alış Fiyatını Oku (Doğrudan kullanıcının para biriminde)
                 recorded_buy_p = 0.0
                 if asset_upper in saved_positions and isinstance(saved_positions[asset_upper], dict):
-                    recorded_buy_p = float(saved_positions[asset_upper].get("buy_price", 0.0))
+                    saved_cur = saved_positions[asset_upper].get("currency", pair_quote)
+                    if saved_cur == pair_quote:
+                        recorded_buy_p = float(saved_positions[asset_upper].get("buy_price", 0.0))
                 elif asset_upper in saved_positions and isinstance(saved_positions[asset_upper], (int, float)):
                     recorded_buy_p = float(saved_positions[asset_upper])
                 
+                # Eğer kaydedilmemişse o anki fiyatın %1.5 altı varsayılır
                 if recorded_buy_p <= 0.0:
-                    recorded_buy_p = default_entries.get(asset_upper, round(curr_p / 1.012, 4))
-                    saved_positions[asset_upper] = {"buy_price": recorded_buy_p, "time": time.time()}
+                    recorded_buy_p = round(curr_p / 1.015, 6 if curr_p < 1 else 2)
+                    saved_positions[asset_upper] = {"buy_price": recorded_buy_p, "currency": pair_quote, "time": time.time()}
                     try:
                         with open(pos_file, "w", encoding="utf-8") as pf:
                             json.dump(saved_positions, pf, indent=2)
@@ -104,27 +112,25 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         
                 gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
                 
-                # Binance TR Borsa Komisyonu (Alış %0.10 + Satış %0.10 = Toplam %0.20 Komisyon Düşülür)
+                # Binance Borsa Komisyonu (Alış %0.10 + Satış %0.10 = Toplam %0.20 Komisyon Düşülür)
                 BINANCE_COMMISSION_PCT = 0.20
                 net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT if gross_change_pct > 0 else gross_change_pct
                 
-                # KÂR ALMA (Net Kâr >= +%1.0) VEYA STOP-LOSS (Brüt <= -%1.5) TETİKLENME KONTROLÜ
-                if net_profit_pct >= 1.0 or gross_change_pct <= -1.5:
-                    reason_type = f"Net Kâr Alma (+%{net_profit_pct:.2f} Komisyon Sonrası)" if net_profit_pct >= 1.0 else f"Stop-Loss (%{gross_change_pct:.2f})"
-                    print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Brüt: %{gross_change_pct:+.2f}, Net: %{net_profit_pct:+.2f}) piyasa emriyle satılıyor...")
+                # KÂR ALMA (Net Kâr >= +%1.5) VEYA STOP-LOSS (Brüt <= -%1.5) TETİKLENME KONTROLÜ
+                if net_profit_pct >= 1.5 or gross_change_pct <= -1.5:
+                    reason_type = f"Net Kâr Alma (+%{net_profit_pct:.2f} Komisyon Sonrası)" if net_profit_pct >= 1.5 else f"Stop-Loss (%{gross_change_pct:.2f})"
+                    print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Birim: {pair_quote}, Brüt: %{gross_change_pct:+.2f}, Net: %{net_profit_pct:+.2f}) piyasa emriyle satılıyor...")
                     
-                    is_tr_user = bool(tenant_config and tenant_config.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
-                    pair_quote = "TRY" if is_tr_user else "USDT"
                     sell_proposal = {
                         "should_trade": True,
-                        "symbol": f"{asset_upper}/{pair_quote}",
+                        "symbol": target_symbol,
                         "direction": "SELL",
                         "amount_usd": round(val_usd, 2),
                         "amount_coin": coin_amount,
                         "entry_price": recorded_buy_p,
                         "stop_loss_percent": 1.5,
                         "stop_loss_price": round(recorded_buy_p * 0.985, 4),
-                        "take_profit_price": round(recorded_buy_p * 1.010, 4),
+                        "take_profit_price": round(recorded_buy_p * 1.015, 4),
                         "risk_justification": f"Otonom {reason_type}: {asset_upper} pozisyonu ({gross_change_pct:+.2f}%) {pair_quote} cüzdanına dönüştürülüyor."
                     }
                     return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
@@ -217,7 +223,8 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
             if status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]:
                 if proposal["direction"].upper() in ["BUY", "ALIM"]:
                     exec_p = float(result.get("executed_price") or proposal.get("entry_price") or 0.0)
-                    saved_positions[base_sym] = {"buy_price": exec_p, "time": time.time()}
+                    quote_c = proposal["symbol"].split("/")[1].upper() if "/" in proposal["symbol"] else "TRY"
+                    saved_positions[base_sym] = {"buy_price": exec_p, "currency": quote_c, "time": time.time()}
                 else: # SELL
                     saved_positions.pop(base_sym, None)
                     

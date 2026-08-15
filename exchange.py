@@ -272,7 +272,25 @@ def get_global_binance_public():
     return _global_ccxt_binance
 
 def fetch_ticker_price(symbol: str = "BTC/USDT") -> Dict[str, Any]:
-    """Borsadan anlık sembol fiyatı ve 24h değişimini hızlı okur."""
+    """Borsadan anlık sembol fiyatı ve 24h değişimini hızlı ve hatasız okur (TRY ve USDT çiftleri destekli)."""
+    clean_sym = symbol.replace("/", "").replace("_", "").replace("-", "").upper()
+    # 1. Öncelik: Ultra Hızlı Binance Public 24hr Ticker API (TRY ve USDT destekli)
+    try:
+        r = requests.get(f"https://api.binance.com/api/v3/ticker/24hr?symbol={clean_sym}", timeout=3)
+        if r.status_code == 200:
+            data = r.json()
+            return {
+                "symbol": symbol,
+                "last_price": float(data.get("lastPrice") or data.get("price") or 0.0),
+                "high": float(data.get("highPrice") or 0.0),
+                "low": float(data.get("lowPrice") or 0.0),
+                "percentage_change": float(data.get("priceChangePercent") or 0.0),
+                "volume": float(data.get("quoteVolume") or 0.0)
+            }
+    except Exception:
+        pass
+
+    # 2. Öncelik: CCXT Fallback
     exchange = get_global_binance_public()
     try:
         ticker = exchange.fetch_ticker(symbol)
@@ -284,15 +302,7 @@ def fetch_ticker_price(symbol: str = "BTC/USDT") -> Dict[str, Any]:
             "percentage_change": float(ticker.get('percentage', 0.0)),
             "volume": float(ticker.get('quoteVolume', 0.0))
         }
-    except Exception as e:
-        try:
-            clean = symbol.replace("/", "").replace("_", "").upper()
-            r = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={clean}", timeout=3)
-            p = float(r.json().get("price", 0.0))
-            if p > 0:
-                return {"symbol": symbol, "last_price": p, "percentage_change": 0.0, "volume": 0.0}
-        except Exception:
-            pass
+    except Exception:
         return {"symbol": symbol, "last_price": 0.0, "percentage_change": 0.0, "volume": 0.0}
 
 def fetch_top_volume_gainers(limit: int = 20) -> list:
