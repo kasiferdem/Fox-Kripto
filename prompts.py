@@ -160,9 +160,20 @@ def formulate_trade_strategy(
             clean_json = raw_response.strip("` \n").replace("json", "").strip()
             proposal = json.loads(clean_json)
             
-            valid_base_coins = ["BTC", "ETH", "SOL", "AVAX", "PEPE", "RENDER", "XRP", "DOGE", "SUI", "NEAR", "FET", "LINK", "TIA", "SHIB", "ADA"]
+            valid_base_coins = ["SOL", "AVAX", "SUI", "RENDER", "NEAR", "PEPE", "DOGE", "XRP", "BTC", "ETH", "FET", "LINK", "TIA", "SHIB", "ADA"]
             sym = str(proposal.get("symbol", "SOL/USDT")).upper()
             base = sym.split("/")[0].split("_")[0]
+            
+            # KATI ÇEŞİTLİLİK KURALI: Elde zaten bulunan coini tekrar alma!
+            existing_coins = [c.upper() for c in current_holdings if c.upper() not in ["TRY", "USDT", "BUSD", "USDC"]]
+            if base in existing_coins:
+                available_candidates = [c for c in valid_base_coins if c not in existing_coins]
+                if available_candidates:
+                    base = available_candidates[0]
+                    sym = f"{base}/USDT"
+                    proposal["symbol"] = sym
+                    proposal["risk_justification"] = f"Portföy çeşitlendirildi: Elde olmayan yeni sıcak coin {base} seçildi."
+            
             if base not in valid_base_coins:
                 sym = "SOL/USDT"
             proposal["symbol"] = sym
