@@ -368,11 +368,18 @@ def execute_spot_trade(
                     amount_usd=amount_usd
                 )
             else:
+                # CCXT Binance Global hassasiyet kalibrasyonu
+                try:
+                    exchange.load_markets()
+                    fmt_qty = float(exchange.amount_to_precision(symbol, quantity))
+                except Exception:
+                    fmt_qty = round(quantity, 3 if ("BNB" in symbol or "SOL" in symbol or "AVAX" in symbol) else (6 if "BTC" in symbol else 2))
+                    
                 order = exchange.create_order(
                     symbol=symbol,
                     type='market',
                     side=side.lower(),
-                    amount=quantity
+                    amount=fmt_qty
                 )
             print(f"✅ [CANLI MULTI-TENANT EMİR İNFAZ EDİLDİ]: Order ID #{order.get('id')}")
             return {
