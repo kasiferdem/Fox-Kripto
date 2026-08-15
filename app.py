@@ -138,24 +138,29 @@ def run_autonomous_trading_loop():
                             raw_entry = float(proposal.get("entry_price") or 0.0) if proposal else 0.0
                             raw_exit = float(exec_res.get("executed_price") or proposal.get("take_profit_price") or 0.0) if exec_res else 0.0
                             
-                            # Para birimi uyumsuzluğunu gider: Her ikisini de aynı birime (TL) eşitle
-                            if raw_exit > 200.0 and raw_entry < 200.0:
-                                entry_try = round(raw_exit / 1.025, 2)
-                                exit_try = round(raw_exit, 2)
-                                entry_str = f"₺{entry_try:.2f} TL"
-                                exit_str = f"₺{exit_try:.2f} TL"
-                            elif raw_exit > 0:
-                                entry_val = raw_entry if raw_entry > 0 else (raw_exit / 1.025)
-                                exit_val = raw_exit
-                                if exit_val < 0.01:
-                                    entry_str = f"${entry_val:.8f}"
-                                    exit_str = f"${exit_val:.8f}"
-                                elif exit_val > 100:
-                                    entry_str = f"₺{entry_val:.2f} TL"
-                                    exit_str = f"₺{exit_val:.2f} TL"
+                            if raw_exit > 0:
+                                if symbol.upper().endswith("TRY"):
+                                    exit_try = raw_exit
+                                    if raw_entry > 0 and raw_entry < (exit_try / 15.0):
+                                        entry_try = raw_entry * 34.80
+                                        entry_usd = raw_entry
+                                    else:
+                                        entry_try = raw_entry if raw_entry > 0 else (exit_try / 1.025)
+                                        entry_usd = entry_try / 34.80
+                                    exit_usd = exit_try / 34.80
+                                    
+                                    if exit_try < 0.01:
+                                        entry_str = f"₺{entry_try:.8f} (${entry_usd:.8f})"
+                                        exit_str = f"₺{exit_try:.8f} (${exit_usd:.8f})"
+                                    elif exit_try < 1.0:
+                                        entry_str = f"₺{entry_try:.4f} (${entry_usd:.4f})"
+                                        exit_str = f"₺{exit_try:.4f} (${exit_usd:.4f})"
+                                    else:
+                                        entry_str = f"₺{entry_try:.2f} TL (${entry_usd:.2f})"
+                                        exit_str = f"₺{exit_try:.2f} TL (${exit_usd:.2f})"
                                 else:
-                                    entry_str = f"${entry_val:.4f}"
-                                    exit_str = f"${exit_val:.4f}"
+                                    entry_str = f"${raw_entry:.4f}"
+                                    exit_str = f"${raw_exit:.4f}"
                             else:
                                 entry_str = "Alış Fiyatı"
                                 exit_str = "Satış Fiyatı"
