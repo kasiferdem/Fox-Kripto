@@ -111,9 +111,12 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                 if net_profit_pct >= 1.0 or gross_change_pct <= -1.5:
                     reason_type = f"Net Kâr Alma (+%{net_profit_pct:.2f} Komisyon Sonrası)" if net_profit_pct >= 1.0 else f"Stop-Loss (%{gross_change_pct:.2f})"
                     print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Brüt: %{gross_change_pct:+.2f}, Net: %{net_profit_pct:+.2f}) piyasa emriyle satılıyor...")
+                    
+                    is_tr_user = bool(tenant_config and tenant_config.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
+                    pair_quote = "TRY" if is_tr_user else "USDT"
                     sell_proposal = {
                         "should_trade": True,
-                        "symbol": f"{asset_upper}/TRY",
+                        "symbol": f"{asset_upper}/{pair_quote}",
                         "direction": "SELL",
                         "amount_usd": round(val_usd, 2),
                         "amount_coin": coin_amount,
@@ -121,11 +124,11 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         "stop_loss_percent": 1.5,
                         "stop_loss_price": round(recorded_buy_p * 0.985, 4),
                         "take_profit_price": round(recorded_buy_p * 1.010, 4),
-                        "risk_justification": f"Otonom {reason_type}: {asset_upper} pozisyonu ({price_change_pct:+.2f}%) TL cüzdanına dönüştürülüyor."
+                        "risk_justification": f"Otonom {reason_type}: {asset_upper} pozisyonu ({gross_change_pct:+.2f}%) {pair_quote} cüzdanına dönüştürülüyor."
                     }
                     return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
                 else:
-                    print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} pozisyonu henüz kâr hedefinde değil ({price_change_pct:+.2f}%). Satış yapılmıyor.")
+                    print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} pozisyonu henüz kâr hedefinde değil ({gross_change_pct:+.2f}%). Satış yapılmıyor.")
 
     news_analysis = {"sentiment_score": state.get("sentiment_score", 0.0), "market_data": state.get("news_data", "")}
     # Main coins ve altcoinler arasından en yüksek potansiyelli coini seçer
