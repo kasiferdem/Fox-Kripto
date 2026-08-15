@@ -110,9 +110,30 @@ def handle_update(update: dict):
     if text_clean in ["start", "help", "yardim", "merhaba"]:
         tenant = get_tenant_by_chat_id(chat_id)
         if tenant:
-            send_message(chat_id, f"👋 Merhaba {first_name}!\n\nSistemde {tenant['tenant_name']} olarak kayıtlısınız! ✅\n\n📌 Kullanabileceğiniz Komutlar:\n• durum veya bakiye - Canlı portföyünüzü görün.\n• bagla - Borsa API anahtarlarınızı güncelleyin.")
+            send_message(chat_id, f"👋 Merhaba {first_name}!\n\nSistemde {tenant['tenant_name']} olarak kayıtlısınız! ✅\n\n📌 Kullanabileceğiniz Komutlar:\n• durum veya bakiye - Canlı portföyünüzü görün.\n• haberler - Dünyadan en sıcak kripto haberlerini alın.\n• analiz - Canlı yapay zeka piyasa taraması başlatın.\n• bagla - Borsa API anahtarlarınızı güncelleyin.")
         else:
             send_message(chat_id, f"👋 Merhaba {first_name}! Fox-Kripto Otonom Ajan Sistemine Hoş Geldiniz!\n\nBinance hesabınızı bağlamak için bagla yazabilirsiniz.")
+        return
+
+    if text_clean in ["haber", "haberler", "haberle", "gundem", "gündem", "news", "kripto haber", "son haberler"]:
+        send_message(chat_id, "📡 *KÜRESEL KRİPTO HABERLERİ ÇEKİLİYOR...*\nCoinDesk, CoinTelegraph ve Decrypt taranıyor...")
+        try:
+            from news_service import fetch_live_global_crypto_news
+            headlines = fetch_live_global_crypto_news(limit_per_source=3)
+            
+            if headlines:
+                news_items = "\n\n".join([f"• {h}" for h in headlines[:8]])
+                summary_msg = (
+                    f"🌍 *CANLI KÜRESEL KRİPTO GÜNDEMİ*\n"
+                    f"_(CoinDesk • CoinTelegraph • Decrypt)_\n\n"
+                    f"{news_items}\n\n"
+                    f"🤖 *Yapay Zeka Analizi:* Küresel haber akışı taranarak otomatik alım-satım stratejilerine doğrudan yansıtılmaktadır! 🚀"
+                )
+                send_message(chat_id, summary_msg)
+            else:
+                send_message(chat_id, "ℹ️ Şu anda küresel haber akışında olağandışı bir son dakika gelişmesi bulunmuyor, piyasa sakin seyrediyor.")
+        except Exception as ne:
+            send_message(chat_id, f"⚠️ Haber akışı çekilirken bir hata oluştu: {ne}")
         return
 
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir"]:
