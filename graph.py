@@ -91,12 +91,16 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     except Exception:
                         pass
                         
-                price_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
+                gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
                 
-                # KÂR ALMA (+%1.0) VEYA STOP-LOSS (-%1.5) TETİKLENME KONTROLÜ
-                if price_change_pct >= 1.0 or price_change_pct <= -1.5:
-                    reason_type = f"Kâr Alma (+%{price_change_pct:.2f})" if price_change_pct >= 1.0 else f"Stop-Loss (%{price_change_pct:.2f})"
-                    print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} pozisyonu ({price_change_pct:+.2f}%) piyasa emriyle satılıyor...")
+                # Binance TR Borsa Komisyonu (Alış %0.10 + Satış %0.10 = Toplam %0.20 Komisyon Düşülür)
+                BINANCE_COMMISSION_PCT = 0.20
+                net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT if gross_change_pct > 0 else gross_change_pct
+                
+                # KÂR ALMA (Net Kâr >= +%1.0) VEYA STOP-LOSS (Brüt <= -%1.5) TETİKLENME KONTROLÜ
+                if net_profit_pct >= 1.0 or gross_change_pct <= -1.5:
+                    reason_type = f"Net Kâr Alma (+%{net_profit_pct:.2f} Komisyon Sonrası)" if net_profit_pct >= 1.0 else f"Stop-Loss (%{gross_change_pct:.2f})"
+                    print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Brüt: %{gross_change_pct:+.2f}, Net: %{net_profit_pct:+.2f}) piyasa emriyle satılıyor...")
                     sell_proposal = {
                         "should_trade": True,
                         "symbol": f"{asset_upper}/TRY",
