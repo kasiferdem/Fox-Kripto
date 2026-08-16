@@ -164,8 +164,11 @@ def handle_update(update: dict):
             send_message(chat_id, f"👋 Merhaba / Hello *{first_name}*!\nFox-Kripto Otonom Ajan Sistemine Hoş Geldiniz / Welcome to Fox-Crypto AI Agent System!\n\nBinance hesabınızı bağlamak için `bagla` yazabilirsiniz.")
         return
 
+    tenant = get_tenant_by_chat_id(chat_id)
+    user_lang = str(tenant.get("preferred_language", "tr") if tenant else "tr").lower()
+
     if text_clean in ["haber", "haberler", "haberle", "gundem", "gündem", "news", "kripto haber", "son haberler"]:
-        is_en = text_clean in ["news"]
+        is_en = (user_lang == "en") or (text_clean in ["news"])
         send_message(chat_id, "📡 *FETCHING GLOBAL CRYPTO NEWS...*" if is_en else "📡 *KÜRESEL KRİPTO HABERLERİ ÇEKİLİYOR...*\nCoinDesk, CoinTelegraph ve Decrypt taranıyor...")
         try:
             from news_service import fetch_live_global_crypto_news
@@ -189,9 +192,8 @@ def handle_update(update: dict):
         return
 
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir", "status", "balance", "portfolio"]:
-        is_en = text_clean in ["status", "balance", "portfolio"]
+        is_en = (user_lang == "en") or (text_clean in ["status", "balance", "portfolio"])
         try:
-            tenant = get_tenant_by_chat_id(chat_id)
             if not tenant:
                 send_message(
                     chat_id, 

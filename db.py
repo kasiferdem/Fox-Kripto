@@ -64,7 +64,19 @@ def get_tenant_by_chat_id(telegram_chat_id: int) -> Optional[Dict[str, Any]]:
     try:
         res = client.table("user_tenants").select("*").eq("telegram_chat_id", telegram_chat_id).eq("is_active", True).execute()
         if res.data and len(res.data) > 0:
-            return res.data[0]
+            t = dict(res.data[0])
+            api_k = str(t.get("exchange_api_key", ""))
+            if api_k.startswith("{"):
+                try:
+                    import json
+                    kd = json.loads(api_k)
+                    t["take_profit_percent"] = float(kd.get("take_profit_percent") or 1.5)
+                    t["preferred_language"] = str(kd.get("preferred_language") or "tr").lower()
+                except Exception:
+                    pass
+            else:
+                t["preferred_language"] = str(t.get("preferred_language") or "tr").lower()
+            return t
         return None
     except Exception as e:
         print(f"❌ [Multi-Tenant Sorgu Hatası]: {e}")
