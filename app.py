@@ -330,21 +330,37 @@ def debug_binance_account():
     if not tenant:
         return {"error": "Tenant 8739367825 not found in Supabase"}
     
-    api_key = tenant.get("exchange_api_key", "")
-    secret_key = tenant.get("exchange_secret_key", "")
+    import json
+    api_k_raw = tenant.get("exchange_api_key", "")
+    sec_k_raw = tenant.get("exchange_secret_key", "")
+    if isinstance(api_k_raw, str) and api_k_raw.startswith("{"):
+        kd = json.loads(api_k_raw)
+        api_key = kd.get("binance", {}).get("api_key", "")
+        secret_key = kd.get("binance", {}).get("secret_key", "")
+    else:
+        api_key = api_k_raw
+        secret_key = sec_k_raw
+
     ts = int(time.time() * 1000)
     query = f"timestamp={ts}"
     sig = hmac.new(secret_key.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
-    
-    # 1. Spot Account API
-    url_spot = f"https://api.binance.com/api/v3/account?{query}&signature={sig}"
-    # 2. All Capital Config API (Spot + Earn + Funding + Staking)
-    url_all = f"https://api.binance.com/sapi/v1/capital/config/getall?{query}&signature={sig}"
     headers = {"X-MBX-APIKEY": api_key}
     
     res_dict = {}
+    
+    # 1. Spot Account
     try:
-        r_all = requests.get(url_all, headers=headers, timeout=10)
+        r_spot = requests.get(f"https://api.binance.com/api/v3/account?{query}&signature={sig}", headers=headers, timeout=10)
+        s_data = r_spot.json()
+        s_bals = s_data.get("balances", [])
+        spot_non_zero = [b for b in s_bals if float(b.get("free", 0)) > 0 or float(b.get("locked", 0)) > 0]
+        res_dict["spot_balances_non_zero"] = spot_non_zero
+    except Exception as se:
+        res_dict["spot_exception"] = str(se)
+
+    # 2. All Capital Config (Spot + Earn + Funding)
+    try:
+        r_all = requests.get(f"https://api.binance.com/sapi/v1/capital/config/getall?{query}&signature={sig}", headers=headers, timeout=10)
         data_all = r_all.json()
         if isinstance(data_all, list):
             non_zero_capital = []
