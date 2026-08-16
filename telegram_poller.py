@@ -114,17 +114,59 @@ def handle_update(update: dict):
 
     print(f"📩 [Telegram Gelen Mesaj]: Chat ID={chat_id}, Text='{raw_text}' (Clean='{text_clean}')")
 
+    # Dil Değiştirme Komutları (Language Switcher)
+    if text_clean in ["dil en", "lang en", "english", "ingilizce", "dil ingilizce", "/lang en", "/en"]:
+        send_message(
+            chat_id,
+            f"🇬🇧 *LANGUAGE SWITCHED TO ENGLISH!* ✅\n\n"
+            f"👋 Hello *{first_name}*! You can now use all commands and natural language instructions in English:\n\n"
+            f"📌 *Quick Commands:*\n"
+            f"• `status` or `balance` - View your live portfolio.\n"
+            f"• `news` - Read latest global crypto market headlines.\n"
+            f"• `analysis` - Trigger an instant AI market scan.\n"
+            f"• `Set take profit 3%` or `Stop loss 2%` - Update risk limits.\n"
+            f"• `Buy $15 SOL` or `Sell 10$ DOGE` - Execute trades.\n\n"
+            f"_(Türkçeye dönmek için `dil tr` yazabilirsiniz.)_"
+        )
+        return
+
+    if text_clean in ["dil tr", "lang tr", "turkce", "türkçe", "dil turkce", "dil türkçe", "/lang tr", "/tr"]:
+        send_message(
+            chat_id,
+            f"🇹🇷 *DİL TÜRKÇE OLARAK AYARLANDI!* ✅\n\n"
+            f"👋 Merhaba *{first_name}*! Artık tüm komutları Türkçe kullanabilirsiniz:\n\n"
+            f"📌 *Hızlı Komutlar:*\n"
+            f"• `durum` veya `bakiye` - Canlı portföyünüzü görün.\n"
+            f"• `haberler` - En sıcak küresel kripto haberleri.\n"
+            f"• `analiz` - Canlı yapay zeka piyasa taraması.\n"
+            f"• `Kâr hedefimi %3 yap` - Risk limitlerinizi güncelleyin.\n"
+            f"• `500 TL SOL al` veya `10$ DOGE sat` - Doğal dille al-sat yapın.\n\n"
+            f"_(To switch to English type `lang en`)_"
+        )
+        return
+
     # Komut İşleme (Taksim / işaretli veya taksimsiz esnek eşleşme)
-    if text_clean in ["start", "help", "yardim", "merhaba"]:
+    if text_clean in ["start", "help", "yardim", "yardım", "merhaba", "hello", "hi"]:
         tenant = get_tenant_by_chat_id(chat_id)
         if tenant:
-            send_message(chat_id, f"👋 Merhaba {first_name}!\n\nSistemde {tenant['tenant_name']} olarak kayıtlısınız! ✅\n\n📌 Kullanabileceğiniz Komutlar:\n• durum veya bakiye - Canlı portföyünüzü görün.\n• haberler - Dünyadan en sıcak kripto haberlerini alın.\n• analiz - Canlı yapay zeka piyasa taraması başlatın.\n• bagla - Borsa API anahtarlarınızı güncelleyin.")
+            send_message(
+                chat_id, 
+                f"👋 Merhaba / Hello *{first_name}*!\n\n"
+                f"✅ Registered as: *{tenant['tenant_name']}*\n\n"
+                f"📌 *Kullanabileceğiniz Komutlar / Available Commands:*\n"
+                f"• `durum` / `status` / `balance` - Canlı portföy / Live holdings\n"
+                f"• `haberler` / `news` - Kripto haberleri / Market headlines\n"
+                f"• `analiz` / `analysis` - Yapay zeka taraması / AI Market scan\n"
+                f"• `lang en` 🇬🇧 / `dil tr` 🇹🇷 - Dil seçimi / Language switch\n"
+                f"• `500 TL SOL al` / `Buy $10 SOL` - Doğal dille işlem / Natural trade"
+            )
         else:
-            send_message(chat_id, f"👋 Merhaba {first_name}! Fox-Kripto Otonom Ajan Sistemine Hoş Geldiniz!\n\nBinance hesabınızı bağlamak için bagla yazabilirsiniz.")
+            send_message(chat_id, f"👋 Merhaba / Hello *{first_name}*!\nFox-Kripto Otonom Ajan Sistemine Hoş Geldiniz / Welcome to Fox-Crypto AI Agent System!\n\nBinance hesabınızı bağlamak için `bagla` yazabilirsiniz.")
         return
 
     if text_clean in ["haber", "haberler", "haberle", "gundem", "gündem", "news", "kripto haber", "son haberler"]:
-        send_message(chat_id, "📡 *KÜRESEL KRİPTO HABERLERİ ÇEKİLİYOR...*\nCoinDesk, CoinTelegraph ve Decrypt taranıyor...")
+        is_en = text_clean in ["news"]
+        send_message(chat_id, "📡 *FETCHING GLOBAL CRYPTO NEWS...*" if is_en else "📡 *KÜRESEL KRİPTO HABERLERİ ÇEKİLİYOR...*\nCoinDesk, CoinTelegraph ve Decrypt taranıyor...")
         try:
             from news_service import fetch_live_global_crypto_news
             headlines = fetch_live_global_crypto_news(limit_per_source=3)
@@ -132,27 +174,29 @@ def handle_update(update: dict):
             if headlines:
                 news_items = "\n\n".join([f"• {h}" for h in headlines[:8]])
                 summary_msg = (
+                    f"🌍 *LIVE GLOBAL CRYPTO HEADLINES*\n" if is_en else
                     f"🌍 *CANLI KÜRESEL KRİPTO GÜNDEMİ*\n"
                     f"_(CoinDesk • CoinTelegraph • Decrypt)_\n\n"
                     f"{news_items}\n\n"
+                    f"🤖 *AI Analysis:* Global headlines are continuously scanned and integrated into autonomous trading strategies! 🚀" if is_en else
                     f"🤖 *Yapay Zeka Analizi:* Küresel haber akışı taranarak otomatik alım-satım stratejilerine doğrudan yansıtılmaktadır! 🚀"
                 )
                 send_message(chat_id, summary_msg)
             else:
-                send_message(chat_id, "ℹ️ Şu anda küresel haber akışında olağandışı bir son dakika gelişmesi bulunmuyor, piyasa sakin seyrediyor.")
+                send_message(chat_id, "ℹ️ No breaking market movements at this moment, market is calm." if is_en else "ℹ️ Şu anda küresel haber akışında olağandışı bir son dakika gelişmesi bulunmuyor, piyasa sakin seyrediyor.")
         except Exception as ne:
-            send_message(chat_id, f"⚠️ Haber akışı çekilirken bir hata oluştu: {ne}")
+            send_message(chat_id, f"⚠️ Error: {ne}")
         return
 
-    if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir"]:
+    if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir", "status", "balance", "portfolio"]:
+        is_en = text_clean in ["status", "balance", "portfolio"]
         try:
             tenant = get_tenant_by_chat_id(chat_id)
             if not tenant:
                 send_message(
                     chat_id, 
-                    f"⚠️ *KAYITLI KULLANICI BULUNAMADI*\n\n"
-                    f"Chat ID `{chat_id}` için Supabase veritabanında aktif borsa hesabı bulunamadı.\n\n"
-                    f"Lütfen Web Yönetim Panelinizden (`/dashboard`) veya Telegram'da `bagla` yazarak Binance API anahtarlarınızı kaydedin."
+                    f"⚠️ *USER NOT FOUND*\nNo active exchange account registered for Chat ID `{chat_id}`." if is_en else
+                    f"⚠️ *KAYITLI KULLANICI BULUNAMADI*\nChat ID `{chat_id}` için Supabase veritabanında aktif borsa hesabı bulunamadı."
                 )
                 return
 
@@ -181,7 +225,7 @@ def handle_update(update: dict):
                             tot_try = amt * p_try if p_try > 0 else (val * 47.80)
                             tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{tot_try:,.2f} TL)\n"
                 if not tr_holdings_str:
-                    tr_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
+                    tr_holdings_str = " • _(No open coin positions)_\n" if is_en else " • _(Açık coin pozisyonu yok)_\n"
                             
                 tot_tr_usd = float(bal_tr.get("total_usdt", 0.0))
                 tot_tr_try = tot_tr_usd * 47.80
@@ -197,26 +241,44 @@ def handle_update(update: dict):
                         if a != "USDT" and val > 0.5:
                             gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD)\n"
                 if not gl_holdings_str:
-                    gl_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
+                    gl_holdings_str = " • _(No open coin positions)_\n" if is_en else " • _(Açık coin pozisyonu yok)_\n"
                     
                 tot_usd = float(balance.get("total_usdt", 0.0))
                 
-                msg_text = (
-                    f"📊 *CANLI ÇİFT BORSA PORTFÖY DURUMUNUZ*\n\n"
-                    f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n\n"
-                    f"🇹🇷 *[BİNANCE TR HESABINIZ]*\n"
-                    f"💵 Serbest Nakit: *₺{free_try:,.2f} TL*\n"
-                    f"📦 *Açık Pozisyonlar:*\n"
-                    f"{tr_holdings_str}"
-                    f"💰 Toplam TR Portföyü: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
-                    f"🌍 *[BİNANCE GLOBAL HESABINIZ]*\n"
-                    f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
-                    f"📦 *Açık Pozisyonlar:*\n"
-                    f"{gl_holdings_str}"
-                    f"💰 Toplam Global Portföyü: *${bal_gl.get('total_usdt', 0.0):,.2f} USD*\n\n"
-                    f"🏆 *GENEL TOPLAM PORTFÖY:* *${tot_usd:,.2f} USD* (~₺{tot_usd * 47.80:,.2f} TL)\n"
-                    f"🧪 Mod: GERÇEK HESAPLAR CANLI ✅"
-                )
+                if is_en:
+                    msg_text = (
+                        f"📊 *LIVE DUAL-EXCHANGE PORTFOLIO REPORT*\n\n"
+                        f"👤 User: {tenant.get('tenant_name', 'User')}\n\n"
+                        f"🇹🇷 *[BINANCE TR ACCOUNT]*\n"
+                        f"💵 Free Cash: *₺{free_try:,.2f} TL*\n"
+                        f"📦 *Open Positions:*\n"
+                        f"{tr_holdings_str}"
+                        f"💰 Total TR Portfolio: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
+                        f"🌍 *[BINANCE GLOBAL ACCOUNT]*\n"
+                        f"💵 Free USDT: *${free_usdt:,.2f} USD*\n"
+                        f"📦 *Open Positions:*\n"
+                        f"{gl_holdings_str}"
+                        f"💰 Total Global Portfolio: *${bal_gl.get('total_usdt', 0.0):,.2f} USD*\n\n"
+                        f"🏆 *OVERALL TOTAL PORTFOLIO:* *${tot_usd:,.2f} USD* (~₺{tot_usd * 47.80:,.2f} TL)\n"
+                        f"🧪 Mode: REAL LIVE TRADING ✅"
+                    )
+                else:
+                    msg_text = (
+                        f"📊 *CANLI ÇİFT BORSA PORTFÖY DURUMUNUZ*\n\n"
+                        f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n\n"
+                        f"🇹🇷 *[BİNANCE TR HESABINIZ]*\n"
+                        f"💵 Serbest Nakit: *₺{free_try:,.2f} TL*\n"
+                        f"📦 *Açık Pozisyonlar:*\n"
+                        f"{tr_holdings_str}"
+                        f"💰 Toplam TR Portföyü: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
+                        f"🌍 *[BİNANCE GLOBAL HESABINIZ]*\n"
+                        f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
+                        f"📦 *Açık Pozisyonlar:*\n"
+                        f"{gl_holdings_str}"
+                        f"💰 Toplam Global Portföyü: *${bal_gl.get('total_usdt', 0.0):,.2f} USD*\n\n"
+                        f"🏆 *GENEL TOPLAM PORTFÖY:* *${tot_usd:,.2f} USD* (~₺{tot_usd * 47.80:,.2f} TL)\n"
+                        f"🧪 Mod: GERÇEK HESAPLAR CANLI ✅"
+                    )
                 send_message(chat_id, msg_text)
                 return
 
@@ -231,23 +293,35 @@ def handle_update(update: dict):
                     else:
                         holdings_text += f"🪙 {asset}: {amt:,.6f}\n"
 
-            err_info = f"\n⚠️ Binance Hata Nedeni: {balance['api_error']}\n" if balance.get("api_error") else ""
+            err_info = f"\n⚠️ Binance Error: {balance['api_error']}\n" if balance.get("api_error") else ""
 
-            msg_text = (
-                f"📊 CANLI PORTFÖY DURUMUNUZ\n\n"
-                f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n"
-                f"💵 Serbest USDT: ${balance['free_usdt']:,.2f}\n"
-                f"{holdings_text}"
-                f"💰 Toplam Portföy Değeri: ~${balance['total_usdt']:,.2f} USD\n"
-                f"🏢 Borsa: {balance['exchange'].upper()}\n"
-                f"🧪 Mod: {'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}"
-                f"{err_info}"
-            )
+            if is_en:
+                msg_text = (
+                    f"📊 LIVE PORTFOLIO STATUS\n\n"
+                    f"👤 User: {tenant.get('tenant_name', 'User')}\n"
+                    f"💵 Free USDT: ${balance['free_usdt']:,.2f}\n"
+                    f"{holdings_text}"
+                    f"💰 Total Portfolio Value: ~${balance['total_usdt']:,.2f} USD\n"
+                    f"🏢 Exchange: {balance['exchange'].upper()}\n"
+                    f"🧪 Mode: {'Paper Trading' if balance['is_paper_trading'] else 'REAL LIVE ACCOUNT ✅'}"
+                    f"{err_info}"
+                )
+            else:
+                msg_text = (
+                    f"📊 CANLI PORTFÖY DURUMUNUZ\n\n"
+                    f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n"
+                    f"💵 Serbest USDT: ${balance['free_usdt']:,.2f}\n"
+                    f"{holdings_text}"
+                    f"💰 Toplam Portföy Değeri: ~${balance['total_usdt']:,.2f} USD\n"
+                    f"🏢 Borsa: {balance['exchange'].upper()}\n"
+                    f"🧪 Mod: {'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}"
+                    f"{err_info}"
+                )
             send_message(chat_id, msg_text)
             return
         except Exception as de:
             print(f"❌ [Telegram Durum Hatası]: {de}")
-            send_message(chat_id, f"⚠️ Portföy durumu okunurken bir borsa uyarısı oluştu: {de}")
+            send_message(chat_id, f"⚠️ Error fetching balance: {de}" if is_en else f"⚠️ Portföy durumu okunurken bir borsa uyarısı oluştu: {de}")
             return
 
     if text_clean in ["test", "analiz", "otonom", "tarama", "tara"]:

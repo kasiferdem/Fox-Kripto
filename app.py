@@ -523,7 +523,7 @@ def get_dashboard_html():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Fox-Kripto Multi-Tenant Yönetim Paneli</title>
+        <title>Fox-Kripto Management Dashboard</title>
         <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
         <style>
             :root {
@@ -540,7 +540,11 @@ def get_dashboard_html():
             * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; }
             body { background: var(--bg); color: var(--text); padding: 30px; min-height: 100vh; }
             .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-            .header h1 { font-size: 28px; font-weight: 700; background: linear-gradient(135deg, #60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+            .header-left h1 { font-size: 28px; font-weight: 700; background: linear-gradient(135deg, #60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+            .header-right { display: flex; gap: 12px; align-items: center; }
+            .lang-switch { display: flex; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 10px; padding: 4px; gap: 4px; }
+            .lang-btn { background: transparent; border: none; color: var(--text-muted); padding: 6px 12px; font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+            .lang-btn.active { background: var(--accent); color: white; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4); }
             .grid { display: grid; grid-template-columns: 1fr 380px; gap: 24px; }
             .card { background: var(--card-bg); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
             .card-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
@@ -566,29 +570,35 @@ def get_dashboard_html():
     </head>
     <body>
         <div class="header">
-            <div>
-                <h1>🦊 Fox-Kripto Multi-Tenant Yönetim Paneli</h1>
-                <p style="color: var(--text-muted); font-size: 14px;">Otonom Yapay Zeka Kripto Ticaret, Risk ve Kullanıcı Yönetimi</p>
+            <div class="header-left">
+                <h1 id="i18n-title">🦊 Fox-Kripto Multi-Tenant Yönetim Paneli</h1>
+                <p id="i18n-subtitle" style="color: var(--text-muted); font-size: 14px;">Otonom Yapay Zeka Kripto Ticaret, Risk ve Kullanıcı Yönetimi</p>
             </div>
-            <button class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
+            <div class="header-right">
+                <div class="lang-switch">
+                    <button id="btn-tr" class="lang-btn active" onclick="changeLang('tr')">🇹🇷 Türkçe</button>
+                    <button id="btn-en" class="lang-btn" onclick="changeLang('en')">🇬🇧 English</button>
+                </div>
+                <button id="i18n-btn-refresh" class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
+            </div>
         </div>
 
         <div class="grid">
             <div class="card">
                 <div class="card-title">
-                    <span>👥 Kayıtlı Kullanıcılar & Dinamik Risk Ayarları</span>
+                    <span id="i18n-card-users">👥 Kayıtlı Kullanıcılar & Dinamik Risk Ayarları</span>
                     <span id="tenant-count" class="badge badge-active">0 Aktif</span>
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th>Kullanıcı Adı</th>
-                            <th>Telegram ID</th>
-                            <th>🎯 Kâr Alma %</th>
-                            <th>🛡️ Stop-Loss %</th>
-                            <th>💵 Bütçe %</th>
-                            <th>Durum</th>
-                            <th>İşlem</th>
+                            <th id="i18n-th-user">Kullanıcı Adı</th>
+                            <th id="i18n-th-tg">Telegram ID</th>
+                            <th id="i18n-th-tp">🎯 Kâr Alma %</th>
+                            <th id="i18n-th-sl">🛡️ Stop-Loss %</th>
+                            <th id="i18n-th-mb">💵 Bütçe %</th>
+                            <th id="i18n-th-status">Durum</th>
+                            <th id="i18n-th-action">İşlem</th>
                         </tr>
                     </thead>
                     <tbody id="tenants-table">
@@ -598,76 +608,187 @@ def get_dashboard_html():
             </div>
 
             <div class="card">
-                <div class="card-title">➕ Yeni Kullanıcı Ekle</div>
+                <div id="i18n-card-add" class="card-title">➕ Yeni Kullanıcı Ekle</div>
                 <form id="tenant-form" onsubmit="submitTenant(event)">
                     <div class="form-group">
-                        <label>Kullanıcı Adı</label>
+                        <label id="i18n-lbl-name">Kullanıcı Adı</label>
                         <input type="text" id="tenant_name" placeholder="Örn: Ahmet" required>
                     </div>
                     <div class="form-group">
-                        <label>Telegram Chat ID</label>
+                        <label id="i18n-lbl-tg">Telegram Chat ID</label>
                         <input type="number" id="telegram_chat_id" placeholder="Örn: 8739367825" required>
                     </div>
                     <div class="form-group">
-                        <label>Binance API Key</label>
+                        <label id="i18n-lbl-apikey">Binance API Key</label>
                         <input type="text" id="exchange_api_key" placeholder="Binance API Key" required>
                     </div>
                     <div class="form-group">
-                        <label>Binance Secret Key</label>
+                        <label id="i18n-lbl-secret">Binance Secret Key</label>
                         <input type="password" id="exchange_secret_key" placeholder="Binance Secret Key" required>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                         <div class="form-group">
-                            <label>🎯 Kâr Alma %</label>
+                            <label id="i18n-lbl-tp">🎯 Kâr Alma %</label>
                             <input type="number" id="take_profit_percent" value="1.5" step="0.1" min="0.5" max="50">
                         </div>
                         <div class="form-group">
-                            <label>🛡️ Stop-Loss %</label>
+                            <label id="i18n-lbl-sl">🛡️ Stop-Loss %</label>
                             <input type="number" id="stop_loss_percent" value="1.5" step="0.1" min="0.5" max="30">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>İşlem Başı Maks Bütçe %</label>
+                        <label id="i18n-lbl-budget">İşlem Başı Maks Bütçe %</label>
                         <input type="number" id="max_budget_percent" value="10" min="1" max="100">
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">💾 Kullanıcıyı Kaydet</button>
+                    <button id="i18n-btn-saveuser" type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">💾 Kullanıcıyı Kaydet</button>
                 </form>
             </div>
         </div>
 
         <div class="card" style="margin-top: 24px;">
-            <div class="card-title">📜 Canlı İşlem Kararları ve Loglar (Supabase)</div>
+            <div id="i18n-card-logs" class="card-title">📜 Canlı İşlem Kararları ve Loglar (Supabase)</div>
             <div id="logs-container">Yükleniyor...</div>
         </div>
 
         <script>
+            let currentLang = localStorage.getItem('fox_crypto_lang') || 'tr';
+
+            const dict = {
+                tr: {
+                    title: "🦊 Fox-Kripto Multi-Tenant Yönetim Paneli",
+                    subtitle: "Otonom Yapay Zeka Kripto Ticaret, Risk ve Kullanıcı Yönetimi",
+                    refresh: "🔄 Verileri Yenile",
+                    usersTitle: "👥 Kayıtlı Kullanıcılar & Dinamik Risk Ayarları",
+                    activeSuffix: "Aktif",
+                    thUser: "Kullanıcı Adı",
+                    thTg: "Telegram ID",
+                    thTp: "🎯 Kâr Alma %",
+                    thSl: "🛡️ Stop-Loss %",
+                    thMb: "💵 Bütçe %",
+                    thStatus: "Durum",
+                    thAction: "İşlem",
+                    addUser: "➕ Yeni Kullanıcı Ekle",
+                    lblName: "Kullanıcı Adı",
+                    lblTg: "Telegram Chat ID",
+                    lblApiKey: "Binance API Key",
+                    lblSecret: "Binance Secret Key",
+                    lblTp: "🎯 Kâr Alma %",
+                    lblSl: "🛡️ Stop-Loss %",
+                    lblBudget: "İşlem Başı Maks Bütçe %",
+                    btnSaveUser: "💾 Kullanıcıyı Kaydet",
+                    logsTitle: "📜 Canlı İşlem Kararları ve Loglar (Supabase)",
+                    loading: "Yükleniyor...",
+                    noUsers: "Henüz eklenmiş kullanıcı yok.",
+                    noLogs: "Henüz kayıtlı işlem logu yok.",
+                    save: "💾 Kaydet",
+                    del: "Sil",
+                    activeBadge: "Aktif",
+                    confirmDel: "Bu kullanıcıyı pasife almak istediğinizden emin misiniz?",
+                    userSaved: "için Kâr Alma ve Stop-Loss limitleri başarıyla kaydedildi!",
+                    userAdded: "✅ Kullanıcı ve limitler başarıyla kaydedildi!",
+                    userAddFailed: "❌ Kullanıcı kaydedilemedi.",
+                    userDeactivated: "Kullanıcı pasife alındı."
+                },
+                en: {
+                    title: "🦊 Fox-Crypto Multi-Tenant Management Dashboard",
+                    subtitle: "Autonomous AI Crypto Trading, Risk & User Management",
+                    refresh: "🔄 Refresh Data",
+                    usersTitle: "👥 Registered Users & Dynamic Risk Settings",
+                    activeSuffix: "Active",
+                    thUser: "User Name",
+                    thTg: "Telegram ID",
+                    thTp: "🎯 Take-Profit %",
+                    thSl: "🛡️ Stop-Loss %",
+                    thMb: "💵 Budget %",
+                    thStatus: "Status",
+                    thAction: "Action",
+                    addUser: "➕ Add New User",
+                    lblName: "User Name",
+                    lblTg: "Telegram Chat ID",
+                    lblApiKey: "Binance API Key",
+                    lblSecret: "Binance Secret Key",
+                    lblTp: "🎯 Take-Profit %",
+                    lblSl: "🛡️ Stop-Loss %",
+                    lblBudget: "Max Budget % Per Trade",
+                    btnSaveUser: "💾 Save User",
+                    logsTitle: "📜 Live Trade Decisions & Logs (Supabase)",
+                    loading: "Loading...",
+                    noUsers: "No users registered yet.",
+                    noLogs: "No live trade logs recorded yet.",
+                    save: "💾 Save",
+                    del: "Delete",
+                    activeBadge: "Active",
+                    confirmDel: "Are you sure you want to deactivate this user?",
+                    userSaved: "Take-Profit and Stop-Loss settings saved successfully for",
+                    userAdded: "✅ User and risk limits saved successfully!",
+                    userAddFailed: "❌ Failed to save user.",
+                    userDeactivated: "User deactivated successfully."
+                }
+            };
+
+            function applyLang(lang) {
+                currentLang = lang;
+                localStorage.setItem('fox_crypto_lang', lang);
+                document.getElementById('btn-tr').classList.toggle('active', lang === 'tr');
+                document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+                
+                const t = dict[lang];
+                document.getElementById('i18n-title').innerText = t.title;
+                document.getElementById('i18n-subtitle').innerText = t.subtitle;
+                document.getElementById('i18n-btn-refresh').innerText = t.refresh;
+                document.getElementById('i18n-card-users').innerText = t.usersTitle;
+                document.getElementById('i18n-th-user').innerText = t.thUser;
+                document.getElementById('i18n-th-tg').innerText = t.thTg;
+                document.getElementById('i18n-th-tp').innerText = t.thTp;
+                document.getElementById('i18n-th-sl').innerText = t.thSl;
+                document.getElementById('i18n-th-mb').innerText = t.thMb;
+                document.getElementById('i18n-th-status').innerText = t.thStatus;
+                document.getElementById('i18n-th-action').innerText = t.thAction;
+                document.getElementById('i18n-card-add').innerText = t.addUser;
+                document.getElementById('i18n-lbl-name').innerText = t.lblName;
+                document.getElementById('i18n-lbl-tg').innerText = t.lblTg;
+                document.getElementById('i18n-lbl-apikey').innerText = t.lblApiKey;
+                document.getElementById('i18n-lbl-secret').innerText = t.lblSecret;
+                document.getElementById('i18n-lbl-tp').innerText = t.lblTp;
+                document.getElementById('i18n-lbl-sl').innerText = t.lblSl;
+                document.getElementById('i18n-lbl-budget').innerText = t.lblBudget;
+                document.getElementById('i18n-btn-saveuser').innerText = t.btnSaveUser;
+                document.getElementById('i18n-card-logs').innerText = t.logsTitle;
+            }
+
+            function changeLang(lang) {
+                applyLang(lang);
+                loadData();
+            }
+
             async function loadData() {
+                const t = dict[currentLang];
                 try {
                     const res = await fetch('/api/tenants');
                     const data = await res.json();
                     const table = document.getElementById('tenants-table');
-                    document.getElementById('tenant-count').innerText = `${data.count} Aktif`;
+                    document.getElementById('tenant-count').innerText = `${data.count} ${t.activeSuffix}`;
                     
                     if (data.tenants.length === 0) {
-                        table.innerHTML = `<tr><td colspan="7" style="color: var(--text-muted);">Henüz eklenmiş kullanıcı yok.</td></tr>`;
+                        table.innerHTML = `<tr><td colspan="7" style="color: var(--text-muted);">${t.noUsers}</td></tr>`;
                     } else {
-                        table.innerHTML = data.tenants.map((t, idx) => `
+                        table.innerHTML = data.tenants.map((user, idx) => `
                             <tr>
-                                <td><strong>${t.tenant_name}</strong></td>
-                                <td><code>${t.telegram_chat_id}</code></td>
+                                <td><strong>${user.tenant_name}</strong></td>
+                                <td><code>${user.telegram_chat_id}</code></td>
                                 <td>
-                                    <input type="number" step="0.1" class="input-inline" id="tp_${idx}" value="${t.take_profit_percent || 1.5}">
+                                    <input type="number" step="0.1" class="input-inline" id="tp_${idx}" value="${user.take_profit_percent || 1.5}">
                                 </td>
                                 <td>
-                                    <input type="number" step="0.1" class="input-inline" id="sl_${idx}" value="${t.stop_loss_percent || 1.5}">
+                                    <input type="number" step="0.1" class="input-inline" id="sl_${idx}" value="${user.stop_loss_percent || 1.5}">
                                 </td>
                                 <td>
-                                    <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${t.max_budget_percent || 10}">
+                                    <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${user.max_budget_percent || 10}">
                                 </td>
-                                <td><span class="badge badge-active">Aktif</span></td>
+                                <td><span class="badge badge-active">${t.activeBadge}</span></td>
                                 <td>
-                                    <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${t.id}', ${idx}, '${t.tenant_name}')">💾 Kaydet</button>
-                                    <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('${t.id}')">Sil</button>
+                                    <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${user.id}', ${idx}, '${user.tenant_name}')">${t.save}</button>
+                                    <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('${user.id}')">${t.del}</button>
                                 </td>
                             </tr>
                         `).join('');
@@ -678,11 +799,11 @@ def get_dashboard_html():
                     const logData = await logRes.json();
                     const logContainer = document.getElementById('logs-container');
                     if (logData.logs.length === 0) {
-                        logContainer.innerHTML = `<p style="color: var(--text-muted);">Henüz kayıtlı işlem logu yok.</p>`;
+                        logContainer.innerHTML = `<p style="color: var(--text-muted);">${t.noLogs}</p>`;
                     } else {
                         logContainer.innerHTML = logData.logs.map(l => `
                             <div class="log-item">
-                                <strong>${l.symbol} (${l.direction})</strong> - Tutar: $${l.amount_usd} USD | Fiyat: $${l.entry_price || '—'} | SL: $${l.stop_loss_price || '—'} 
+                                <strong>${l.symbol} (${l.direction})</strong> - ${currentLang === 'tr' ? 'Tutar' : 'Amount'}: $${l.amount_usd} USD | ${currentLang === 'tr' ? 'Fiyat' : 'Price'}: $${l.entry_price || '—'} | SL: $${l.stop_loss_price || '—'} 
                                 <span class="badge badge-active" style="float: right;">${l.human_approval}</span>
                             </div>
                         `).join('');
@@ -691,6 +812,7 @@ def get_dashboard_html():
             }
 
             async function updateSettings(tenantId, idx, name) {
+                const t = dict[currentLang];
                 const tp = parseFloat(document.getElementById('tp_' + idx).value);
                 const sl = parseFloat(document.getElementById('sl_' + idx).value);
                 const mb = parseFloat(document.getElementById('mb_' + idx).value);
@@ -703,18 +825,19 @@ def get_dashboard_html():
                     });
                     const resData = await res.json();
                     if (res.ok && resData.status === 'success') {
-                        alert('✅ ' + (name || 'Kullanıcı') + ' için Kâr Alma (%' + tp + ') ve Stop-Loss (%' + sl + ') limitleri başarıyla kaydedildi!');
+                        alert(`✅ ${name || 'User'}: ${currentLang === 'tr' ? 'Kâr Alma' : 'Take-Profit'} (%${tp}) & Stop-Loss (%${sl}) ${t.userSaved}`);
                         loadData();
                     } else {
-                        alert('❌ Güncelleme hatası: ' + (resData.detail || JSON.stringify(resData)));
+                        alert('❌ Error: ' + (resData.detail || JSON.stringify(resData)));
                     }
                 } catch(e) {
-                    alert('Bağlantı hatası: ' + e);
+                    alert('Connection Error: ' + e);
                 }
             }
 
             async function submitTenant(e) {
                 e.preventDefault();
+                const t = dict[currentLang];
                 const payload = {
                     tenant_name: document.getElementById('tenant_name').value,
                     telegram_chat_id: parseInt(document.getElementById('telegram_chat_id').value),
@@ -730,23 +853,25 @@ def get_dashboard_html():
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
-                    alert('✅ Kullanıcı ve limitler başarıyla kaydedildi!');
+                    alert(t.userAdded);
                     document.getElementById('tenant-form').reset();
                     loadData();
                 } else {
-                    alert('❌ Kullanıcı kaydedilemedi.');
+                    alert(t.userAddFailed);
                 }
             }
 
             async function deleteTenant(tenantId) {
-                if (!confirm('Bu kullanıcıyı pasife almak istediğinizden emin misiniz?')) return;
+                const t = dict[currentLang];
+                if (!confirm(t.confirmDel)) return;
                 const res = await fetch(`/api/tenants/${tenantId}`, { method: 'DELETE' });
                 if (res.ok) {
-                    alert('Kullanıcı pasife alındı.');
+                    alert(t.userDeactivated);
                     loadData();
                 }
             }
 
+            applyLang(currentLang);
             loadData();
         </script>
     </body>
