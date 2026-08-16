@@ -643,22 +643,22 @@ def get_dashboard_html():
                     if (data.tenants.length === 0) {
                         table.innerHTML = `<tr><td colspan="7" style="color: var(--text-muted);">Henüz eklenmiş kullanıcı yok.</td></tr>`;
                     } else {
-                        table.innerHTML = data.tenants.map(t => `
+                        table.innerHTML = data.tenants.map((t, idx) => `
                             <tr>
                                 <td><strong>${t.tenant_name}</strong></td>
                                 <td><code>${t.telegram_chat_id}</code></td>
                                 <td>
-                                    <input type="number" step="0.1" class="input-inline" id="tp_${t.id}" value="${t.take_profit_percent || 1.5}">
+                                    <input type="number" step="0.1" class="input-inline" id="tp_${idx}" value="${t.take_profit_percent || 1.5}">
                                 </td>
                                 <td>
-                                    <input type="number" step="0.1" class="input-inline" id="sl_${t.id}" value="${t.stop_loss_percent || 1.5}">
+                                    <input type="number" step="0.1" class="input-inline" id="sl_${idx}" value="${t.stop_loss_percent || 1.5}">
                                 </td>
                                 <td>
-                                    <input type="number" step="1" class="input-inline" id="mb_${t.id}" value="${t.max_budget_percent || 10}">
+                                    <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${t.max_budget_percent || 10}">
                                 </td>
                                 <td><span class="badge badge-active">Aktif</span></td>
                                 <td>
-                                    <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${t.id}')">💾 Kaydet</button>
+                                    <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${t.id}', ${idx}, '${t.tenant_name}')">💾 Kaydet</button>
                                     <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('${t.id}')">Sil</button>
                                 </td>
                             </tr>
@@ -682,10 +682,10 @@ def get_dashboard_html():
                 } catch(e) { console.error(e); }
             }
 
-            async function updateSettings(tenantId) {
-                const tp = parseFloat(document.getElementById('tp_' + tenantId).value);
-                const sl = parseFloat(document.getElementById('sl_' + tenantId).value);
-                const mb = parseFloat(document.getElementById('mb_' + tenantId).value);
+            async function updateSettings(tenantId, idx, name) {
+                const tp = parseFloat(document.getElementById('tp_' + idx).value);
+                const sl = parseFloat(document.getElementById('sl_' + idx).value);
+                const mb = parseFloat(document.getElementById('mb_' + idx).value);
                 
                 try {
                     const res = await fetch('/api/tenants/' + tenantId + '/settings', {
@@ -693,14 +693,15 @@ def get_dashboard_html():
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: mb})
                     });
-                    if (res.ok) {
-                        alert('✅ Kâr Alma (%' + tp + ') ve Stop-Loss (%' + sl + ') limitleri başarıyla güncellendi!');
+                    const resData = await res.json();
+                    if (res.ok && resData.status === 'success') {
+                        alert('✅ ' + (name || 'Kullanıcı') + ' için Kâr Alma (%' + tp + ') ve Stop-Loss (%' + sl + ') limitleri başarıyla kaydedildi!');
                         loadData();
                     } else {
-                        alert('❌ Güncelleme sırasında bir hata oluştu.');
+                        alert('❌ Güncelleme hatası: ' + (resData.detail || JSON.stringify(resData)));
                     }
                 } catch(e) {
-                    alert('Hata: ' + e);
+                    alert('Bağlantı hatası: ' + e);
                 }
             }
 
