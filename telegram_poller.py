@@ -585,9 +585,11 @@ def handle_update(update: dict):
                     amount_display = f"${amount_usd:.2f} USD"
             else: # ALL_BALANCE
                 amount_usd = 10.0
-                amount_display = f"Tüm {coin} Varlığı"
-                
-            send_message(chat_id, f"⚡ *TALİMAT ALINDI: {action} {target_symbol}*\n💵 Bütçe / Miktar: `{amount_display}`\n🏢 Borsa: {exch_label}\n\nEmir borsaya iletiliyor...")
+            is_en_pref = str(tenant.get("preferred_language", "tr")).lower() == "en"
+            if is_en_pref:
+                send_message(chat_id, f"⚡ *INSTRUCTION RECEIVED: {action} {target_symbol}*\n💵 Budget / Amount: `{amount_display}`\n🏢 Exchange: {exch_label}\n\nTransmitting order to exchange...")
+            else:
+                send_message(chat_id, f"⚡ *TALİMAT ALINDI: {action} {target_symbol}*\n💵 Bütçe / Miktar: `{amount_display}`\n🏢 Borsa: {exch_label}\n\nEmir borsaya iletiliyor...")
             
             trade_res = execute_spot_trade(
                 symbol=target_symbol,
@@ -600,21 +602,38 @@ def handle_update(update: dict):
                 order_id = trade_res.get("order_id", "LIVE_EXEC")
                 exec_p = trade_res.get("executed_price") or curr_price
                 price_str = f"₺{exec_p:,.2f} TL" if is_tr_user else f"${exec_p:,.4f}"
-                success_card = (
-                    f"🚀 *CANLI TALİMAT BORSADA İNFAZ EDİLDİ!* ✅\n\n"
-                    f"👤 Kullanıcı: {first_name}\n"
-                    f"⚡ İşlem Tipi: *{action}*\n"
-                    f"🪙 Sembol: `{target_symbol}`\n"
-                    f"💵 İnfaz Tutarı: `{amount_display}`\n"
-                    f"📥 İnfaz Fiyatı: `{price_str}`\n"
-                    f"📄 Emir No: `#{order_id}`\n"
-                    f"🏢 Borsa: {exch_label}\n\n"
-                    f"🎉 *İşlem canlı olarak gerçekleştirildi!*"
-                )
+                
+                if is_en_pref:
+                    success_card = (
+                        f"🚀 *LIVE ORDER EXECUTED ON EXCHANGE!* ✅\n\n"
+                        f"👤 User: {first_name}\n"
+                        f"⚡ Action: *{action}*\n"
+                        f"🪙 Symbol: `{target_symbol}`\n"
+                        f"💵 Executed Amount: `{amount_display}`\n"
+                        f"📥 Execution Price: `{price_str}`\n"
+                        f"📄 Order ID: `#{order_id}`\n"
+                        f"🏢 Exchange: {exch_label}\n\n"
+                        f"🎉 *Spot order executed live on exchange!*"
+                    )
+                else:
+                    success_card = (
+                        f"🚀 *CANLI TALİMAT BORSADA İNFAZ EDİLDİ!* ✅\n\n"
+                        f"👤 Kullanıcı: {first_name}\n"
+                        f"⚡ İşlem Tipi: *{action}*\n"
+                        f"🪙 Sembol: `{target_symbol}`\n"
+                        f"💵 İnfaz Tutarı: `{amount_display}`\n"
+                        f"📥 İnfaz Fiyatı: `{price_str}`\n"
+                        f"📄 Emir No: `#{order_id}`\n"
+                        f"🏢 Borsa: {exch_label}\n\n"
+                        f"🎉 *İşlem canlı olarak gerçekleştirildi!*"
+                    )
                 send_message(chat_id, success_card)
             else:
                 err = trade_res.get("error", "Borsa reddetti")
-                send_message(chat_id, f"⚠️ *Emir İletilemedi:*\n\n`{err}`\n\nLütfen bakiyenizi veya borsa kısıtlamalarını kontrol edin.")
+                if is_en_pref:
+                    send_message(chat_id, f"⚠️ *Order Failed:*\n\n`{err}`\n\nPlease check your account balance or API permissions.")
+                else:
+                    send_message(chat_id, f"⚠️ *Emir İletilemedi:*\n\n`{err}`\n\nLütfen bakiyenizi veya borsa kısıtlamalarını kontrol edin.")
             return
 
         elif intent == "PRICE_QUERY" and intent_data.get("coin"):
@@ -627,14 +646,25 @@ def handle_update(update: dict):
             high = t_usd.get("high", 0.0)
             low = t_usd.get("low", 0.0)
             
-            reply = (
-                f"🪙 *{coin} CANLI PİYASA DURUMU*\n\n"
-                f"💵 *Fiyat:* `${p_usd:,.4f}` (₺{p_try:,.2f} TL)\n"
-                f"📈 *24s Değişim:* `%{chg:+.2f}`\n"
-                f"📊 *24s En Yüksek:* `${high:,.4f}`\n"
-                f"📉 *24s En Düşük:* `${low:,.4f}`\n\n"
-                f"💡 _Talimat vermek için '500 TL {coin} al' veya '10$ {coin} sat' yazabilirsiniz._"
-            )
+            is_en_pref = str(tenant.get("preferred_language", "tr")).lower() == "en"
+            if is_en_pref:
+                reply = (
+                    f"🪙 *{coin} LIVE MARKET STATUS*\n\n"
+                    f"💵 *Price:* `${p_usd:,.4f}`\n"
+                    f"📈 *24h Change:* `%{chg:+.2f}`\n"
+                    f"📊 *24h High:* `${high:,.4f}`\n"
+                    f"📉 *24h Low:* `${low:,.4f}`\n\n"
+                    f"💡 _To execute trades type 'Buy 10$ {coin}' or 'Sell 10$ {coin}'._"
+                )
+            else:
+                reply = (
+                    f"🪙 *{coin} CANLI PİYASA DURUMU*\n\n"
+                    f"💵 *Fiyat:* `${p_usd:,.4f}` (₺{p_try:,.2f} TL)\n"
+                    f"📈 *24s Değişim:* `%{chg:+.2f}`\n"
+                    f"📊 *24s En Yüksek:* `${high:,.4f}`\n"
+                    f"📉 *24s En Düşük:* `${low:,.4f}`\n\n"
+                    f"💡 _Talimat vermek için '500 TL {coin} al' veya '10$ {coin} sat' yazabilirsiniz._"
+                )
             send_message(chat_id, reply)
             return
             
