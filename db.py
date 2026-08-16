@@ -87,9 +87,11 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
             if (api_k.startswith("{") and ("binancetr" in api_k or "binance" in api_k)) or exch_id in ["dual", "both", "all", "binance+binancetr"]:
                 try:
                     keys_dict = json.loads(api_k) if api_k.startswith("{") else {}
+                    tp_val = float(keys_dict.get("take_profit_percent") or 1.5)
                     if "binancetr" in keys_dict:
                         t_tr = dict(t)
                         t_tr["exchange_id"] = "binancetr"
+                        t_tr["take_profit_percent"] = tp_val
                         t_tr["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance TR)"
                         t_tr["exchange_api_key"] = keys_dict["binancetr"].get("api_key")
                         t_tr["exchange_secret_key"] = keys_dict["binancetr"].get("secret_key")
@@ -97,6 +99,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
                     if "binance" in keys_dict:
                         t_gl = dict(t)
                         t_gl["exchange_id"] = "binance"
+                        t_gl["take_profit_percent"] = tp_val
                         t_gl["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance Global)"
                         t_gl["exchange_api_key"] = keys_dict["binance"].get("api_key")
                         t_gl["exchange_secret_key"] = keys_dict["binance"].get("secret_key")

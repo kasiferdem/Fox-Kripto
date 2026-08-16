@@ -432,21 +432,38 @@ def create_tenant(req: TenantCreateRequest):
         return {"status": "success", "message": f"Kullanıcı '{req.tenant_name}' eklendi.", "tenant": res}
     raise HTTPException(status_code=400, detail="Kullanıcı kaydedilemedi.")
 
-@app_api.post("/api/tenants/{tenant_id}/settings", dependencies=[Depends(authenticate_admin)])
+@app_api.post("/api/tenants/{tenant_id}/settings")
 def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
     """Kullanıcının kâr alma, stop-loss ve bütçe limitlerini günceller."""
     client = get_supabase()
     if not client:
         raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
     try:
+        curr = client.table("user_tenants").select("*").eq("id", tenant_id).execute()
+        if not curr.data:
+            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+            
+        t_row = curr.data[0]
+        api_k = str(t_row.get("exchange_api_key", ""))
+        
         payload = {
-            "take_profit_percent": req.take_profit_percent,
             "stop_loss_percent": req.stop_loss_percent,
             "max_budget_percent": req.max_budget_percent
         }
+        
+        import json
+        if api_k.startswith("{"):
+            try:
+                kd = json.loads(api_k)
+                kd["take_profit_percent"] = req.take_profit_percent
+                payload["exchange_api_key"] = json.dumps(kd)
+            except Exception:
+                pass
+                
         res = client.table("user_tenants").update(payload).eq("id", tenant_id).execute()
         return {"status": "success", "message": "Ayarlar başarıyla güncellendi.", "data": res.data}
     except Exception as e:
+        print(f"❌ [Settings Update Error]: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app_api.delete("/api/tenants/{tenant_id}", dependencies=[Depends(authenticate_admin)])
