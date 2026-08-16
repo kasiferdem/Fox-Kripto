@@ -470,14 +470,15 @@ def handle_update(update: dict):
             "4. 'CHAT': Genel soru, sohbet veya selamlama.\n\n"
             "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
             "{\n"
-            '  "intent": "TRADE" | "UPDATE_SETTINGS" | "PRICE_QUERY" | "CHAT",\n'
+            '  "intent": "TRADE" | "UPDATE_SETTINGS" | "SET_LANGUAGE" | "PRICE_QUERY" | "CHAT",\n'
             '  "action": "BUY" | "SELL" | null,\n'
             '  "coin": "SOL" | "BTC" | "AVAX" | "PEPE" | "BNB" | "ETH" | "NEAR" | "SUI" | "RENDER" | null,\n'
             '  "amount_type": "FIAT_TRY" | "FIAT_USD" | "COIN_QTY" | "ALL_BALANCE" | null,\n'
             '  "amount_value": 500.0 | 10.0 | 1.0 | null,\n'
             '  "take_profit_percent": 3.0 | 2.5 | null,\n'
             '  "stop_loss_percent": 2.0 | 1.5 | null,\n'
-            '  "chat_reply": "Kullanıcıya samimi ve profesyonel yanıt"\n'
+            '  "language": "tr" | "en" | null,\n'
+            '  "chat_reply": "Friendly response in the language user spoke"\n'
             "}"
         )
 
@@ -487,6 +488,28 @@ def handle_update(update: dict):
         intent_data = json.loads(clean_json) if clean_json.startswith("{") else {}
         
         intent = intent_data.get("intent", "CHAT")
+
+        if intent == "SET_LANGUAGE":
+            lang = str(intent_data.get("language") or "tr").lower()
+            from db import get_supabase
+            sb = get_supabase()
+            if sb:
+                api_k = str(tenant.get("exchange_api_key", ""))
+                update_payload = {}
+                if api_k.startswith("{"):
+                    try:
+                        kd = json.loads(api_k)
+                        kd["preferred_language"] = lang
+                        update_payload["exchange_api_key"] = json.dumps(kd)
+                    except Exception:
+                        pass
+                sb.table("user_tenants").update(update_payload).eq("telegram_chat_id", chat_id).execute()
+                
+            if lang == "en":
+                send_message(chat_id, "🇬🇧 *Language Preference Set to English!* ✅\nAll trading notifications, status reports and bot responses will be in English.")
+            else:
+                send_message(chat_id, "🇹🇷 *Dil Tercihi Türkçe Olarak Ayarlandı!* ✅\nTüm al-sat bildirimleri, portföy raporları ve yanıtlar Türkçe olacaktır.")
+            return
 
         if intent == "UPDATE_SETTINGS":
             tp = intent_data.get("take_profit_percent")
@@ -514,13 +537,22 @@ def handle_update(update: dict):
                 curr_tp = float(tp) if tp is not None else float(tenant.get("take_profit_percent") or 1.5)
                 curr_sl = float(sl) if sl is not None else float(tenant.get("stop_loss_percent") or 1.5)
                 
-                settings_card = (
-                    f"⚙️ *RİSK AYARLARINIZ GÜNCELLENDİ!* ✅\n\n"
-                    f"👤 Kullanıcı: *{first_name}*\n"
-                    f"🎯 Yeni Kâr Alma (Take-Profit) Hedefi: *+%{curr_tp:.1f} Net Kâr*\n"
-                    f"🛡️ Yeni Zarar Kes (Stop-Loss) Limiti: *-%{curr_sl:.1f}*\n\n"
-                    f"💡 _Artık yapay zeka tüm açık coin pozisyonlarınızı bu yeni hedeflerinize göre otonom olarak yönetecektir._"
-                )
+                if str(tenant.get("preferred_language", "tr")).lower() == "en":
+                    settings_card = (
+                        f"⚙️ *RISK SETTINGS UPDATED!* ✅\n\n"
+                        f"👤 User: *{first_name}*\n"
+                        f"🎯 New Take-Profit Target: *+%{curr_tp:.1f} Net Profit*\n"
+                        f"🛡️ New Stop-Loss Limit: *-%{curr_sl:.1f}*\n\n"
+                        f"💡 _Autonomous AI will now manage all your open positions according to these new targets._"
+                    )
+                else:
+                    settings_card = (
+                        f"⚙️ *RİSK AYARLARINIZ GÜNCELLENDİ!* ✅\n\n"
+                        f"👤 Kullanıcı: *{first_name}*\n"
+                        f"🎯 Yeni Kâr Alma (Take-Profit) Hedefi: *+%{curr_tp:.1f} Net Kâr*\n"
+                        f"🛡️ Yeni Zarar Kes (Stop-Loss) Limiti: *-%{curr_sl:.1f}*\n\n"
+                        f"💡 _Artık yapay zeka tüm açık coin pozisyonlarınızı bu yeni hedeflerinize göre otonom olarak yönetecektir._"
+                    )
                 send_message(chat_id, settings_card)
                 return
             else:
