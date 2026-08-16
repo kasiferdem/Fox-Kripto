@@ -157,15 +157,15 @@ def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
         api_key = os.environ.get("EXCHANGE_API_KEY", "")
         secret_key = os.environ.get("EXCHANGE_SECRET_KEY", "")
         
-    # JSON Çift Borsa Ayrıştırma
-    if isinstance(api_key, str) and api_key.startswith("{") and "binance" in api_key:
+    # JSON Formatındaki Borsa Anahtarlarını Güvenle Ayrıştır
+    if isinstance(api_key, str) and api_key.startswith("{"):
         try:
             import json
             keys_dict = json.loads(api_key)
-            if exchange_id in ["binancetr", "binance.tr", "trbinance"]:
+            if "binancetr" in keys_dict and exchange_id in ["binancetr", "binance.tr", "trbinance"]:
                 tr_k = keys_dict.get("binancetr", {})
                 return BinanceTRClient(tr_k.get("api_key"), tr_k.get("secret_key"))
-            else:
+            elif "binance" in keys_dict:
                 gl_k = keys_dict.get("binance", {})
                 exchange_class = getattr(ccxt, "binance")
                 return exchange_class({
@@ -175,6 +175,10 @@ def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
                     'timeout': 6000,
                     'options': {'defaultType': 'spot'}
                 })
+            elif "api_key" in keys_dict:
+                # Tekil kullanıcı JSON kaydı (Örn: Moonwalker)
+                api_key = keys_dict.get("api_key", "")
+                secret_key = keys_dict.get("secret_key") or secret_key
         except Exception:
             pass
 
