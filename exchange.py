@@ -146,7 +146,7 @@ class BinanceTRClient:
 
 def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
     """
-    Multi-Tenant Borsa İstemcisi (Binance Global & Binance TR Destekli):
+    Multi-Tenant Borsa İstemcisi (Binance Global, Binance TR ve Çift Borsa Destekli):
     """
     if tenant_config:
         exchange_id = tenant_config.get("exchange_id", "binance").lower()
@@ -157,7 +157,28 @@ def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
         api_key = os.environ.get("EXCHANGE_API_KEY", "")
         secret_key = os.environ.get("EXCHANGE_SECRET_KEY", "")
         
-    if exchange_id in ["binancetr", "binance.tr", "trbinance"] or api_key.startswith("BbD"):
+    # JSON Çift Borsa Ayrıştırma
+    if isinstance(api_key, str) and api_key.startswith("{") and "binance" in api_key:
+        try:
+            import json
+            keys_dict = json.loads(api_key)
+            if exchange_id in ["binancetr", "binance.tr", "trbinance"]:
+                tr_k = keys_dict.get("binancetr", {})
+                return BinanceTRClient(tr_k.get("api_key"), tr_k.get("secret_key"))
+            else:
+                gl_k = keys_dict.get("binance", {})
+                exchange_class = getattr(ccxt, "binance")
+                return exchange_class({
+                    'apiKey': gl_k.get("api_key"),
+                    'secret': gl_k.get("secret_key"),
+                    'enableRateLimit': True,
+                    'timeout': 6000,
+                    'options': {'defaultType': 'spot'}
+                })
+        except Exception:
+            pass
+
+    if exchange_id in ["binancetr", "binance.tr", "trbinance"] or (isinstance(api_key, str) and api_key.startswith("BbD")):
         return BinanceTRClient(api_key, secret_key)
 
     try:
@@ -178,7 +199,54 @@ def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
         return None
 
 def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """İlgili kullanıcının (Tenant) güncel bakiye ve varlıklarını okur."""
+    """İlgili kullanıcının (Tenant) güncel bakiye ve varlıklarını okur (Çift Borsa Destekli)."""
+    # 1. ÇİFT BORSA KONTROLÜ
+    api_k = str((tenant_config or {}).get("exchange_api_key", ""))
+    exch_id = str((tenant_config or {}).get("exchange_id", "")).lower()
+    if (api_k.startswith("{") and "binancetr" in api_k) or exch_id in ["dual", "both"]:
+        try:
+            import json
+            keys_dict = json.loads(api_k) if api_k.startswith("{") else {}
+            
+            tenant_tr = dict(tenant_config or {})
+            tenant_tr["exchange_id"] = "binancetr"
+            tenant_tr["exchange_api_key"] = keys_dict.get("binancetr", {}).get("api_key")
+            tenant_tr["exchange_secret_key"] = keys_dict.get("binancetr", {}).get("secret_key")
+            
+            tenant_gl = dict(tenant_config or {})
+            tenant_gl["exchange_id"] = "binance"
+            tenant_gl["exchange_api_key"] = keys_dict.get("binance", {}).get("api_key")
+            tenant_gl["exchange_secret_key"] = keys_dict.get("binance", {}).get("secret_key")
+            
+            bal_tr = fetch_portfolio_balance(tenant_tr)
+            bal_gl = fetch_portfolio_balance(tenant_gl)
+            
+            combined_holdings = {}
+            if bal_tr.get("holdings_details"):
+                combined_holdings.update(bal_tr["holdings_details"])
+            if bal_gl.get("holdings_details"):
+                for k, v in bal_gl["holdings_details"].items():
+                    if k in combined_holdings:
+                        combined_holdings[f"{k} (Global)"] = v
+                    else:
+                        combined_holdings[k] = v
+                        
+            tot_usd = float(bal_tr.get("total_usdt", 0.0)) + float(bal_gl.get("total_usdt", 0.0))
+            free_usd = float(bal_tr.get("free_usdt", 0.0)) + float(bal_gl.get("free_usdt", 0.0))
+            
+            return {
+                "exchange": "dual",
+                "is_dual": True,
+                "is_paper_trading": False,
+                "free_usdt": free_usd,
+                "total_usdt": tot_usd,
+                "holdings_details": combined_holdings,
+                "binance_tr": bal_tr,
+                "binance_global": bal_gl
+            }
+        except Exception as de:
+            print(f"⚠️ Çift Borsa Bakiye Birleştirme Uyarısı: {de}")
+
     exchange = get_exchange_for_tenant(tenant_config)
     if exchange and exchange.apiKey:
         try:

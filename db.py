@@ -71,12 +71,42 @@ def get_tenant_by_chat_id(telegram_chat_id: int) -> Optional[Dict[str, Any]]:
         return None
 
 def get_all_active_tenants() -> List[Dict[str, Any]]:
-    """Sistemdeki tüm aktif kullanıcıları getirir (7/24 Otonom Tarama İçin)."""
+    """Sistemdeki tüm aktif kullanıcıları getirir (Çift Borsa / Dual-Exchange Destekli)."""
     client = get_supabase()
     if not client: return []
     try:
         res = client.table("user_tenants").select("*").eq("is_active", True).execute()
-        return res.data or []
+        raw_tenants = res.data or []
+        unpacked = []
+        import json
+        for t in raw_tenants:
+            exch_id = str(t.get("exchange_id", "")).lower()
+            api_k = str(t.get("exchange_api_key", ""))
+            
+            # JSON formatında çift borsa kontrolü
+            if (api_k.startswith("{") and ("binancetr" in api_k or "binance" in api_k)) or exch_id in ["dual", "both", "all", "binance+binancetr"]:
+                try:
+                    keys_dict = json.loads(api_k) if api_k.startswith("{") else {}
+                    if "binancetr" in keys_dict:
+                        t_tr = dict(t)
+                        t_tr["exchange_id"] = "binancetr"
+                        t_tr["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance TR)"
+                        t_tr["exchange_api_key"] = keys_dict["binancetr"].get("api_key")
+                        t_tr["exchange_secret_key"] = keys_dict["binancetr"].get("secret_key")
+                        unpacked.append(t_tr)
+                    if "binance" in keys_dict:
+                        t_gl = dict(t)
+                        t_gl["exchange_id"] = "binance"
+                        t_gl["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance Global)"
+                        t_gl["exchange_api_key"] = keys_dict["binance"].get("api_key")
+                        t_gl["exchange_secret_key"] = keys_dict["binance"].get("secret_key")
+                        unpacked.append(t_gl)
+                    continue
+                except Exception:
+                    pass
+            
+            unpacked.append(t)
+        return unpacked
     except Exception as e:
         print(f"❌ [Multi-Tenant Liste Hatası]: {e}")
         return []
