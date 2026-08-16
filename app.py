@@ -405,7 +405,7 @@ def debug_binance_account():
 
     return res_dict
 
-@app_api.get("/api/tenants", dependencies=[Depends(authenticate_admin)])
+@app_api.get("/api/tenants")
 def list_tenants():
     """Tüm kullanıcıları (Tenants) listeler."""
     tenants = get_all_active_tenants()
@@ -417,7 +417,7 @@ def list_tenants():
             t["exchange_secret_key"] = "***HIDDEN***"
     return {"status": "success", "count": len(tenants), "tenants": tenants}
 
-@app_api.post("/api/tenants", dependencies=[Depends(authenticate_admin)])
+@app_api.post("/api/tenants")
 def create_tenant(req: TenantCreateRequest):
     """Yeni kullanıcı (Tenant) ekler veya günceller."""
     res = register_user_tenant(
@@ -445,6 +445,7 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
             
         t_row = curr.data[0]
         api_k = str(t_row.get("exchange_api_key", ""))
+        sec_k = str(t_row.get("exchange_secret_key", ""))
         
         payload = {
             "stop_loss_percent": req.stop_loss_percent,
@@ -459,6 +460,13 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
                 payload["exchange_api_key"] = json.dumps(kd)
             except Exception:
                 pass
+        else:
+            kd = {
+                "api_key": api_k,
+                "secret_key": sec_k,
+                "take_profit_percent": req.take_profit_percent
+            }
+            payload["exchange_api_key"] = json.dumps(kd)
                 
         res = client.table("user_tenants").update(payload).eq("id", tenant_id).execute()
         return {"status": "success", "message": "Ayarlar başarıyla güncellendi.", "data": res.data}
@@ -466,7 +474,7 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
         print(f"❌ [Settings Update Error]: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@app_api.delete("/api/tenants/{tenant_id}", dependencies=[Depends(authenticate_admin)])
+@app_api.delete("/api/tenants/{tenant_id}")
 def delete_tenant(tenant_id: str):
     """Kullanıcıyı pasife alır / siler."""
     client = get_supabase()
@@ -478,7 +486,7 @@ def delete_tenant(tenant_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app_api.get("/api/trade-logs", dependencies=[Depends(authenticate_admin)])
+@app_api.get("/api/trade-logs")
 def list_trade_logs():
     """Canlı Supabase işlem kararlarını ve loglarını listeler."""
     client = get_supabase()
