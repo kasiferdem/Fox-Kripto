@@ -124,13 +124,18 @@ def run_autonomous_trading_loop():
                         base_sym = symbol.split("/")[0].split("_")[0].upper()
                         symbol = f"{base_sym}/{quote_sym}"
                         
+                        is_stop_loss = bool(proposal.get("is_stop_loss", False)) if proposal else False
                         raw_action = str(proposal.get("direction", "BUY")).upper() if proposal else "BUY"
                         if raw_action in ["BUY", "ALIM"]:
                             action_title = "🛒 ALIM (BUY)"
                             status_title = f"✅ Canlı Alım Başarıyla Gerçekleştirildi ({wallet_label} Cüzdanı)" if is_exec_success else f"⚠️ Alım İletilemedi: {exec_res.get('error', 'Bakiye/Emir Limiti')}"
                         else:
-                            action_title = "🎯 SATIM (SELL / KÂR ALMA)"
-                            status_title = f"🎉 Canlı Satış Gerçekleşti ve {wallet_label} Cüzdanına Aktarıldı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
+                            if is_stop_loss:
+                                action_title = "🛡️ SATIM (STOP-LOSS / ZARAR KES)"
+                                status_title = f"🛡️ Canlı Stop-Loss Gerçekleşti ve Sermaye {wallet_label} Cüzdanına Alındı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
+                            else:
+                                action_title = "🎯 SATIM (SELL / KÂR ALMA)"
+                                status_title = f"🎉 Canlı Satış Gerçekleşti ve {wallet_label} Cüzdanına Aktarıldı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
                             
                         amount = proposal.get("amount_usd", 10.0) if proposal else 10.0
                         if is_tr_tenant:
@@ -163,7 +168,7 @@ def run_autonomous_trading_loop():
                                     tot_sell_try = (coin_qty * exit_try) if coin_qty > 0 else (amount * 34.80)
                                     tot_buy_try = (coin_qty * entry_try) if coin_qty > 0 else (tot_sell_try / (1 + (gross_pct/100.0) if gross_pct > 0 else 1.0))
                                     net_profit_fiat = tot_sell_try - tot_buy_try - (tot_sell_try * 0.002)
-                                    if net_profit_fiat < 0.01:
+                                    if abs(net_profit_fiat) < 0.01:
                                         net_profit_fiat = tot_sell_try * (net_pct / 100.0)
                                         
                                     if exit_try < 0.01:
@@ -176,7 +181,12 @@ def run_autonomous_trading_loop():
                                         entry_str = f"₺{entry_try:,.2f} TL"
                                         exit_str = f"₺{exit_try:,.2f} TL"
                                         
-                                    profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL Net Kazanç)"
+                                    if net_pct >= 0:
+                                        profit_label = "📈 *Net Kâr / Kazanç:*"
+                                        profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL Net Kazanç) {quote_label} Cüzdanına Kilitlendi!"
+                                    else:
+                                        profit_label = "📉 *Net Değişim / Stop-Loss:*"
+                                        profit_badge = f"-%{abs(net_pct):.2f} (-₺{abs(net_profit_fiat):,.2f} TL) {quote_label} Cüzdanına Aktarıldı"
                                 else:
                                     # Binance Global (USDT)
                                     entry_usd = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
@@ -188,7 +198,7 @@ def run_autonomous_trading_loop():
                                     tot_sell_usd = (coin_qty * exit_usd) if coin_qty > 0 else amount
                                     tot_buy_usd = (coin_qty * entry_usd) if coin_qty > 0 else (tot_sell_usd / (1 + (gross_pct/100.0) if gross_pct > 0 else 1.0))
                                     net_profit_fiat = tot_sell_usd - tot_buy_usd - (tot_sell_usd * 0.002)
-                                    if net_profit_fiat < 0.01:
+                                    if abs(net_profit_fiat) < 0.01:
                                         net_profit_fiat = tot_sell_usd * (net_pct / 100.0)
                                         
                                     if exit_usd < 0.01:
@@ -198,16 +208,22 @@ def run_autonomous_trading_loop():
                                         entry_str = f"${entry_usd:,.2f}"
                                         exit_str = f"${exit_usd:,.2f}"
                                         
-                                    profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT Net Kazanç)"
+                                    if net_pct >= 0:
+                                        profit_label = "📈 *Net Kâr / Kazanç:*"
+                                        profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT Net Kazanç) {quote_label} Cüzdanına Kilitlendi!"
+                                    else:
+                                        profit_label = "📉 *Net Değişim / Stop-Loss:*"
+                                        profit_badge = f"-%{abs(net_pct):.2f} (-${abs(net_profit_fiat):,.2f} USDT) {quote_label} Cüzdanına Aktarıldı"
                             else:
                                 entry_str = "Alış Fiyatı"
                                 exit_str = "Satış Fiyatı"
+                                profit_label = "📈 *Net Kâr / Kazanç:*"
                                 profit_badge = "+%1.50+ Net Kazanç"
                             
                             price_detail_line = (
                                 f"\n📥 *Alış Birim Fiyatı:* `{entry_str}`\n"
                                 f"📤 *Satış Birim Fiyatı:* `{exit_str}`\n"
-                                f"📈 *Net Kâr / Kazanç:* `{profit_badge} {quote_label} Cüzdanına Kilitlendi!`"
+                                f"{profit_label} `{profit_badge}`"
                             )
                             
                         from telegram_poller import send_message

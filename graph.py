@@ -100,9 +100,9 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                 elif asset_upper in saved_positions and isinstance(saved_positions[asset_upper], (int, float)):
                     recorded_buy_p = float(saved_positions[asset_upper])
                 
-                # Eğer kaydedilmemişse o anki fiyatın %1.5 altı varsayılır
+                # Eğer daha önce kaydedilmemişse, o anki piyasa fiyatı referans alış kabul edilir (0.00% değişim)
                 if recorded_buy_p <= 0.0:
-                    recorded_buy_p = round(curr_p / 1.015, 6 if curr_p < 1 else 2)
+                    recorded_buy_p = curr_p
                     saved_positions[asset_upper] = {"buy_price": recorded_buy_p, "currency": pair_quote, "time": time.time()}
                     try:
                         with open(pos_file, "w", encoding="utf-8") as pf:
@@ -110,6 +110,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     except Exception:
                         pass
                         
+                gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
+
                 # Kullanıcıya Özel Kâr Alma ve Stop-Loss Limitleri (Varsayılan: %1.5 Kâr, %1.5 Zarar Kes)
                 user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
                 user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
@@ -120,21 +122,23 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                 
                 # KÂR ALMA (Net Kâr >= user_tp) VEYA STOP-LOSS (Brüt <= -user_sl) TETİKLENME KONTROLÜ
                 if net_profit_pct >= user_tp or gross_change_pct <= -user_sl:
-                    reason_type = f"Net Kâr Alma (+%{net_profit_pct:.2f} Komisyon Sonrası)" if net_profit_pct >= user_tp else f"Stop-Loss (%{gross_change_pct:.2f})"
+                    is_stop_loss = gross_change_pct <= -user_sl
+                    reason_type = f"Stop-Loss (%{gross_change_pct:.2f})" if is_stop_loss else f"Net Kâr Alma (+%{net_profit_pct:.2f} Komisyon Sonrası)"
                     print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Birim: {pair_quote}, Brüt: %{gross_change_pct:+.2f}, Net: %{net_profit_pct:+.2f} / Hedef: %{user_tp}) piyasa emriyle satılıyor...")
                     
                     sell_proposal = {
                         "should_trade": True,
                         "symbol": target_symbol,
                         "direction": "SELL",
+                        "is_stop_loss": is_stop_loss,
                         "amount_usd": round(val_usd, 2),
                         "amount_coin": coin_amount,
                         "entry_price": recorded_buy_p,
                         "net_profit_pct": round(net_profit_pct, 2),
                         "gross_change_pct": round(gross_change_pct, 2),
-                        "stop_loss_percent": 1.5,
-                        "stop_loss_price": round(recorded_buy_p * 0.985, 4),
-                        "take_profit_price": round(recorded_buy_p * 1.015, 4),
+                        "stop_loss_percent": user_sl,
+                        "stop_loss_price": round(recorded_buy_p * (1 - (user_sl/100.0)), 8 if recorded_buy_p < 1 else 2),
+                        "take_profit_price": round(recorded_buy_p * (1 + (user_tp/100.0)), 8 if recorded_buy_p < 1 else 2),
                         "risk_justification": f"Otonom {reason_type}: {asset_upper} pozisyonu ({gross_change_pct:+.2f}%) {pair_quote} cüzdanına dönüştürülüyor."
                     }
                     return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
