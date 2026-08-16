@@ -126,30 +126,31 @@ def formulate_trade_strategy(
     current_holdings = list(portfolio_state.get("crypto_holdings", {}).keys()) if isinstance(portfolio_state.get("crypto_holdings"), dict) else []
     
     system_prompt = (
-        "Sen kıdemli bir Hızlı Kripto Scalper ve Risk Yönetim Ajanısın (Fast Scalper & Risk Agent).\n"
-        "Görevin: Piyasa analizini ve portföydeki kullanılabilir bakiye bilgisini değerlendirerek "
-        "hızlı kâr kitlemeyi hedefleyen optimal alım-satım teklifini (trade_proposal) oluşturmaktır.\n\n"
+        "Sen kıdemli bir Yüksek Kazançlı Kripto Scalper, Meme Coin & Trend Avcısı Ajanısın (Meme & Altcoin Hunter Agent).\n"
+        "Görevin: Piyasadaki en yüksek hacimli, volatil ve ani patlama potansiyeli taşıyan Sıcak Meme Coinleri "
+        "(PEPE, DOGE, SHIB, BONK, FLOKI, WIF, BOME, NEIRO, PNUT, POPCAT vb.) ve Yapay Zeka / Trend Altcoinleri (RENDER, SUI, NEAR, FET, SEI, INJ, AVAX, SOL) "
+        "arasından en yüksek kâr potansiyeline sahip olanı seçmektir.\n\n"
         "KATI RİSK VE ÇEŞİTLİLİK (DIVERSIFICATION) KURALLARI:\n"
-        "1. Bütçe Limiti: İşlem tutarı (amount_usd) serbest bakiyenin EN FAZLA %10'u olabilir.\n"
-        "2. PORTFÖY ÇEŞİTLİLİĞİ: Kullanıcının elinde ZATEN BULUNAN coinleri tekrar alma! Portföyde olmayan diğer sıcak yeni ALTCOIN'i (SOL, AVAX, PEPE, SUI, NEAR, RENDER vb.) seç.\n"
-        "3. Stop-Loss Limiti: Stop-Loss yüzdesi (stop_loss_percent) KESİNLİKLE %1.0 ile %1.5 arasında olmalıdır.\n"
-        "4. Hızlı Kâr Al (Take-Profit): Kâr al hedefi KESİNLİKLE +%1.0 ile +%2.0 arasında olmalıdır (Hızlı Mikro Pozisyon Kapatma).\n\n"
+        "1. MEME VE TREND ODAKLI ÇEŞİTLİLİK: Hep aynı büyük coinleri (BTC/ETH) alma! Hareketli meme coinlere ve trend altcoinlere ağırlık ver.\n"
+        "2. PORTFÖYDE OLMAYANI SEÇ: Kullanıcının elinde ZATEN BULUNAN coinleri tekrar alma! Portföyde henüz bulunmayan taze bir meme/altcoin seç.\n"
+        "3. Kâr Alma (Take-Profit): Hedef %1.5 - %4.0 arası olmalıdır.\n"
+        "4. Stop-Loss: %1.0 - %2.0 arası olmalıdır.\n\n"
         "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
         "{\n"
         '  "should_trade": true,\n'
-        '  "symbol": "SOL/USDT",\n'
+        '  "symbol": "PEPE/USDT",\n'
         '  "direction": "BUY",\n'
         '  "amount_usd": 10.0,\n'
-        '  "entry_price": 145.0,\n'
-        '  "stop_loss_percent": 1.2,\n'
-        '  "stop_loss_price": 143.26,\n'
-        '  "take_profit_price": 147.17,\n'
-        '  "risk_justification": "Portföy çeşitlendirildi: Portföyde olmayan yeni sıcak altcoin SOL seçildi."\n'
+        '  "entry_price": 0.00000260,\n'
+        '  "stop_loss_percent": 1.5,\n'
+        '  "stop_loss_price": 0.00000256,\n'
+        '  "take_profit_price": 0.00000268,\n'
+        '  "risk_justification": "Yüksek hacimli sıcak meme coin seçildi ve portföy çeşitlendirildi."\n'
         "}"
     )
     user_content = (
         f"Kullanıcının Elindeki Mevcut Coinler: {current_holdings}\n"
-        f"KURAL: Mevcut elindeki coinleri tekrar alma, taranan diğer yüksek hacimli sıcak altcoinlerden yeni bir tane seç!\n"
+        f"KURAL: Mevcut elindeki coinleri tekrar alma! Sıcak Meme Coinlerden (PEPE, DOGE, SHIB, BONK, FLOKI, WIF, BOME, NEIRO, PNUT) veya AI/Trend Altcoinlerden (RENDER, SUI, NEAR, FET, SEI, AVAX, SOL) elinde OLMAYAN birini seç!\n"
         f"Piyasa ve Altcoin Verileri: {news_analysis}\n"
         f"Kullanılabilir Likidite USD: ${available_liquidity_usd}"
     )
@@ -160,8 +161,13 @@ def formulate_trade_strategy(
             clean_json = raw_response.strip("` \n").replace("json", "").strip()
             proposal = json.loads(clean_json)
             
-            valid_base_coins = ["SOL", "AVAX", "SUI", "RENDER", "NEAR", "PEPE", "DOGE", "XRP", "BTC", "ETH", "FET", "LINK", "TIA", "SHIB", "ADA"]
-            sym = str(proposal.get("symbol", "SOL/USDT")).upper()
+            valid_base_coins = [
+                # Sıcak Meme Coinler
+                "PEPE", "DOGE", "SHIB", "BONK", "FLOKI", "WIF", "BOME", "NEIRO", "PNUT", "POPCAT", "MEME",
+                # AI & Trend Altcoinler
+                "RENDER", "SUI", "NEAR", "FET", "SEI", "INJ", "AVAX", "SOL", "TIA", "TAO", "APT", "LINK", "XRP"
+            ]
+            sym = str(proposal.get("symbol", "PEPE/USDT")).upper()
             base = sym.split("/")[0].split("_")[0]
             
             # KATI ÇEŞİTLİLİK KURALI: Elde zaten bulunan coini tekrar alma!
@@ -175,7 +181,7 @@ def formulate_trade_strategy(
                     proposal["risk_justification"] = f"Portföy çeşitlendirildi: Elde olmayan yeni sıcak coin {base} seçildi."
             
             if base not in valid_base_coins:
-                sym = "SOL/USDT"
+                sym = "PEPE/USDT"
             proposal["symbol"] = sym
             
             # Dinamik Bakiye Oranlama: Hesaptaki tüm kullanılabilir nakdin %33'ü (1/3 oran - ~₺500 TL) ile işlem yapar
