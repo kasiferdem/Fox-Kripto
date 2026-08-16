@@ -83,32 +83,45 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
             exch_id = str(t.get("exchange_id", "")).lower()
             api_k = str(t.get("exchange_api_key", ""))
             
-            # JSON formatında çift borsa kontrolü
-            if (api_k.startswith("{") and ("binancetr" in api_k or "binance" in api_k)) or exch_id in ["dual", "both", "all", "binance+binancetr"]:
+            # JSON formatında çift veya tekil borsa ve risk ayarları kontrolü
+            if api_k.startswith("{"):
                 try:
-                    keys_dict = json.loads(api_k) if api_k.startswith("{") else {}
+                    keys_dict = json.loads(api_k)
                     tp_val = float(keys_dict.get("take_profit_percent") or 1.5)
-                    if "binancetr" in keys_dict:
-                        t_tr = dict(t)
-                        t_tr["exchange_id"] = "binancetr"
-                        t_tr["take_profit_percent"] = tp_val
-                        t_tr["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance TR)"
-                        t_tr["exchange_api_key"] = keys_dict["binancetr"].get("api_key")
-                        t_tr["exchange_secret_key"] = keys_dict["binancetr"].get("secret_key")
-                        unpacked.append(t_tr)
-                    if "binance" in keys_dict:
-                        t_gl = dict(t)
-                        t_gl["exchange_id"] = "binance"
-                        t_gl["take_profit_percent"] = tp_val
-                        t_gl["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance Global)"
-                        t_gl["exchange_api_key"] = keys_dict["binance"].get("api_key")
-                        t_gl["exchange_secret_key"] = keys_dict["binance"].get("secret_key")
-                        unpacked.append(t_gl)
-                    continue
+                    
+                    # Çift borsa durumu (hem binancetr hem binance varsa)
+                    if "binancetr" in keys_dict or "binance" in keys_dict:
+                        if "binancetr" in keys_dict:
+                            t_tr = dict(t)
+                            t_tr["exchange_id"] = "binancetr"
+                            t_tr["take_profit_percent"] = tp_val
+                            t_tr["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance TR)"
+                            t_tr["exchange_api_key"] = keys_dict["binancetr"].get("api_key")
+                            t_tr["exchange_secret_key"] = keys_dict["binancetr"].get("secret_key")
+                            unpacked.append(t_tr)
+                        if "binance" in keys_dict:
+                            t_gl = dict(t)
+                            t_gl["exchange_id"] = "binance"
+                            t_gl["take_profit_percent"] = tp_val
+                            t_gl["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance Global)"
+                            t_gl["exchange_api_key"] = keys_dict["binance"].get("api_key")
+                            t_gl["exchange_secret_key"] = keys_dict["binance"].get("secret_key")
+                            unpacked.append(t_gl)
+                        continue
+                    else:
+                        # Tekil borsa JSON kaydı (Örn: Moonwalker)
+                        t_single = dict(t)
+                        t_single["take_profit_percent"] = tp_val
+                        t_single["exchange_api_key"] = keys_dict.get("api_key") or api_k
+                        t_single["exchange_secret_key"] = keys_dict.get("secret_key") or t.get("exchange_secret_key")
+                        unpacked.append(t_single)
+                        continue
                 except Exception:
                     pass
             
-            unpacked.append(t)
+            t_def = dict(t)
+            t_def["take_profit_percent"] = float(t.get("take_profit_percent") or 1.5)
+            unpacked.append(t_def)
         return unpacked
     except Exception as e:
         print(f"❌ [Multi-Tenant Liste Hatası]: {e}")
