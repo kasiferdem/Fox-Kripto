@@ -145,100 +145,110 @@ def handle_update(update: dict):
         return
 
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir"]:
-        tenant = get_tenant_by_chat_id(chat_id)
-        if not tenant:
-            send_message(
-                chat_id, 
-                f"⚠️ *KAYITLI KULLANICI BULUNAMADI*\n\n"
-                f"Chat ID `{chat_id}` için Supabase veritabanında aktif borsa hesabı bulunamadı.\n\n"
-                f"Lütfen Web Yönetim Panelinizden (`/dashboard`) veya Telegram'da `bagla` yazarak Binance API anahtarlarınızı kaydedin."
-            )
-            return
+        try:
+            tenant = get_tenant_by_chat_id(chat_id)
+            if not tenant:
+                send_message(
+                    chat_id, 
+                    f"⚠️ *KAYITLI KULLANICI BULUNAMADI*\n\n"
+                    f"Chat ID `{chat_id}` için Supabase veritabanında aktif borsa hesabı bulunamadı.\n\n"
+                    f"Lütfen Web Yönetim Panelinizden (`/dashboard`) veya Telegram'da `bagla` yazarak Binance API anahtarlarınızı kaydedin."
+                )
+                return
 
-        balance = fetch_portfolio_balance(tenant)
+            balance = fetch_portfolio_balance(tenant)
 
-        if balance.get("is_dual"):
-            bal_tr = balance.get("binance_tr", {})
-            bal_gl = balance.get("binance_global", {})
-            
-            # TR Varlıkları
-            tr_holdings_str = ""
-            tr_details = bal_tr.get("holdings_details", {})
-            free_try = 0.0
-            if tr_details:
-                for a, info in tr_details.items():
-                    amt = info["amount"]
-                    val = info["val_usd"]
-                    if a == "TRY":
-                        free_try = amt
-                    elif val > 0.01:
-                        ticker = fetch_ticker_price(f"{a}/TRY")
-                        p_try = float(ticker.get("last_price", 0.0))
-                        tot_try = amt * p_try if p_try > 0 else (val * 47.80)
-                        tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{tot_try:,.2f} TL)\n"
-                        
-            tot_tr_usd = float(bal_tr.get("total_usdt", 0.0))
-            tot_tr_try = tot_tr_usd * 47.80
-            
-            # Global Varlıkları
-            gl_holdings_str = ""
-            gl_details = bal_gl.get("holdings_details", {})
-            free_usdt = float(bal_gl.get("free_usdt", 0.0))
-            if gl_details:
-                for a, info in gl_details.items():
-                    amt = info["amount"]
-                    val = info["val_usd"]
-                    if a != "USDT" and val > 0.5:
-                        gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD)\n"
-            if not gl_holdings_str:
-                gl_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
+            if balance.get("is_dual"):
+                bal_tr = balance.get("binance_tr", {})
+                bal_gl = balance.get("binance_global", {})
                 
-            tot_usd = float(balance.get("total_usdt", 0.0))
-            
+                # TR Varlıkları
+                tr_holdings_str = ""
+                tr_details = bal_tr.get("holdings_details", {})
+                free_try = 0.0
+                if tr_details:
+                    for a, info in tr_details.items():
+                        amt = info["amount"]
+                        val = info["val_usd"]
+                        if a == "TRY":
+                            free_try = amt
+                        elif val > 0.01:
+                            try:
+                                ticker = fetch_ticker_price(f"{a}/TRY")
+                                p_try = float(ticker.get("last_price", 0.0))
+                            except Exception:
+                                p_try = 0.0
+                            tot_try = amt * p_try if p_try > 0 else (val * 47.80)
+                            tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{tot_try:,.2f} TL)\n"
+                if not tr_holdings_str:
+                    tr_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
+                            
+                tot_tr_usd = float(bal_tr.get("total_usdt", 0.0))
+                tot_tr_try = tot_tr_usd * 47.80
+                
+                # Global Varlıkları
+                gl_holdings_str = ""
+                gl_details = bal_gl.get("holdings_details", {})
+                free_usdt = float(bal_gl.get("free_usdt", 0.0))
+                if gl_details:
+                    for a, info in gl_details.items():
+                        amt = info["amount"]
+                        val = info["val_usd"]
+                        if a != "USDT" and val > 0.5:
+                            gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD)\n"
+                if not gl_holdings_str:
+                    gl_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
+                    
+                tot_usd = float(balance.get("total_usdt", 0.0))
+                
+                msg_text = (
+                    f"📊 *CANLI ÇİFT BORSA PORTFÖY DURUMUNUZ*\n\n"
+                    f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n\n"
+                    f"🇹🇷 *[BİNANCE TR HESABINIZ]*\n"
+                    f"💵 Serbest Nakit: *₺{free_try:,.2f} TL*\n"
+                    f"📦 *Açık Pozisyonlar:*\n"
+                    f"{tr_holdings_str}"
+                    f"💰 Toplam TR Portföyü: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
+                    f"🌍 *[BİNANCE GLOBAL HESABINIZ]*\n"
+                    f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
+                    f"📦 *Açık Pozisyonlar:*\n"
+                    f"{gl_holdings_str}"
+                    f"💰 Toplam Global Portföyü: *${bal_gl.get('total_usdt', 0.0):,.2f} USD*\n\n"
+                    f"🏆 *GENEL TOPLAM PORTFÖY:* *${tot_usd:,.2f} USD* (~₺{tot_usd * 47.80:,.2f} TL)\n"
+                    f"🧪 Mod: GERÇEK HESAPLAR CANLI ✅"
+                )
+                send_message(chat_id, msg_text)
+                return
+
+            holdings_text = ""
+            details = balance.get("holdings_details", {})
+            if details:
+                for asset, info in details.items():
+                    amt = info["amount"]
+                    val = info["val_usd"]
+                    if val > 0:
+                        holdings_text += f"🪙 {asset}: {amt:,.6f} (~${val:,.2f} USD)\n"
+                    else:
+                        holdings_text += f"🪙 {asset}: {amt:,.6f}\n"
+
+            err_info = f"\n⚠️ Binance Hata Nedeni: {balance['api_error']}\n" if balance.get("api_error") else ""
+
             msg_text = (
-                f"📊 *CANLI ÇİFT BORSA PORTFÖY DURUMUNUZ*\n\n"
-                f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n\n"
-                f"🇹🇷 *[BİNANCE TR HESABINIZ]*\n"
-                f"💵 Serbest Nakit: *₺{free_try:,.2f} TL*\n"
-                f"📦 *Açık Pozisyonlar:*\n"
-                f"{tr_holdings_str}"
-                f"💰 Toplam TR Portföyü: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
-                f"🌍 *[BİNANCE GLOBAL HESABINIZ]*\n"
-                f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
-                f"📦 *Açık Pozisyonlar:*\n"
-                f"{gl_holdings_str}"
-                f"💰 Toplam Global Portföyü: *${bal_gl.get('total_usdt', 0.0):,.2f} USD*\n\n"
-                f"🏆 *GENEL TOPLAM PORTFÖY:* *${tot_usd:,.2f} USD* (~₺{tot_usd * 47.80:,.2f} TL)\n"
-                f"🧪 Mod: GERÇEK HESAPLAR CANLI ✅"
+                f"📊 CANLI PORTFÖY DURUMUNUZ\n\n"
+                f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n"
+                f"💵 Serbest USDT: ${balance['free_usdt']:,.2f}\n"
+                f"{holdings_text}"
+                f"💰 Toplam Portföy Değeri: ~${balance['total_usdt']:,.2f} USD\n"
+                f"🏢 Borsa: {balance['exchange'].upper()}\n"
+                f"🧪 Mod: {'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}"
+                f"{err_info}"
             )
             send_message(chat_id, msg_text)
             return
-
-        holdings_text = ""
-        details = balance.get("holdings_details", {})
-        if details:
-            for asset, info in details.items():
-                amt = info["amount"]
-                val = info["val_usd"]
-                if val > 0:
-                    holdings_text += f"🪙 {asset}: {amt:,.6f} (~${val:,.2f} USD)\n"
-                else:
-                    holdings_text += f"🪙 {asset}: {amt:,.6f}\n"
-
-        err_info = f"\n⚠️ Binance Hata Nedeni: {balance['api_error']}\n" if balance.get("api_error") else ""
-
-        msg_text = (
-            f"📊 CANLI PORTFÖY DURUMUNUZ\n\n"
-            f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n"
-            f"💵 Serbest USDT: ${balance['free_usdt']:,.2f}\n"
-            f"{holdings_text}"
-            f"💰 Toplam Portföy Değeri: ~${balance['total_usdt']:,.2f} USD\n"
-            f"🏢 Borsa: {balance['exchange'].upper()}\n"
-            f"🧪 Mod: {'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}"
-            f"{err_info}"
-        )
-        send_message(chat_id, msg_text)
-        return
+        except Exception as de:
+            print(f"❌ [Telegram Durum Hatası]: {de}")
+            send_message(chat_id, f"⚠️ Portföy durumu okunurken bir borsa uyarısı oluştu: {de}")
+            return
 
     if text_clean in ["test", "analiz", "otonom", "tarama", "tara"]:
         tenant = get_tenant_by_chat_id(chat_id)
