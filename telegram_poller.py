@@ -212,6 +212,7 @@ def handle_update(update: dict):
                 tr_holdings_str = ""
                 tr_details = bal_tr.get("holdings_details", {})
                 free_try = 0.0
+                usd_try_rate = 34.80
                 if tr_details:
                     for a, info in tr_details.items():
                         amt = info["amount"]
@@ -219,18 +220,13 @@ def handle_update(update: dict):
                         if a == "TRY":
                             free_try = amt
                         elif val > 0.01:
-                            try:
-                                ticker = fetch_ticker_price(f"{a}/TRY")
-                                p_try = float(ticker.get("last_price", 0.0))
-                            except Exception:
-                                p_try = 0.0
-                            tot_try = amt * p_try if p_try > 0 else (val * 47.80)
+                            tot_try = val * usd_try_rate
                             tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{tot_try:,.2f} TL)\n"
                 if not tr_holdings_str:
                     tr_holdings_str = " • _(No open coin positions)_\n" if is_en else " • _(Açık coin pozisyonu yok)_\n"
                             
                 tot_tr_usd = float(bal_tr.get("total_usdt", 0.0))
-                tot_tr_try = tot_tr_usd * 47.80
+                tot_tr_try = tot_tr_usd * usd_try_rate
                 
                 # Global Varlıkları
                 gl_holdings_str = ""
@@ -261,7 +257,7 @@ def handle_update(update: dict):
                         f"📦 *Open Positions:*\n"
                         f"{gl_holdings_str}"
                         f"💰 Total Global Portfolio: *${bal_gl.get('total_usdt', 0.0):,.2f} USD*\n\n"
-                        f"🏆 *OVERALL TOTAL PORTFOLIO:* *${tot_usd:,.2f} USD* (~₺{tot_usd * 47.80:,.2f} TL)\n"
+                        f"🏆 *OVERALL TOTAL PORTFOLIO:* *${tot_usd:,.2f} USD* (~₺{tot_usd * usd_try_rate:,.2f} TL)\n"
                         f"🧪 Mode: REAL LIVE TRADING ✅"
                     )
                 else:
@@ -278,8 +274,8 @@ def handle_update(update: dict):
                         f"📦 *Açık Pozisyonlar:*\n"
                         f"{gl_holdings_str}"
                         f"💰 Toplam Global Portföyü: *${bal_gl.get('total_usdt', 0.0):,.2f} USD*\n\n"
-                        f"🏆 *GENEL TOPLAM PORTFÖY:* *${tot_usd:,.2f} USD* (~₺{tot_usd * 47.80:,.2f} TL)\n"
-                        f"🧪 Mod: GERÇEK HESAPLAR CANLI ✅"
+                        f"🏆 *TOPLAM BİRLEŞİK PORTFÖYÜNÜZ:* *${tot_usd:,.2f} USD* (~₺{tot_usd * usd_try_rate:,.2f} TL)\n"
+                        f"🧪 Mod: CANLI GERÇEK HESAP ✅"
                     )
                 send_message(chat_id, msg_text)
                 return

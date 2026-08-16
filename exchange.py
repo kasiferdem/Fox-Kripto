@@ -202,6 +202,25 @@ def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
         print(f"⚠️ Multi-Tenant Bağlantı Uyarısı ({exchange_id}): {e}")
         return None
 
+_cached_price_map = {}
+_cached_price_map_ts = 0
+
+def get_all_prices_map() -> Dict[str, float]:
+    """Tüm Binance coin fiyatlarını tek bir süper hızlı bulk istekte (100ms) çeker ve 10 saniye cache'ler."""
+    global _cached_price_map, _cached_price_map_ts
+    now = time.time()
+    if _cached_price_map and (now - _cached_price_map_ts < 10):
+        return _cached_price_map
+    try:
+        r = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=3)
+        if r.status_code == 200:
+            _cached_price_map = {item["symbol"]: float(item["price"]) for item in r.json()}
+            _cached_price_map_ts = now
+            return _cached_price_map
+    except Exception:
+        pass
+    return _cached_price_map or {}
+
 def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """İlgili kullanıcının (Tenant) güncel bakiye ve varlıklarını okur (Çift Borsa Destekli)."""
     # 1. ÇİFT BORSA KONTROLÜ
@@ -297,18 +316,18 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
 
             estimated_total_usd = free_usdt
             holdings_details = {}
+            price_map = get_all_prices_map()
+            usdt_try_price = price_map.get("USDTTRY", 34.80)
+            
             for asset, amount in crypto_holdings.items():
                 if amount > 0:
                     try:
                         if asset == "TRY":
-                            ticker = fetch_ticker_price("USDT/TRY")
-                            usdt_try_price = float(ticker.get('last_price', 40.50))
                             val_usd = amount / usdt_try_price if usdt_try_price > 0 else 0.0
                             estimated_total_usd += val_usd
                             holdings_details[asset] = {"amount": amount, "price": 1.0 / usdt_try_price if usdt_try_price > 0 else 0.0, "val_usd": val_usd}
                         else:
-                            ticker = fetch_ticker_price(f"{asset}/USDT")
-                            price = float(ticker.get('last_price', 0.0))
+                            price = price_map.get(f"{asset}USDT") or ((price_map.get(f"{asset}TRY", 0.0) / usdt_try_price) if usdt_try_price > 0 else 0.0) or 0.0
                             val_usd = amount * price
                             estimated_total_usd += val_usd
                             holdings_details[asset] = {"amount": amount, "price": price, "val_usd": val_usd}
