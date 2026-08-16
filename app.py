@@ -251,6 +251,13 @@ class TenantCreateRequest(BaseModel):
     exchange_secret_key: str
     exchange_id: str = "binance"
     max_budget_percent: float = 10.0
+    take_profit_percent: float = 1.5
+    stop_loss_percent: float = 1.5
+
+class TenantUpdateSettingsRequest(BaseModel):
+    take_profit_percent: float = 1.5
+    stop_loss_percent: float = 1.5
+    max_budget_percent: float = 10.0
 
 class TriggerGraphRequest(BaseModel):
     session_id: str = "session_001"
@@ -409,6 +416,23 @@ def create_tenant(req: TenantCreateRequest):
         return {"status": "success", "message": f"Kullanıcı '{req.tenant_name}' eklendi.", "tenant": res}
     raise HTTPException(status_code=400, detail="Kullanıcı kaydedilemedi.")
 
+@app_api.post("/api/tenants/{tenant_id}/settings", dependencies=[Depends(authenticate_admin)])
+def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
+    """Kullanıcının kâr alma, stop-loss ve bütçe limitlerini günceller."""
+    client = get_supabase()
+    if not client:
+        raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
+    try:
+        payload = {
+            "take_profit_percent": req.take_profit_percent,
+            "stop_loss_percent": req.stop_loss_percent,
+            "max_budget_percent": req.max_budget_percent
+        }
+        res = client.table("user_tenants").update(payload).eq("id", tenant_id).execute()
+        return {"status": "success", "message": "Ayarlar başarıyla güncellendi.", "data": res.data}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app_api.delete("/api/tenants/{tenant_id}", dependencies=[Depends(authenticate_admin)])
 def delete_tenant(tenant_id: str):
     """Kullanıcıyı pasife alır / siler."""
@@ -448,11 +472,10 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
     return {"status": "STARTED", "message": f"Otonom akış başlatıldı (Session: {req.session_id})"}
 
 # -----------------------------------------
-# DASHBOARD WEB ARAYÜZÜ (HTML + GLASSMORPHISM UI)
+# WEB DASHBOARD (HTML / JAVASCRIPT ARAYÜZÜ)
 # -----------------------------------------
-@app_api.get("/", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
-@app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
-def get_dashboard_ui():
+@app_api.get("/dashboard", response_class=HTMLResponse)
+def get_dashboard_html():
     html_content = """
     <!DOCTYPE html>
     <html lang="tr">
@@ -481,7 +504,7 @@ def get_dashboard_ui():
             .card { background: var(--card-bg); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
             .card-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
             table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+            th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
             th { color: var(--text-muted); font-weight: 600; }
             .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }
             .badge-active { background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
@@ -496,13 +519,15 @@ def get_dashboard_ui():
             .form-group input:focus { border-color: var(--accent); }
             .log-item { padding: 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
             .log-item:last-child { border-bottom: none; }
+            .input-inline { width: 68px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: rgba(15, 23, 42, 0.8); color: white; font-size: 13px; text-align: center; }
+            .input-inline:focus { border-color: var(--accent); }
         </style>
     </head>
     <body>
         <div class="header">
             <div>
                 <h1>🦊 Fox-Kripto Multi-Tenant Yönetim Paneli</h1>
-                <p style="color: var(--text-muted); font-size: 14px;">Otonom Yapay Zeka Kripto Ticaret ve Kullanıcı Yönetimi</p>
+                <p style="color: var(--text-muted); font-size: 14px;">Otonom Yapay Zeka Kripto Ticaret, Risk ve Kullanıcı Yönetimi</p>
             </div>
             <button class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
         </div>
@@ -510,22 +535,23 @@ def get_dashboard_ui():
         <div class="grid">
             <div class="card">
                 <div class="card-title">
-                    <span>👥 Kayıtlı Kullanıcılar (Tenants)</span>
+                    <span>👥 Kayıtlı Kullanıcılar & Dinamik Risk Ayarları</span>
                     <span id="tenant-count" class="badge badge-active">0 Aktif</span>
                 </div>
                 <table>
                     <thead>
                         <tr>
                             <th>Kullanıcı Adı</th>
-                            <th>Telegram Chat ID</th>
-                            <th>Borsa API Key</th>
-                            <th>Maks Bütçe %</th>
+                            <th>Telegram ID</th>
+                            <th>🎯 Kâr Alma %</th>
+                            <th>🛡️ Stop-Loss %</th>
+                            <th>💵 Bütçe %</th>
                             <th>Durum</th>
                             <th>İşlem</th>
                         </tr>
                     </thead>
                     <tbody id="tenants-table">
-                        <tr><td colspan="6" style="color: var(--text-muted);">Yükleniyor...</td></tr>
+                        <tr><td colspan="7" style="color: var(--text-muted);">Yükleniyor...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -548,6 +574,16 @@ def get_dashboard_ui():
                     <div class="form-group">
                         <label>Binance Secret Key</label>
                         <input type="password" id="exchange_secret_key" placeholder="Binance Secret Key" required>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="form-group">
+                            <label>🎯 Kâr Alma %</label>
+                            <input type="number" id="take_profit_percent" value="1.5" step="0.1" min="0.5" max="50">
+                        </div>
+                        <div class="form-group">
+                            <label>🛡️ Stop-Loss %</label>
+                            <input type="number" id="stop_loss_percent" value="1.5" step="0.1" min="0.5" max="30">
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>İşlem Başı Maks Bütçe %</label>
@@ -572,16 +608,26 @@ def get_dashboard_ui():
                     document.getElementById('tenant-count').innerText = `${data.count} Aktif`;
                     
                     if (data.tenants.length === 0) {
-                        table.innerHTML = `<tr><td colspan="6" style="color: var(--text-muted);">Henüz eklenmiş kullanıcı yok.</td></tr>`;
+                        table.innerHTML = `<tr><td colspan="7" style="color: var(--text-muted);">Henüz eklenmiş kullanıcı yok.</td></tr>`;
                     } else {
                         table.innerHTML = data.tenants.map(t => `
                             <tr>
                                 <td><strong>${t.tenant_name}</strong></td>
                                 <td><code>${t.telegram_chat_id}</code></td>
-                                <td><code>${t.exchange_api_key_masked || '***'}</code></td>
-                                <td>%${t.max_budget_percent || 10}</td>
+                                <td>
+                                    <input type="number" step="0.1" class="input-inline" id="tp_${t.id}" value="${t.take_profit_percent || 1.5}">
+                                </td>
+                                <td>
+                                    <input type="number" step="0.1" class="input-inline" id="sl_${t.id}" value="${t.stop_loss_percent || 1.5}">
+                                </td>
+                                <td>
+                                    <input type="number" step="1" class="input-inline" id="mb_${t.id}" value="${t.max_budget_percent || 10}">
+                                </td>
                                 <td><span class="badge badge-active">Aktif</span></td>
-                                <td><button class="btn btn-danger" onclick="deleteTenant('${t.id}')">Sil/Pasif</button></td>
+                                <td>
+                                    <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${t.id}')">💾 Kaydet</button>
+                                    <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('${t.id}')">Sil</button>
+                                </td>
                             </tr>
                         `).join('');
                     }
@@ -603,6 +649,28 @@ def get_dashboard_ui():
                 } catch(e) { console.error(e); }
             }
 
+            async function updateSettings(tenantId) {
+                const tp = parseFloat(document.getElementById('tp_' + tenantId).value);
+                const sl = parseFloat(document.getElementById('sl_' + tenantId).value);
+                const mb = parseFloat(document.getElementById('mb_' + tenantId).value);
+                
+                try {
+                    const res = await fetch('/api/tenants/' + tenantId + '/settings', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: mb})
+                    });
+                    if (res.ok) {
+                        alert('✅ Kâr Alma (%' + tp + ') ve Stop-Loss (%' + sl + ') limitleri başarıyla güncellendi!');
+                        loadData();
+                    } else {
+                        alert('❌ Güncelleme sırasında bir hata oluştu.');
+                    }
+                } catch(e) {
+                    alert('Hata: ' + e);
+                }
+            }
+
             async function submitTenant(e) {
                 e.preventDefault();
                 const payload = {
@@ -610,6 +678,8 @@ def get_dashboard_ui():
                     telegram_chat_id: parseInt(document.getElementById('telegram_chat_id').value),
                     exchange_api_key: document.getElementById('exchange_api_key').value,
                     exchange_secret_key: document.getElementById('exchange_secret_key').value,
+                    take_profit_percent: parseFloat(document.getElementById('take_profit_percent').value),
+                    stop_loss_percent: parseFloat(document.getElementById('stop_loss_percent').value),
                     max_budget_percent: parseFloat(document.getElementById('max_budget_percent').value)
                 };
                 const res = await fetch('/api/tenants', {
@@ -618,17 +688,19 @@ def get_dashboard_ui():
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
-                    alert('✅ Kullanıcı başarıyla eklendi!');
+                    alert('✅ Kullanıcı ve limitler başarıyla kaydedildi!');
                     document.getElementById('tenant-form').reset();
                     loadData();
                 } else {
-                    alert('❌ Eklenirken bir hata oluştu.');
+                    alert('❌ Kullanıcı kaydedilemedi.');
                 }
             }
 
-            async function deleteTenant(id) {
-                if (confirm('Bu kullanıcıyı pasife almak istediğinize emin misiniz?')) {
-                    await fetch(`/api/tenants/${id}`, { method: 'DELETE' });
+            async function deleteTenant(tenantId) {
+                if (!confirm('Bu kullanıcıyı pasife almak istediğinizden emin misiniz?')) return;
+                const res = await fetch(`/api/tenants/${tenantId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    alert('Kullanıcı pasife alındı.');
                     loadData();
                 }
             }

@@ -110,16 +110,18 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     except Exception:
                         pass
                         
-                gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
+                # Kullanıcıya Özel Kâr Alma ve Stop-Loss Limitleri (Varsayılan: %1.5 Kâr, %1.5 Zarar Kes)
+                user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
+                user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
                 
                 # Binance Borsa Komisyonu (Alış %0.10 + Satış %0.10 = Toplam %0.20 Komisyon Düşülür)
                 BINANCE_COMMISSION_PCT = 0.20
                 net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT if gross_change_pct > 0 else gross_change_pct
                 
-                # KÂR ALMA (Net Kâr >= +%1.5) VEYA STOP-LOSS (Brüt <= -%1.5) TETİKLENME KONTROLÜ
-                if net_profit_pct >= 1.5 or gross_change_pct <= -1.5:
-                    reason_type = f"Net Kâr Alma (+%{net_profit_pct:.2f} Komisyon Sonrası)" if net_profit_pct >= 1.5 else f"Stop-Loss (%{gross_change_pct:.2f})"
-                    print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Birim: {pair_quote}, Brüt: %{gross_change_pct:+.2f}, Net: %{net_profit_pct:+.2f}) piyasa emriyle satılıyor...")
+                # KÂR ALMA (Net Kâr >= user_tp) VEYA STOP-LOSS (Brüt <= -user_sl) TETİKLENME KONTROLÜ
+                if net_profit_pct >= user_tp or gross_change_pct <= -user_sl:
+                    reason_type = f"Net Kâr Alma (+%{net_profit_pct:.2f} Komisyon Sonrası)" if net_profit_pct >= user_tp else f"Stop-Loss (%{gross_change_pct:.2f})"
+                    print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Birim: {pair_quote}, Brüt: %{gross_change_pct:+.2f}, Net: %{net_profit_pct:+.2f} / Hedef: %{user_tp}) piyasa emriyle satılıyor...")
                     
                     sell_proposal = {
                         "should_trade": True,

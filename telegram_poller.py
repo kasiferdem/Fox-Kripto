@@ -379,16 +379,20 @@ def handle_update(update: dict):
             "OLASI NİYETLER (intent):\n"
             "1. 'TRADE': Kullanıcı doğrudan bir alım veya satım emri veriyor.\n"
             "   Örnekler: '500 TL sol al', '10 dolar btc al', '10 adet sol al', 'elimdeki avaxı sat', '50 TL pepe sat', '1 sol al', 'bnb sat', '10$ usdt sat', 'sol al', 'near sat'\n"
-            "2. 'PRICE_QUERY': Kullanıcı bir coinin anlık fiyatını veya durumunu soruyor.\n"
+            "2. 'UPDATE_SETTINGS': Kullanıcı kâr alma (take-profit), stop-loss veya bütçe oranını değiştirmek istiyor.\n"
+            "   Örnekler: 'kar hedefimi %3 yap', 'karımı %2.5 yap', 'stop loss'u %2 yap', 'kar alma oranım %4 olsun', 'kar %3 stop %1.5 yap'\n"
+            "3. 'PRICE_QUERY': Kullanıcı bir coinin anlık fiyatını veya durumunu soruyor.\n"
             "   Örnekler: 'sol ne kadar', 'bitcoin kaç dolar', 'pepe ne durumda', 'eth fiyatı'\n"
-            "3. 'CHAT': Genel soru, sohbet veya selamlama.\n\n"
+            "4. 'CHAT': Genel soru, sohbet veya selamlama.\n\n"
             "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
             "{\n"
-            '  "intent": "TRADE" | "PRICE_QUERY" | "CHAT",\n'
+            '  "intent": "TRADE" | "UPDATE_SETTINGS" | "PRICE_QUERY" | "CHAT",\n'
             '  "action": "BUY" | "SELL" | null,\n'
             '  "coin": "SOL" | "BTC" | "AVAX" | "PEPE" | "BNB" | "ETH" | "NEAR" | "SUI" | "RENDER" | null,\n'
             '  "amount_type": "FIAT_TRY" | "FIAT_USD" | "COIN_QTY" | "ALL_BALANCE" | null,\n'
             '  "amount_value": 500.0 | 10.0 | 1.0 | null,\n'
+            '  "take_profit_percent": 3.0 | 2.5 | null,\n'
+            '  "stop_loss_percent": 2.0 | 1.5 | null,\n'
             '  "chat_reply": "Kullanıcıya samimi ve profesyonel yanıt"\n'
             "}"
         )
@@ -399,6 +403,33 @@ def handle_update(update: dict):
         intent_data = json.loads(clean_json) if clean_json.startswith("{") else {}
         
         intent = intent_data.get("intent", "CHAT")
+
+        if intent == "UPDATE_SETTINGS":
+            tp = intent_data.get("take_profit_percent")
+            sl = intent_data.get("stop_loss_percent")
+            from db import get_supabase
+            sb = get_supabase()
+            if sb and (tp is not None or sl is not None):
+                update_payload = {}
+                if tp is not None: update_payload["take_profit_percent"] = float(tp)
+                if sl is not None: update_payload["stop_loss_percent"] = float(sl)
+                sb.table("user_tenants").update(update_payload).eq("telegram_chat_id", chat_id).execute()
+                
+                curr_tp = float(tp) if tp is not None else float(tenant.get("take_profit_percent") or 1.5)
+                curr_sl = float(sl) if sl is not None else float(tenant.get("stop_loss_percent") or 1.5)
+                
+                settings_card = (
+                    f"⚙️ *RİSK AYARLARINIZ GÜNCELLENDİ!* ✅\n\n"
+                    f"👤 Kullanıcı: *{first_name}*\n"
+                    f"🎯 Yeni Kâr Alma (Take-Profit) Hedefi: *+%{curr_tp:.1f} Net Kâr*\n"
+                    f"🛡️ Yeni Zarar Kes (Stop-Loss) Limiti: *-%{curr_sl:.1f}*\n\n"
+                    f"💡 _Artık yapay zeka tüm açık coin pozisyonlarınızı bu yeni hedeflerinize göre otonom olarak yönetecektir._"
+                )
+                send_message(chat_id, settings_card)
+                return
+            else:
+                send_message(chat_id, "⚠️ Ayarlar güncellenirken bir değer anlaşılamadı. Lütfen örneğin: 'Kâr hedefimi %3 yap' şeklinde yazın.")
+                return
         
         if intent == "TRADE" and intent_data.get("coin") and intent_data.get("action"):
             coin = str(intent_data["coin"]).upper()
