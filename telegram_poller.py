@@ -461,20 +461,23 @@ def handle_update(update: dict):
 
         system_prompt = (
             "Sen kıdemli bir Telegram Kripto Ticaret ve Asistan Robotusun.\n"
-            "Kullanıcının Türkçe mesajını analiz et ve niyetini (intent) belirle.\n\n"
+            "Kullanıcının Türkçe veya İngilizce mesajını analiz et ve niyetini (intent) belirle.\n\n"
             "OLASI NİYETLER (intent):\n"
             "1. 'TRADE': Kullanıcı doğrudan bir alım veya satım emri veriyor.\n"
             "   Örnekler: '500 TL sol al', '10 dolar btc al', '10 adet sol al', 'elimdeki avaxı sat', '50 TL pepe sat', '1 sol al', 'bnb sat', '10$ usdt sat', 'sol al', 'near sat'\n"
-            "2. 'UPDATE_SETTINGS': Kullanıcı kâr alma (take-profit), stop-loss veya bütçe oranını değiştirmek istiyor.\n"
+            "2. 'EXPLAIN_TRADE': Kullanıcı yapay zekaya bir coini (örn: PEPE, SOL, AVAX, BTC) neden aldığını, neden sattığını veya genel al-sat mantığını/gerekçesini soruyor.\n"
+            "   Örnekler: 'pepe neden aldın', 'sol neden sattın', 'neden avax aldın', 'btc neden sattın', 'neden doge aldın', 'why did you buy sol', 'why did you sell pepe', 'neden pepe aldın', 'neden sattın', 'işlem gerekçen nedir', 'neden alım yaptın'\n"
+            "3. 'UPDATE_SETTINGS': Kullanıcı kâr alma (take-profit), stop-loss veya bütçe oranını değiştirmek istiyor.\n"
             "   Örnekler: 'kar hedefimi %3 yap', 'karımı %2.5 yap', 'stop loss'u %2 yap', 'kar alma oranım %4 olsun', 'kar %3 stop %1.5 yap'\n"
-            "3. 'PRICE_QUERY': Kullanıcı bir coinin anlık fiyatını veya durumunu soruyor.\n"
+            "4. 'PRICE_QUERY': Kullanıcı bir coinin anlık fiyatını veya durumunu soruyor.\n"
             "   Örnekler: 'sol ne kadar', 'bitcoin kaç dolar', 'pepe ne durumda', 'eth fiyatı'\n"
-            "4. 'CHAT': Genel soru, sohbet veya selamlama.\n\n"
+            "5. 'SET_LANGUAGE': Kullanıcı dil değiştirmek istiyor ('lang en', 'dil tr', 'english', 'türkçe').\n"
+            "6. 'CHAT': Genel soru, sohbet veya selamlama.\n\n"
             "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
             "{\n"
-            '  "intent": "TRADE" | "UPDATE_SETTINGS" | "SET_LANGUAGE" | "PRICE_QUERY" | "CHAT",\n'
+            '  "intent": "TRADE" | "EXPLAIN_TRADE" | "UPDATE_SETTINGS" | "SET_LANGUAGE" | "PRICE_QUERY" | "CHAT",\n'
             '  "action": "BUY" | "SELL" | null,\n'
-            '  "coin": "SOL" | "BTC" | "AVAX" | "PEPE" | "BNB" | "ETH" | "NEAR" | "SUI" | "RENDER" | null,\n'
+            '  "coin": "SOL" | "BTC" | "AVAX" | "PEPE" | "BNB" | "ETH" | "NEAR" | "SUI" | "RENDER" | "DOGE" | "BONK" | null,\n'
             '  "amount_type": "FIAT_TRY" | "FIAT_USD" | "COIN_QTY" | "ALL_BALANCE" | null,\n'
             '  "amount_value": 500.0 | 10.0 | 1.0 | null,\n'
             '  "take_profit_percent": 3.0 | 2.5 | null,\n'
@@ -511,6 +514,56 @@ def handle_update(update: dict):
                 send_message(chat_id, "🇬🇧 *Language Preference Set to English!* ✅\nAll trading notifications, status reports and bot responses will be in English.")
             else:
                 send_message(chat_id, "🇹🇷 *Dil Tercihi Türkçe Olarak Ayarlandı!* ✅\nTüm al-sat bildirimleri, portföy raporları ve yanıtlar Türkçe olacaktır.")
+            return
+
+        if intent == "EXPLAIN_TRADE":
+            coin = (intent_data.get("coin") or "").upper()
+            action = (intent_data.get("action") or "").upper()
+            is_en_pref = str(tenant.get("preferred_language", "tr")).lower() == "en"
+            
+            # Supabase'den geçmiş işlem loglarını çek
+            from db import get_supabase
+            sb = get_supabase()
+            logs_summary = "Kayıtlı geçmiş işlem bulunamadı."
+            if sb:
+                try:
+                    q = sb.table("crypto_trade_logs").select("*").order("created_at", desc=True).limit(5)
+                    if coin:
+                        q = q.ilike("symbol", f"%{coin}%")
+                    res = q.execute()
+                    if res.data:
+                        logs_summary = "\n".join([
+                            f"- Sembol: {r.get('symbol')}, Yön: {r.get('direction')}, İnfaz/Giriş: {r.get('entry_price')}, Duyarlılık Skoru: {r.get('sentiment_score')}, Durum: {r.get('status')}, Tarih: {r.get('created_at')}"
+                            for r in res.data
+                        ])
+                except Exception:
+                    pass
+
+            explain_system_prompt = (
+                "Sen Fox-Kripto Otonom Yapay Zeka Baş Portföy Yöneticisisin.\n"
+                "Kullanıcı sana neden belirli bir kripto parayı (örneğin PEPE, SOL, BTC, AVAX, DOGE) aldığını veya sattığını, ya da genel al-sat mantığını soruyor.\n\n"
+                "SİSTEMİN ÇALIŞMA PRENSİPLERİ VE GEREKÇELERİ:\n"
+                "1. ALIM STRATEJİSİ:\n"
+                "   - Yüksek volatiliteye sahip meme coinlerde (PEPE, DOGE, BONK, SHIB) ve yapay zeka tokenlerinde (RENDER, NEAR, SUI) dip oluşumu, RSI aşırı satım bölgesinden toparlanma ve pozitif küresel haber duyarlılığı (Sentiment > 6.0) tespit edildiğinde hızlı kâr hedefiyle spot alım yapılır.\n"
+                "   - Portföy çeşitlendirmesi yapılır, tek işlemde cüzdanın maksimum %10'u kullanılır.\n"
+                "2. SATIM / KÂR ALMA STRATEJİSİ:\n"
+                "   - Önceden belirlenen dinamik kâr alma (Take-Profit %1.5 - %3.0) hedefine ulaşıldığında kârı fiat (TL/USDT) cüzdanına kilitlemek için anında satış yapılır.\n"
+                "   - Piyasa ani tersine dönerse sermayeyi korumak için Stop-Loss devreye girer.\n"
+                "3. YANIT FORMATI:\n"
+                "   - Kullanıcıya şeffaf, samimi, madde madde ve profesyonel bir üslupla açıkla.\n"
+                f"   - Dil: {'İngilizce (English)' if is_en_pref else 'Türkçe'}.\n"
+            )
+
+            context_prompt = (
+                f"Kullanıcı Sorusu: {user_text}\n"
+                f"Sorgulanan Coin: {coin or 'Genel'}\n"
+                f"İşlem Tipi: {action or 'Alım/Satım'}\n"
+                f"Veritabanı İşlem Logları:\n{logs_summary}\n\n"
+                f"Lütfen kullanıcının sorusunu doğrudan yanıtlayan harika bir açıklama hazırla."
+            )
+
+            explanation = call_gpt4o(explain_system_prompt, context_prompt)
+            send_message(chat_id, explanation if explanation else ("İşlem stratejisi: Kâr alma ve risk koruma hedefleri doğrultusunda gerçekleşmiştir." if not is_en_pref else "Trading strategy: Executed based on take-profit and risk management targets."))
             return
 
         if intent == "UPDATE_SETTINGS":
