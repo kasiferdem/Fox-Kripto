@@ -88,6 +88,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
                 try:
                     keys_dict = json.loads(api_k)
                     tp_val = float(keys_dict.get("take_profit_percent") or 1.5)
+                    lang_val = str(keys_dict.get("preferred_language") or t.get("preferred_language") or "tr").lower()
                     
                     # Çift borsa durumu (hem binancetr hem binance varsa)
                     if "binancetr" in keys_dict or "binance" in keys_dict:
@@ -95,6 +96,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
                             t_tr = dict(t)
                             t_tr["exchange_id"] = "binancetr"
                             t_tr["take_profit_percent"] = tp_val
+                            t_tr["preferred_language"] = lang_val
                             t_tr["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance TR)"
                             t_tr["exchange_api_key"] = keys_dict["binancetr"].get("api_key")
                             t_tr["exchange_secret_key"] = keys_dict["binancetr"].get("secret_key")
@@ -103,6 +105,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
                             t_gl = dict(t)
                             t_gl["exchange_id"] = "binance"
                             t_gl["take_profit_percent"] = tp_val
+                            t_gl["preferred_language"] = lang_val
                             t_gl["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance Global)"
                             t_gl["exchange_api_key"] = keys_dict["binance"].get("api_key")
                             t_gl["exchange_secret_key"] = keys_dict["binance"].get("secret_key")
@@ -112,6 +115,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
                         # Tekil borsa JSON kaydı (Örn: Moonwalker)
                         t_single = dict(t)
                         t_single["take_profit_percent"] = tp_val
+                        t_single["preferred_language"] = lang_val
                         t_single["exchange_api_key"] = keys_dict.get("api_key") or api_k
                         t_single["exchange_secret_key"] = keys_dict.get("secret_key") or t.get("exchange_secret_key")
                         unpacked.append(t_single)
@@ -121,6 +125,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
             
             t_def = dict(t)
             t_def["take_profit_percent"] = float(t.get("take_profit_percent") or 1.5)
+            t_def["preferred_language"] = str(t.get("preferred_language") or "tr").lower()
             unpacked.append(t_def)
         return unpacked
     except Exception as e:

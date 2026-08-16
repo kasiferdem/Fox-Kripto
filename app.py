@@ -181,12 +181,20 @@ def run_autonomous_trading_loop():
                                         entry_str = f"₺{entry_try:,.2f} TL"
                                         exit_str = f"₺{exit_try:,.2f} TL"
                                         
-                                    if net_pct >= 0:
-                                        profit_label = "📈 *Net Kâr / Kazanç:*"
-                                        profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL Net Kazanç) {quote_label} Cüzdanına Kilitlendi!"
+                                    if is_en_user:
+                                        if net_pct >= 0:
+                                            profit_label = "📈 *Net Profit:*"
+                                            profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL Net Profit) Locked in {quote_label} Wallet!"
+                                        else:
+                                            profit_label = "📉 *Net Change / Stop-Loss:*"
+                                            profit_badge = f"-%{abs(net_pct):.2f} (-₺{abs(net_profit_fiat):,.2f} TL) Transferred to {quote_label} Wallet"
                                     else:
-                                        profit_label = "📉 *Net Değişim / Stop-Loss:*"
-                                        profit_badge = f"-%{abs(net_pct):.2f} (-₺{abs(net_profit_fiat):,.2f} TL) {quote_label} Cüzdanına Aktarıldı"
+                                        if net_pct >= 0:
+                                            profit_label = "📈 *Net Kâr / Kazanç:*"
+                                            profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL Net Kazanç) {quote_label} Cüzdanına Kilitlendi!"
+                                        else:
+                                            profit_label = "📉 *Net Değişim / Stop-Loss:*"
+                                            profit_badge = f"-%{abs(net_pct):.2f} (-₺{abs(net_profit_fiat):,.2f} TL) {quote_label} Cüzdanına Aktarıldı"
                                 else:
                                     # Binance Global (USDT)
                                     entry_usd = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
@@ -208,35 +216,65 @@ def run_autonomous_trading_loop():
                                         entry_str = f"${entry_usd:,.2f}"
                                         exit_str = f"${exit_usd:,.2f}"
                                         
-                                    if net_pct >= 0:
-                                        profit_label = "📈 *Net Kâr / Kazanç:*"
-                                        profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT Net Kazanç) {quote_label} Cüzdanına Kilitlendi!"
+                                    if is_en_user:
+                                        if net_pct >= 0:
+                                            profit_label = "📈 *Net Profit:*"
+                                            profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT Net Profit) Locked in {quote_label} Wallet!"
+                                        else:
+                                            profit_label = "📉 *Net Change / Stop-Loss:*"
+                                            profit_badge = f"-%{abs(net_pct):.2f} (-${abs(net_profit_fiat):,.2f} USDT) Transferred to {quote_label} Wallet"
                                     else:
-                                        profit_label = "📉 *Net Değişim / Stop-Loss:*"
-                                        profit_badge = f"-%{abs(net_pct):.2f} (-${abs(net_profit_fiat):,.2f} USDT) {quote_label} Cüzdanına Aktarıldı"
+                                        if net_pct >= 0:
+                                            profit_label = "📈 *Net Kâr / Kazanç:*"
+                                            profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT Net Kazanç) {quote_label} Cüzdanına Kilitlendi!"
+                                        else:
+                                            profit_label = "📉 *Net Değişim / Stop-Loss:*"
+                                            profit_badge = f"-%{abs(net_pct):.2f} (-${abs(net_profit_fiat):,.2f} USDT) {quote_label} Cüzdanına Aktarıldı"
                             else:
-                                entry_str = "Alış Fiyatı"
-                                exit_str = "Satış Fiyatı"
-                                profit_label = "📈 *Net Kâr / Kazanç:*"
-                                profit_badge = "+%1.50+ Net Kazanç"
+                                entry_str = "Entry Price" if is_en_user else "Alış Fiyatı"
+                                exit_str = "Exit Price" if is_en_user else "Satış Fiyatı"
+                                profit_label = "📈 *Net Profit:*" if is_en_user else "📈 *Net Kâr / Kazanç:*"
+                                profit_badge = "+%1.50+ Net Profit" if is_en_user else "+%1.50+ Net Kazanç"
                             
-                            price_detail_line = (
-                                f"\n📥 *Alış Birim Fiyatı:* `{entry_str}`\n"
-                                f"📤 *Satış Birim Fiyatı:* `{exit_str}`\n"
-                                f"{profit_label} `{profit_badge}`"
-                            )
+                            if is_en_user:
+                                price_detail_line = (
+                                    f"\n📥 *Entry Unit Price:* `{entry_str}`\n"
+                                    f"📤 *Exit Unit Price:* `{exit_str}`\n"
+                                    f"{profit_label} `{profit_badge}`"
+                                )
+                            else:
+                                price_detail_line = (
+                                    f"\n📥 *Alış Birim Fiyatı:* `{entry_str}`\n"
+                                    f"📤 *Satış Birim Fiyatı:* `{exit_str}`\n"
+                                    f"{profit_label} `{profit_badge}`"
+                                )
                             
                         from telegram_poller import send_message
                         exch_display = "BINANCE.TR 🇹🇷" if is_tr_tenant else "BINANCE GLOBAL 🌍"
-                        msg = (
-                            f"🤖 *7/24 OTONOM YAPAY ZEKA BİLDİRİMİ*\n\n"
-                            f"👤 Kullanıcı: {tenant_name}\n"
-                            f"⚡ İşlem Tipi: *{action_title}*\n"
-                            f"🪙 Sembol: `{symbol}`\n"
-                            f"💵 Bütçe / Tutar: {amount_display}{price_detail_line}\n"
-                            f"🏢 Borsa: {exch_display}\n"
-                            f"{status_title}{order_text}"
-                        )
+                        
+                        if is_en_user:
+                            act_display = "🎯 SELL (TAKE-PROFIT)" if is_take_profit else ("🛡️ SELL (STOP-LOSS)" if is_stop_loss else f"⚡ {action_type} SPOT EXECUTION")
+                            st_display = "🎉 Live Execution Completed & Profit Transferred to Wallet!\n" if is_executed else "⚠️ Trade Pending\n"
+                            ord_display = f"📄 Order ID: #{order_id}\n" if order_id else ""
+                            msg = (
+                                f"🤖 *24/7 AUTONOMOUS AI TRADING NOTIFICATION*\n\n"
+                                f"👤 User: {tenant_name}\n"
+                                f"⚡ Action: *{act_display}*\n"
+                                f"🪙 Symbol: `{symbol}`\n"
+                                f"💵 Budget / Amount: {amount_display}{price_detail_line}\n"
+                                f"🏢 Exchange: {exch_display}\n"
+                                f"{st_display}{ord_display}"
+                            )
+                        else:
+                            msg = (
+                                f"🤖 *7/24 OTONOM YAPAY ZEKA BİLDİRİMİ*\n\n"
+                                f"👤 Kullanıcı: {tenant_name}\n"
+                                f"⚡ İşlem Tipi: *{action_title}*\n"
+                                f"🪙 Sembol: `{symbol}`\n"
+                                f"💵 Bütçe / Tutar: {amount_display}{price_detail_line}\n"
+                                f"🏢 Borsa: {exch_display}\n"
+                                f"{status_title}{order_text}"
+                            )
                         send_message(chat_id, msg)
         except Exception as e:
             print(f"⚠️ [Otonom Döngü Uyarısı]: {e}")
@@ -269,11 +307,13 @@ class TenantCreateRequest(BaseModel):
     max_budget_percent: float = 10.0
     take_profit_percent: float = 1.5
     stop_loss_percent: float = 1.5
+    preferred_language: str = "tr"
 
 class TenantUpdateSettingsRequest(BaseModel):
     take_profit_percent: float = 1.5
     stop_loss_percent: float = 1.5
     max_budget_percent: float = 10.0
+    preferred_language: str = "tr"
 
 class TriggerGraphRequest(BaseModel):
     session_id: str = "session_001"
@@ -420,10 +460,17 @@ def list_tenants():
 @app_api.post("/api/tenants")
 def create_tenant(req: TenantCreateRequest):
     """Yeni kullanıcı (Tenant) ekler veya günceller."""
+    import json
+    kd = {
+        "api_key": req.exchange_api_key,
+        "secret_key": req.exchange_secret_key,
+        "take_profit_percent": req.take_profit_percent,
+        "preferred_language": req.preferred_language
+    }
     res = register_user_tenant(
         tenant_name=req.tenant_name,
         telegram_chat_id=req.telegram_chat_id,
-        exchange_api_key=req.exchange_api_key,
+        exchange_api_key=json.dumps(kd),
         exchange_secret_key=req.exchange_secret_key,
         exchange_id=req.exchange_id,
         max_budget_percent=req.max_budget_percent
@@ -434,7 +481,7 @@ def create_tenant(req: TenantCreateRequest):
 
 @app_api.post("/api/tenants/{tenant_id}/settings")
 def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
-    """Kullanıcının kâr alma, stop-loss ve bütçe limitlerini günceller."""
+    """Kullanıcının kâr alma, stop-loss, bütçe ve dil tercihlerini günceller."""
     client = get_supabase()
     if not client:
         raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
@@ -457,6 +504,7 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
             try:
                 kd = json.loads(api_k)
                 kd["take_profit_percent"] = req.take_profit_percent
+                kd["preferred_language"] = req.preferred_language
                 payload["exchange_api_key"] = json.dumps(kd)
             except Exception:
                 pass
@@ -464,7 +512,8 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
             kd = {
                 "api_key": api_k,
                 "secret_key": sec_k,
-                "take_profit_percent": req.take_profit_percent
+                "take_profit_percent": req.take_profit_percent,
+                "preferred_language": req.preferred_language
             }
             payload["exchange_api_key"] = json.dumps(kd)
                 
@@ -597,12 +646,13 @@ def get_dashboard_html():
                             <th id="i18n-th-tp">🎯 Kâr Alma %</th>
                             <th id="i18n-th-sl">🛡️ Stop-Loss %</th>
                             <th id="i18n-th-mb">💵 Bütçe %</th>
+                            <th id="i18n-th-lang">🌐 Dil / Lang</th>
                             <th id="i18n-th-status">Durum</th>
                             <th id="i18n-th-action">İşlem</th>
                         </tr>
                     </thead>
                     <tbody id="tenants-table">
-                        <tr><td colspan="7" style="color: var(--text-muted);">Yükleniyor...</td></tr>
+                        <tr><td colspan="8" style="color: var(--text-muted);">Yükleniyor...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -636,9 +686,18 @@ def get_dashboard_html():
                             <input type="number" id="stop_loss_percent" value="1.5" step="0.1" min="0.5" max="30">
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label id="i18n-lbl-budget">İşlem Başı Maks Bütçe %</label>
-                        <input type="number" id="max_budget_percent" value="10" min="1" max="100">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="form-group">
+                            <label id="i18n-lbl-budget">İşlem Başı Maks Bütçe %</label>
+                            <input type="number" id="max_budget_percent" value="10" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label id="i18n-lbl-langselect">🌐 Dil / Language</label>
+                            <select id="preferred_language">
+                                <option value="tr">🇹🇷 Türkçe</option>
+                                <option value="en">🇬🇧 English</option>
+                            </select>
+                        </div>
                     </div>
                     <button id="i18n-btn-saveuser" type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">💾 Kullanıcıyı Kaydet</button>
                 </form>
@@ -665,6 +724,7 @@ def get_dashboard_html():
                     thTp: "🎯 Kâr Alma %",
                     thSl: "🛡️ Stop-Loss %",
                     thMb: "💵 Bütçe %",
+                    thLang: "🌐 Dil",
                     thStatus: "Durum",
                     thAction: "İşlem",
                     addUser: "➕ Yeni Kullanıcı Ekle",
@@ -675,6 +735,7 @@ def get_dashboard_html():
                     lblTp: "🎯 Kâr Alma %",
                     lblSl: "🛡️ Stop-Loss %",
                     lblBudget: "İşlem Başı Maks Bütçe %",
+                    lblLangSelect: "🌐 Dil / Language",
                     btnSaveUser: "💾 Kullanıcıyı Kaydet",
                     logsTitle: "📜 Canlı İşlem Kararları ve Loglar (Supabase)",
                     loading: "Yükleniyor...",
@@ -684,7 +745,7 @@ def get_dashboard_html():
                     del: "Sil",
                     activeBadge: "Aktif",
                     confirmDel: "Bu kullanıcıyı pasife almak istediğinizden emin misiniz?",
-                    userSaved: "için Kâr Alma ve Stop-Loss limitleri başarıyla kaydedildi!",
+                    userSaved: "için Kâr Alma, Stop-Loss ve Dil tercihleri başarıyla kaydedildi!",
                     userAdded: "✅ Kullanıcı ve limitler başarıyla kaydedildi!",
                     userAddFailed: "❌ Kullanıcı kaydedilemedi.",
                     userDeactivated: "Kullanıcı pasife alındı."
@@ -700,6 +761,7 @@ def get_dashboard_html():
                     thTp: "🎯 Take-Profit %",
                     thSl: "🛡️ Stop-Loss %",
                     thMb: "💵 Budget %",
+                    thLang: "🌐 Language",
                     thStatus: "Status",
                     thAction: "Action",
                     addUser: "➕ Add New User",
@@ -710,6 +772,7 @@ def get_dashboard_html():
                     lblTp: "🎯 Take-Profit %",
                     lblSl: "🛡️ Stop-Loss %",
                     lblBudget: "Max Budget % Per Trade",
+                    lblLangSelect: "🌐 Language Preference",
                     btnSaveUser: "💾 Save User",
                     logsTitle: "📜 Live Trade Decisions & Logs (Supabase)",
                     loading: "Loading...",
@@ -719,7 +782,7 @@ def get_dashboard_html():
                     del: "Delete",
                     activeBadge: "Active",
                     confirmDel: "Are you sure you want to deactivate this user?",
-                    userSaved: "Take-Profit and Stop-Loss settings saved successfully for",
+                    userSaved: "Take-Profit, Stop-Loss and Language preferences saved successfully for",
                     userAdded: "✅ User and risk limits saved successfully!",
                     userAddFailed: "❌ Failed to save user.",
                     userDeactivated: "User deactivated successfully."
@@ -742,6 +805,7 @@ def get_dashboard_html():
                 document.getElementById('i18n-th-tp').innerText = t.thTp;
                 document.getElementById('i18n-th-sl').innerText = t.thSl;
                 document.getElementById('i18n-th-mb').innerText = t.thMb;
+                document.getElementById('i18n-th-lang').innerText = t.thLang;
                 document.getElementById('i18n-th-status').innerText = t.thStatus;
                 document.getElementById('i18n-th-action').innerText = t.thAction;
                 document.getElementById('i18n-card-add').innerText = t.addUser;
@@ -752,6 +816,7 @@ def get_dashboard_html():
                 document.getElementById('i18n-lbl-tp').innerText = t.lblTp;
                 document.getElementById('i18n-lbl-sl').innerText = t.lblSl;
                 document.getElementById('i18n-lbl-budget').innerText = t.lblBudget;
+                document.getElementById('i18n-lbl-langselect').innerText = t.lblLangSelect;
                 document.getElementById('i18n-btn-saveuser').innerText = t.btnSaveUser;
                 document.getElementById('i18n-card-logs').innerText = t.logsTitle;
             }
@@ -770,7 +835,7 @@ def get_dashboard_html():
                     document.getElementById('tenant-count').innerText = `${data.count} ${t.activeSuffix}`;
                     
                     if (data.tenants.length === 0) {
-                        table.innerHTML = `<tr><td colspan="7" style="color: var(--text-muted);">${t.noUsers}</td></tr>`;
+                        table.innerHTML = `<tr><td colspan="8" style="color: var(--text-muted);">${t.noUsers}</td></tr>`;
                     } else {
                         table.innerHTML = data.tenants.map((user, idx) => `
                             <tr>
@@ -784,6 +849,12 @@ def get_dashboard_html():
                                 </td>
                                 <td>
                                     <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${user.max_budget_percent || 10}">
+                                </td>
+                                <td>
+                                    <select class="input-inline" style="width: 78px;" id="lang_${idx}">
+                                        <option value="tr" ${user.preferred_language === 'en' ? '' : 'selected'}>🇹🇷 TR</option>
+                                        <option value="en" ${user.preferred_language === 'en' ? 'selected' : ''}>🇬🇧 EN</option>
+                                    </select>
                                 </td>
                                 <td><span class="badge badge-active">${t.activeBadge}</span></td>
                                 <td>
@@ -816,16 +887,17 @@ def get_dashboard_html():
                 const tp = parseFloat(document.getElementById('tp_' + idx).value);
                 const sl = parseFloat(document.getElementById('sl_' + idx).value);
                 const mb = parseFloat(document.getElementById('mb_' + idx).value);
+                const lang = document.getElementById('lang_' + idx).value;
                 
                 try {
                     const res = await fetch('/api/tenants/' + tenantId + '/settings', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: mb})
+                        body: JSON.stringify({take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: mb, preferred_language: lang})
                     });
                     const resData = await res.json();
                     if (res.ok && resData.status === 'success') {
-                        alert(`✅ ${name || 'User'}: ${currentLang === 'tr' ? 'Kâr Alma' : 'Take-Profit'} (%${tp}) & Stop-Loss (%${sl}) ${t.userSaved}`);
+                        alert(`✅ ${name || 'User'}: ${currentLang === 'tr' ? 'Kâr Alma' : 'Take-Profit'} (%${tp}), Stop-Loss (%${sl}) & Lang (${lang.toUpperCase()}) ${t.userSaved}`);
                         loadData();
                     } else {
                         alert('❌ Error: ' + (resData.detail || JSON.stringify(resData)));
@@ -845,7 +917,8 @@ def get_dashboard_html():
                     exchange_secret_key: document.getElementById('exchange_secret_key').value,
                     take_profit_percent: parseFloat(document.getElementById('take_profit_percent').value),
                     stop_loss_percent: parseFloat(document.getElementById('stop_loss_percent').value),
-                    max_budget_percent: parseFloat(document.getElementById('max_budget_percent').value)
+                    max_budget_percent: parseFloat(document.getElementById('max_budget_percent').value),
+                    preferred_language: document.getElementById('preferred_language').value
                 };
                 const res = await fetch('/api/tenants', {
                     method: 'POST',
