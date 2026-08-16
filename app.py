@@ -324,7 +324,7 @@ class TriggerGraphRequest(BaseModel):
 # -----------------------------------------
 @app_api.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "Fox-Kripto Multi-Tenant Dashboard", "version": "2.0.0"}
+    return {"status": "healthy", "service": "Fox-Kripto Multi-Tenant Dashboard", "version": "2.1.0-explain-trade"}
 
 @app_api.get("/api/my-ip")
 def get_my_egress_ip():
