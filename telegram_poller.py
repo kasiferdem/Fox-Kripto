@@ -411,8 +411,20 @@ def handle_update(update: dict):
             sb = get_supabase()
             if sb and (tp is not None or sl is not None):
                 update_payload = {}
-                if tp is not None: update_payload["take_profit_percent"] = float(tp)
-                if sl is not None: update_payload["stop_loss_percent"] = float(sl)
+                if sl is not None: 
+                    update_payload["stop_loss_percent"] = float(sl)
+                
+                # take_profit_percent'i JSON içine güvenle göm
+                api_k = str(tenant.get("exchange_api_key", ""))
+                if api_k.startswith("{"):
+                    try:
+                        kd = json.loads(api_k)
+                        if tp is not None:
+                            kd["take_profit_percent"] = float(tp)
+                        update_payload["exchange_api_key"] = json.dumps(kd)
+                    except Exception:
+                        pass
+                        
                 sb.table("user_tenants").update(update_payload).eq("telegram_chat_id", chat_id).execute()
                 
                 curr_tp = float(tp) if tp is not None else float(tenant.get("take_profit_percent") or 1.5)
