@@ -241,8 +241,12 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
             tenant_gl["exchange_api_key"] = keys_dict.get("binance", {}).get("api_key")
             tenant_gl["exchange_secret_key"] = keys_dict.get("binance", {}).get("secret_key")
             
-            bal_tr = fetch_portfolio_balance(tenant_tr)
-            bal_gl = fetch_portfolio_balance(tenant_gl)
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                f_tr = executor.submit(fetch_portfolio_balance, tenant_tr)
+                f_gl = executor.submit(fetch_portfolio_balance, tenant_gl)
+                bal_tr = f_tr.result()
+                bal_gl = f_gl.result()
             
             combined_holdings = {}
             if bal_tr.get("holdings_details"):
