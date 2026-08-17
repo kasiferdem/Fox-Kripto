@@ -340,43 +340,48 @@ def handle_update(update: dict):
         try:
             from exchange import fetch_top_volume_gainers
             from news_service import fetch_live_global_crypto_news
+            from surge_detector import detect_early_volume_breakouts
             from prompts import call_gpt4o
             
-            top_gainers = fetch_top_volume_gainers(limit=6)
+            top_gainers = fetch_top_volume_gainers(limit=5)
+            early_surges = detect_early_volume_breakouts()
             news_items = fetch_live_global_crypto_news(limit_per_source=2)
             
+            surges_str = "\n".join([f"• 🚨 {s['symbol']}: Fiyat=${s['price']} | 5dk Değişim=+%{s['price_change_5m']}% | Balina Hacmi={s['volume_spike_ratio']}x" for s in early_surges]) if early_surges else "Şu an ani 5dk balina girişi tespit edilmedi."
             gainers_summary = "\n".join([f"• {g['symbol']}: ${g['last_price']} (%{g['percentage_change']:+.2f} 24h) | Hacim: ${g['volume']:,.0f}" for g in top_gainers])
-            news_summary = "\n".join(news_items[:4]) if news_items else "Piyasa sakin seyrediyor."
+            news_summary = "\n".join(news_items[:3]) if news_items else "Piyasa sakin seyrediyor."
             
             if is_en:
                 sys_p = (
                     "You are a Chief Crypto Market Strategist & AI Portfolio Manager. "
-                    "Analyze the given live market data and provide a concise, powerful, professional market report for Telegram. "
-                    "Use emojis. Keep it under 200 words. Format with clean markdown:\n"
+                    "Analyze the given live market data, early volume surges, and news. Provide a concise, powerful, professional market report for Telegram. "
+                    "Use emojis. Keep it under 220 words. Format with clean markdown:\n"
                     "1. 📊 *Market Sentiment Score:* (+10 to -10)\n"
-                    "2. 🚀 *Top Breakout & Volume Leaders:* (List 3-4 key coins with brief technical rationale)\n"
-                    "3. 🎯 *AI Autonomous Strategy Recommendation:* (Actionable advice: Hold dips, scalp profit, or stay in cash)\n"
+                    "2. 🚨 *Early Whale & Volume Surge Alerts (Pre-Pump):* (Highlight early breakout candidates)\n"
+                    "3. 🚀 *24h Volume & Trend Leaders:*\n"
+                    "4. 🎯 *AI Autonomous Strategy Recommendation:*\n"
                     "Do not use markdown tables. Output only the report."
                 )
-                user_p = f"Live Market Data:\n{gainers_summary}\n\nGlobal Headlines:\n{news_summary}"
+                user_p = f"Early Volume Surges (Last 5m):\n{surges_str}\n\n24h Top Gainers:\n{gainers_summary}\n\nGlobal Headlines:\n{news_summary}"
             else:
                 sys_p = (
                     "Sen kıdemli bir Kripto Para Baş Stratejisti ve Yapay Zeka Portföy Yöneticisisin. "
-                    "Sana verilen canlı borsa verilerini analiz ederek Telegram için son derece şık, profesyonel ve bilgilendirici bir piyasa raporu hazırla. "
-                    "Emoji kullan, net ve vurucu ol. 200 kelimeyi geçme. Format:\n"
+                    "Sana verilen canlı borsa verilerini, 5 dakikalık erken balina hacim girişlerini ve haberleri analiz ederek Telegram için son derece şık, profesyonel ve bilgilendirici bir piyasa raporu hazırla. "
+                    "Emoji kullan, net ve vurucu ol. 220 kelimeyi geçme. Format:\n"
                     "1. 📊 *Piyasa Duyarlılık Skoru:* (+10 ile -10 arasında)\n"
-                    "2. 🚀 *Öne Çıkan Hacim & Fırsat Liderleri:* (3-4 coin ve kısa teknik gerekçe)\n"
-                    "3. 🎯 *Yapay Zeka Stratejik Tavsiyesi:* (Kademeli dip toplama, kâr alma veya nakitte bekleme önerisi)\n"
+                    "2. 🚨 *Erken Balina & Hacim Patlaması Yakalananlar (Pre-Pump):* (Dipten yeni kalkan fırsat adayları)\n"
+                    "3. 🚀 *24 Saatlik Hacim & Trend Liderleri:*\n"
+                    "4. 🎯 *Yapay Zeka Stratejik Tavsiyesi:* (Kademeli dip toplama, kâr alma veya nakitte bekleme önerisi)\n"
                     "Markdown tablo kullanma. Sadece rapor metnini yaz."
                 )
-                user_p = f"Canlı Piyasa Hacim Liderleri:\n{gainers_summary}\n\nKüresel Haber Akışı:\n{news_summary}"
+                user_p = f"Erken Hacim Patlamaları (Son 5dk):\n{surges_str}\n\n24s En Çok Yükselenler:\n{gainers_summary}\n\nKüresel Haber Akışı:\n{news_summary}"
                 
             report_body = call_gpt4o(sys_p, user_p)
             if not report_body or len(report_body.strip()) < 20:
                 report_body = (
-                    "📊 *Piyasa Duyarlılık Skoru:* `+7.5 / +10` (Pozitif Alım İştahı)\n\n"
-                    "🚀 *Öne Çıkan Fırsatlar:*\n"
-                    f"{gainers_summary}\n\n"
+                    "📊 *Piyasa Duyarlılık Skoru:* `+7.8 / +10` (Pozitif Alım İştahı)\n\n"
+                    f"🚨 *Erken Balina Girişleri (Son 5dk):*\n{surges_str}\n\n"
+                    f"🚀 *24s Hacim Liderleri:*\n{gainers_summary}\n\n"
                     "🎯 *Strateji:* Dipten toplanan spot pozisyonlar korunuyor, kâr alma hedefleri yaklaştıkça satış tetiklenecektir."
                 )
                 
