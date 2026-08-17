@@ -61,15 +61,38 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
         }
     return None
 
+_cached_active_symbols = set()
+_cached_active_symbols_ts = 0
+
+def get_active_trading_symbols():
+    global _cached_active_symbols, _cached_active_symbols_ts
+    now = time.time()
+    if _cached_active_symbols and (now - _cached_active_symbols_ts < 300):
+        return _cached_active_symbols
+    try:
+        r = requests.get("https://api.binance.com/api/v3/exchangeInfo", timeout=5)
+        if r.status_code == 200:
+            data = r.json()
+            _cached_active_symbols = {
+                s["symbol"] for s in data.get("symbols", [])
+                if s.get("status") == "TRADING" and s.get("isSpotTradingAllowed", True)
+            }
+            _cached_active_symbols_ts = now
+    except Exception:
+        pass
+    return _cached_active_symbols
+
 def detect_early_volume_breakouts(min_volume_usd: float = 10000.0, max_recent_gain: float = 6.0) -> List[Dict[str, Any]]:
     """
     Tüm Binance USDT tahtasını paralel tarayarak:
-    1. Son 5 dakikada normal ortalamasının 1.3x - 10x katı hacim girişi (Balina alımı) olan,
-    2. Fiyatı henüz %1 ile %6 arasında yeni yükselmeye başlamış (Zirveye çıkmamış),
-    3. Hacim patlaması yaşayan ERKEN FIRSAT COİNLERİNİ tespit eder.
+    1. YALNIZCA aktif işlem gören (TRADING durumundaki) spot tahtaları seçer.
+    2. Son 5 dakikada normal ortalamasının 1.3x - 10x katı hacim girişi (Balina alımı) olan,
+    3. Fiyatı henüz %1 ile %6 arasında yeni yükselmeye başlamış (Zirveye çıkmamış),
+    4. Hacim patlaması yaşayan ERKEN FIRSAT COİNLERİNİ tespit eder.
     """
     breakouts = []
     try:
+        active_syms = get_active_trading_symbols()
         r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=5)
         if r.status_code != 200:
             return []
@@ -78,8 +101,10 @@ def detect_early_volume_breakouts(min_volume_usd: float = 10000.0, max_recent_ga
         usdt_tickers = [
             t for t in tickers 
             if t["symbol"].endswith("USDT") 
+            and (not active_syms or t["symbol"] in active_syms)
             and not any(t["symbol"].endswith(x) for x in ["UPUSDT", "DOWNUSDT", "FDUSDUSDT", "USDCUSDT"])
             and float(t.get("quoteVolume", 0)) > 200000.0
+            and float(t.get("lastPrice", 0)) > 0
         ]
         
         by_gain = sorted(usdt_tickers, key=lambda x: float(x.get("priceChangePercent", 0)), reverse=True)[:30]

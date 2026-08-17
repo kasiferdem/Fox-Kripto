@@ -516,39 +516,37 @@ def fetch_ticker_price(symbol: str = "BTC/USDT") -> Dict[str, Any]:
 
 def fetch_top_volume_gainers(limit: int = 20) -> list:
     """
-    Borsadaki tüm aktif işlem gören popüler altcoinleri tarar;
-    24 saatlik işlem hacmi ve fiyat artışına göre en popüler İlk 20 Altcoini dinamik döndürür.
+    Borsadaki tüm aktif işlem gören (TRADING) altcoinleri REST API ile tarar;
+    24 saatlik işlem hacmi ve fiyat artışına göre en popüler aktif patlama liderlerini dinamik döndürür.
     """
-    exchange = ccxt.binance({'enableRateLimit': True})
     try:
-        tickers = exchange.fetch_tickers()
-        valid_list = []
-        for symbol, t in tickers.items():
-            if symbol.endswith("/USDT") and not any(stable in symbol for stable in ["USDC", "FDUSD", "BUSD", "TUSD", "EUR", "DAI"]):
-                vol = float(t.get('quoteVolume', 0.0) or 0.0)
-                change = float(t.get('percentage', 0.0) or 0.0)
-                price = float(t.get('last', 0.0) or 0.0)
-                if vol > 5000000 and price > 0: # Min $5M USD 24h hacim
-                    valid_list.append({
-                        "symbol": symbol,
-                        "last_price": price,
-                        "percentage_change": change,
-                        "volume": vol
-                    })
-        # Hacim ve % değişime göre en sıcak popüler coinleri sırala
-        valid_list.sort(key=lambda x: (x["percentage_change"], x["volume"]), reverse=True)
-        return valid_list[:limit]
+        from surge_detector import get_active_trading_symbols
+        active_syms = get_active_trading_symbols()
+        r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=5)
+        if r.status_code == 200:
+            tickers = r.json()
+            valid_list = []
+            for t in tickers:
+                raw_sym = t.get("symbol", "")
+                if raw_sym.endswith("USDT") and (not active_syms or raw_sym in active_syms):
+                    if any(st in raw_sym for st in ["UPUSDT", "DOWNUSDT", "FDUSDUSDT", "USDCUSDT", "EURUSDT", "TRYUSDT"]):
+                        continue
+                    vol = float(t.get("quoteVolume", 0.0) or 0.0)
+                    change = float(t.get("priceChangePercent", 0.0) or 0.0)
+                    price = float(t.get("lastPrice", 0.0) or 0.0)
+                    if vol > 500000.0 and price > 0: # Min $500K hacim
+                        clean_base = raw_sym.replace("USDT", "")
+                        valid_list.append({
+                            "symbol": f"{clean_base}/USDT",
+                            "last_price": price,
+                            "percentage_change": change,
+                            "volume": vol
+                        })
+            valid_list.sort(key=lambda x: x["percentage_change"], reverse=True)
+            return valid_list[:limit]
     except Exception as e:
         print(f"⚠️ Top Gainers Tarama Uyarısı: {e}")
-        default_symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "AVAX/USDT", "SUI/USDT", "NEAR/USDT", "PEPE/USDT", "RENDER/USDT", "DOGE/USDT", "XRP/USDT", "FET/USDT", "TIA/USDT", "SHIB/USDT", "LINK/USDT", "ADA/USDT"]
-        fallback = []
-        for sym in default_symbols[:limit]:
-            try:
-                t = fetch_ticker_price(sym)
-                fallback.append(t)
-            except Exception:
-                pass
-        return fallback
+    return []
 
 def execute_spot_trade(
     symbol: str,
