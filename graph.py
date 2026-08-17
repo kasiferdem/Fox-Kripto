@@ -198,7 +198,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         fresh_coin = None
         for c in dynamic_candidates:
             c_base = c.split("/")[0].split("_")[0].upper()
-            if c_base not in current_assets and c_base not in ["BTC", "ETH", "TRY", "USDT", "USDC", "FDUSD", "BUSD", "SUI", "RENDER", "NEAR", "SOL", "ADA"]:
+            # Sadece cüzdanda zaten bulunanları ve sabit paraları (USDT/TRY) atla; tüm coinler hacim patlamasına göre serbest!
+            if c_base not in current_assets and c_base not in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
                 fresh_coin = c
                 break
             
