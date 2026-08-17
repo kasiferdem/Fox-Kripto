@@ -337,6 +337,16 @@ def get_my_egress_ip():
     except Exception as e:
         return {"error": str(e)}
 
+@app_api.get("/api/admin/test-spot-buy-user")
+def test_spot_buy_user():
+    """DigitalOcean sunucusundan doğrudan $10 GPS/USDT alımını canlı test eder ve sonucu döner."""
+    from db import get_tenant_by_chat_id
+    from exchange import execute_spot_trade
+    tenant = get_tenant_by_chat_id(8739367825)
+    if not tenant:
+        return {"error": "Tenant not found"}
+    return execute_spot_trade(symbol="GPS/USDT", side="BUY", amount_usd=10.0, tenant_config=tenant)
+
 @app_api.api_route("/api/admin/demo-swap-moonwalker", methods=["GET", "POST"])
 def demo_swap_moonwalker():
     """DigitalOcean sunucusundan (IP: 104.248.135.128) Moonwalker için 0.01 BNB satıp SOL alır."""
