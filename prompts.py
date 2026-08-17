@@ -127,31 +127,31 @@ def formulate_trade_strategy(
     current_holdings = list(portfolio_state.get("crypto_holdings", {}).keys()) if isinstance(portfolio_state.get("crypto_holdings"), dict) else []
     
     system_prompt = (
-        "Sen kıdemli bir Yüksek Kazançlı Kripto Scalper, Meme Coin & Trend Avcısı Ajanısın (Meme & Altcoin Hunter Agent).\n"
-        "Görevin: Piyasadaki en yüksek hacimli, volatil ve ani patlama potansiyeli taşıyan Sıcak Meme Coinleri "
-        "(PEPE, DOGE, SHIB, BONK, FLOKI, WIF, BOME, NEIRO, PNUT, POPCAT vb.) ve Yapay Zeka / Trend Altcoinleri (RENDER, SUI, NEAR, FET, SEI, INJ, AVAX, SOL) "
-        "arasından en yüksek kâr potansiyeline sahip olanı seçmektir.\n\n"
-        "KATI RİSK VE ÇEŞİTLİLİK (DIVERSIFICATION) KURALLARI:\n"
-        "1. MEME VE TREND ODAKLI ÇEŞİTLİLİK: Hep aynı büyük coinleri (BTC/ETH) alma! Hareketli meme coinlere ve trend altcoinlere ağırlık ver.\n"
-        "2. PORTFÖYDE OLMAYANI SEÇ: Kullanıcının elinde ZATEN BULUNAN coinleri tekrar alma! Portföyde henüz bulunmayan taze bir meme/altcoin seç.\n"
-        "3. Kâr Alma (Take-Profit): Hedef %1.5 - %4.0 arası olmalıdır.\n"
-        "4. Stop-Loss: %1.0 - %2.0 arası olmalıdır.\n\n"
+        "Sen kıdemli bir Erken Balina Avcısı ve Hacim Patlaması Scalper Ajanısın (Whale Breakout Hunter Agent).\n"
+        "Görevin: Piyasadaki en yüksek 5 dakikalık hacim artışına (Volume Spike) ve ani patlama potansiyeline sahip Erken Balina Coinleri "
+        "(FLM, WAVES, CLV, UTK, GPS, ACE, PORTAL, TURBO, NEIRO, TUT, PEPE, BONK, FLOKI) arasından en yüksek kâr potansiyeline sahip olanı seçmektir.\n\n"
+        "KATI RİSK VE ÇEŞİTLİLİK KURALLARI:\n"
+        "1. BÜYÜK VE HANTAL COİNLER YASAKTIR: BTC, ETH, SOL, SUI, NEAR, RENDER, AVAX, ADA gibi hantal coinleri ASLA seçme!\n"
+        "2. SADECE ERKEN BALİNA: 5 dakikalık hacim patlaması (Pre-Pump) olan dinamik coinleri seç.\n"
+        "3. PORTFÖYDE OLMAYANI SEÇ: Kullanıcının elinde ZATEN BULUNAN coinleri tekrar alma!\n"
+        "4. Kâr Alma (Take-Profit): Hedef %1.5 - %4.0 arası olmalıdır.\n"
+        "5. Stop-Loss: %1.0 - %1.5 arası olmalıdır.\n\n"
         "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
         "{\n"
         '  "should_trade": true,\n'
-        '  "symbol": "PEPE/USDT",\n'
+        '  "symbol": "FLM/USDT",\n'
         '  "direction": "BUY",\n'
         '  "amount_usd": 10.0,\n'
-        '  "entry_price": 0.00000260,\n'
+        '  "entry_price": 0.0167,\n'
         '  "stop_loss_percent": 1.5,\n'
-        '  "stop_loss_price": 0.00000256,\n'
-        '  "take_profit_price": 0.00000268,\n'
-        '  "risk_justification": "Yüksek hacimli sıcak meme coin seçildi ve portföy çeşitlendirildi."\n'
+        '  "stop_loss_price": 0.0164,\n'
+        '  "take_profit_price": 0.0172,\n'
+        '  "risk_justification": "4.9x erken balina hacim patlaması yakalandı."\n'
         "}"
     )
     user_content = (
         f"Kullanıcının Elindeki Mevcut Coinler: {current_holdings}\n"
-        f"KURAL: Mevcut elindeki coinleri tekrar alma! Sıcak Meme Coinlerden (PEPE, DOGE, SHIB, BONK, FLOKI, WIF, BOME, NEIRO, PNUT) veya AI/Trend Altcoinlerden (RENDER, SUI, NEAR, FET, SEI, AVAX, SOL) elinde OLMAYAN birini seç!\n"
+        f"KURAL: Mevcut elindeki coinleri tekrar alma! Erken Balina Adaylarından (FLM, WAVES, CLV, UTK, GPS, ACE, PORTAL, TURBO, NEIRO) elinde OLMAYAN birini seç!\n"
         f"Piyasa ve Altcoin Verileri: {news_analysis}\n"
         f"Kullanılabilir Likidite USD: ${available_liquidity_usd}"
     )
@@ -163,60 +163,52 @@ def formulate_trade_strategy(
             proposal = json.loads(clean_json)
             
             valid_base_coins = [
-                # Sıcak Meme Coinler
-                "PEPE", "DOGE", "SHIB", "BONK", "FLOKI", "WIF", "BOME", "NEIRO", "PNUT", "POPCAT", "MEME",
-                # AI & Trend Altcoinler
-                "RENDER", "SUI", "NEAR", "FET", "SEI", "INJ", "AVAX", "SOL", "TIA", "TAO", "APT", "LINK", "XRP"
+                "FLM", "WAVES", "CLV", "UTK", "GPS", "ACE", "PORTAL", "TURBO", "NEIRO", "TUT", "PEPE", "BONK", "FLOKI"
             ]
-            sym = str(proposal.get("symbol", "PEPE/USDT")).upper()
+            sym = str(proposal.get("symbol", "FLM/USDT")).upper()
             base = sym.split("/")[0].split("_")[0]
             
             # KATI ÇEŞİTLİLİK KURALI: Elde zaten bulunan coini tekrar alma!
             existing_coins = [c.upper() for c in current_holdings if c.upper() not in ["TRY", "USDT", "BUSD", "USDC"]]
-            if base in existing_coins:
+            if base in existing_coins or base in ["SUI", "RENDER", "NEAR", "SOL", "AVAX", "BTC", "ETH", "ADA"]:
                 available_candidates = [c for c in valid_base_coins if c not in existing_coins]
                 if available_candidates:
                     base = available_candidates[0]
                     sym = f"{base}/USDT"
                     proposal["symbol"] = sym
-                    proposal["risk_justification"] = f"Portföy çeşitlendirildi: Elde olmayan yeni sıcak coin {base} seçildi."
+                    proposal["risk_justification"] = f"Erken balina hacim adayı {base} seçildi."
             
             if base not in valid_base_coins:
-                sym = "PEPE/USDT"
+                sym = "FLM/USDT"
             proposal["symbol"] = sym
             
-            # Dinamik Bakiye Oranlama: Hesaptaki tüm kullanılabilir nakdin %33'ü (1/3 oran - ~₺500 TL) ile işlem yapar
-            if available_liquidity_usd <= 25.0: # ₺800 TL altı küçük bakiyelerde nakdin %90'ı ile alım yapar (₺199 TL -> ₺180 TL)
-                proposal["amount_usd"] = round(available_liquidity_usd * 0.90, 2)
-            else:
-                proposal["amount_usd"] = round(available_liquidity_usd * 0.33, 2)
-            
+            proposal["amount_usd"] = 10.0
             sl_pct = float(proposal.get("stop_loss_percent", 1.2))
             if sl_pct < 1.0: sl_pct = 1.0
             if sl_pct > 1.5: sl_pct = 1.5
             proposal["stop_loss_percent"] = sl_pct
-            proposal["stop_loss_price"] = round(current_price * (1 - (sl_pct / 100)), 2)
-            proposal["take_profit_price"] = round(current_price * 1.015, 2) # %1.5 Ultra-Hızlı Kâr Alma
+            proposal["stop_loss_price"] = round(current_price * (1 - (sl_pct / 100)), 4)
+            proposal["take_profit_price"] = round(current_price * 1.015, 4)
             proposal["should_trade"] = True
             return proposal
         except Exception:
             pass
             
-    # Fallback Strateji (Hızlı Mikro Scalp Kural Motoru - Meme & Erken Trend Odaklı)
-    fallback_pool = ["PEPE/USDT", "BONK/USDT", "DOGE/USDT", "FLOKI/USDT", "SUI/USDT", "RENDER/USDT", "AVAX/USDT", "PORTAL/USDT", "GPS/USDT"]
-    chosen_symbol = symbol if (symbol and symbol not in ["AUTO", "BTC/USDT", "ETH/USDT"]) else "PEPE/USDT"
+    # Fallback Strateji: SADECE Gerçek Erken Balina Hacim Adayları
+    fallback_pool = ["FLM/USDT", "WAVES/USDT", "CLV/USDT", "UTK/USDT", "GPS/USDT", "ACE/USDT", "PORTAL/USDT", "TURBO/USDT", "NEIRO/USDT"]
+    chosen_symbol = "FLM/USDT"
     
-    # Portföyde olmayan sıcak bir meme/altcoine geç
+    # Portföyde olmayan taze bir balina adayına geç
     for cand in fallback_pool:
         c_b = cand.split("/")[0]
         if c_b not in current_holdings:
             chosen_symbol = cand
             break
             
-    max_budget = max(round(available_liquidity_usd * 0.33, 2), 10.0)
+    max_budget = 10.0
     sl_pct = 1.2
-    sl_price = round(current_price * (1 - (sl_pct / 100)), 2)
-    tp_price = round(current_price * 1.015, 2) # %1.5 Hızlı Kâr
+    sl_price = round(current_price * (1 - (sl_pct / 100)), 4)
+    tp_price = round(current_price * 1.015, 4)
     
     return {
         "should_trade": True,
