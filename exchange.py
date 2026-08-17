@@ -333,9 +333,10 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                             pass
 
             estimated_total_usd = free_usdt
+            estimated_total_try = free_usdt * 47.80
             holdings_details = {}
             price_map = get_all_prices_map()
-            usdt_try_price = price_map.get("USDTTRY", 34.80)
+            usdt_try_price = price_map.get("USDTTRY", 47.80) or 47.80
             
             for asset, amount in crypto_holdings.items():
                 if amount > 0:
@@ -343,15 +344,32 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                         clean_lookup_coin = asset.replace(" (Earn)", "").strip()
                         if clean_lookup_coin == "TRY":
                             val_usd = amount / usdt_try_price if usdt_try_price > 0 else 0.0
+                            val_try = amount
                             estimated_total_usd += val_usd
-                            holdings_details[asset] = {"amount": amount, "price": 1.0 / usdt_try_price if usdt_try_price > 0 else 0.0, "val_usd": val_usd}
+                            estimated_total_try += val_try
+                            holdings_details[asset] = {"amount": amount, "price": 1.0, "val_usd": val_usd, "val_try": val_try}
                         else:
-                            price = price_map.get(f"{clean_lookup_coin}USDT") or ((price_map.get(f"{clean_lookup_coin}TRY", 0.0) / usdt_try_price) if usdt_try_price > 0 else 0.0) or 0.0
-                            val_usd = amount * price
+                            price_try = price_map.get(f"{clean_lookup_coin}TRY", 0.0)
+                            price_usd = price_map.get(f"{clean_lookup_coin}USDT", 0.0)
+                            
+                            if price_try > 0:
+                                val_try = amount * price_try
+                                val_usd = val_try / usdt_try_price if usdt_try_price > 0 else (amount * price_usd)
+                            else:
+                                val_usd = amount * price_usd
+                                val_try = val_usd * usdt_try_price
+                                
                             estimated_total_usd += val_usd
-                            holdings_details[asset] = {"amount": amount, "price": price, "val_usd": val_usd}
+                            estimated_total_try += val_try
+                            holdings_details[asset] = {
+                                "amount": amount, 
+                                "price": price_usd if price_usd > 0 else (price_try / usdt_try_price), 
+                                "price_try": price_try if price_try > 0 else (price_usd * usdt_try_price),
+                                "val_usd": val_usd, 
+                                "val_try": val_try
+                            }
                     except Exception:
-                        holdings_details[asset] = {"amount": amount, "price": 0.0, "val_usd": 0.0}
+                        holdings_details[asset] = {"amount": amount, "price": 0.0, "val_usd": 0.0, "val_try": 0.0}
 
             return {
                 "exchange": exchange.id,
@@ -359,6 +377,7 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                 "free_usdt": free_usdt,
                 "used_usdt": used_usdt,
                 "total_usdt": estimated_total_usd,
+                "total_try": estimated_total_try,
                 "crypto_holdings": crypto_holdings,
                 "holdings_details": holdings_details
             }
