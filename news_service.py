@@ -48,6 +48,49 @@ def fetch_live_global_crypto_news(limit_per_source: int = 4) -> List[str]:
 
     return headlines
 
+def get_localized_crypto_news(lang: str = "tr", limit: int = 6) -> str:
+    """
+    Kullanıcının tercih ettiği dilde (TR / EN) güncel küresel haberleri çeker ve formatlar.
+    """
+    raw_news = fetch_live_global_crypto_news(limit_per_source=2)
+    if not raw_news:
+        if lang == "en":
+            return "ℹ️ No breaking market movements at this moment, market is calm."
+        return "ℹ️ Şu anda küresel haber akışında olağandışı bir son dakika gelişmesi bulunmuyor, piyasa sakin seyrediyor."
+
+    selected = raw_news[:limit]
+    
+    if lang == "tr":
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if api_key:
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=api_key)
+                prompt = (
+                    "Aşağıdaki İngilizce kripto haber başlıklarını doğal, akıcı ve profesyonel Türkçeye çevir. "
+                    "Haber kaynağı etiketlerini (örneğin [CoinTelegraph], [CoinDesk]) koru. "
+                    "Her birini '• ' ile başlayan birer madde olarak ver, ekstra açıklama yazma:\n\n" +
+                    "\n".join(selected)
+                )
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=600
+                )
+                translated_text = resp.choices[0].message.content.strip()
+                if translated_text:
+                    return translated_text
+            except Exception as te:
+                print(f"⚠️ Haber Çeviri Uyarısı: {te}")
+                
+        # Fallback Türkçe formatlama
+        return "\n\n".join([f"• {h}" for h in selected])
+    else:
+        # İngilizce formatlama
+        return "\n\n".join([f"• {h}" for h in selected])
+
 if __name__ == "__main__":
     news = fetch_live_global_crypto_news()
     print(f"✅ Toplam {len(news)} küresel canlı haber başlığı çekildi:")

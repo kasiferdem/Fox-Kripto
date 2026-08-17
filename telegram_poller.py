@@ -171,22 +171,25 @@ def handle_update(update: dict):
         is_en = (user_lang == "en") or (text_clean in ["news"])
         send_message(chat_id, "📡 *FETCHING GLOBAL CRYPTO NEWS...*" if is_en else "📡 *KÜRESEL KRİPTO HABERLERİ ÇEKİLİYOR...*\nCoinDesk, CoinTelegraph ve Decrypt taranıyor...")
         try:
-            from news_service import fetch_live_global_crypto_news
-            headlines = fetch_live_global_crypto_news(limit_per_source=3)
+            from news_service import get_localized_crypto_news
+            lang_code = "en" if is_en else "tr"
+            news_items = get_localized_crypto_news(lang=lang_code, limit=6)
             
-            if headlines:
-                news_items = "\n\n".join([f"• {h}" for h in headlines[:8]])
+            if is_en:
                 summary_msg = (
-                    f"🌍 *LIVE GLOBAL CRYPTO HEADLINES*\n" if is_en else
+                    f"🌍 *LIVE GLOBAL CRYPTO HEADLINES*\n"
+                    f"_(CoinDesk • CoinTelegraph • Decrypt)_\n\n"
+                    f"{news_items}\n\n"
+                    f"🤖 *AI Analysis:* Global headlines are continuously scanned and integrated into autonomous trading strategies! 🚀"
+                )
+            else:
+                summary_msg = (
                     f"🌍 *CANLI KÜRESEL KRİPTO GÜNDEMİ*\n"
                     f"_(CoinDesk • CoinTelegraph • Decrypt)_\n\n"
                     f"{news_items}\n\n"
-                    f"🤖 *AI Analysis:* Global headlines are continuously scanned and integrated into autonomous trading strategies! 🚀" if is_en else
                     f"🤖 *Yapay Zeka Analizi:* Küresel haber akışı taranarak otomatik alım-satım stratejilerine doğrudan yansıtılmaktadır! 🚀"
                 )
-                send_message(chat_id, summary_msg)
-            else:
-                send_message(chat_id, "ℹ️ No breaking market movements at this moment, market is calm." if is_en else "ℹ️ Şu anda küresel haber akışında olağandışı bir son dakika gelişmesi bulunmuyor, piyasa sakin seyrediyor.")
+            send_message(chat_id, summary_msg)
         except Exception as ne:
             send_message(chat_id, f"⚠️ Error: {ne}")
         return
