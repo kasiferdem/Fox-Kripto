@@ -730,8 +730,14 @@ def handle_update(update: dict):
                     )
                 send_message(chat_id, success_card)
             else:
-                err = trade_res.get("error", "Borsa reddetti")
-                if is_en_pref:
+                err = str(trade_res.get("error", "Borsa reddetti"))
+                if "NOTIONAL" in err or "-1013" in err:
+                    if is_en_pref:
+                        friendly_err = "⚠️ *Binance Minimum Order Limit (MIN_NOTIONAL):*\nBinance requires a minimum order value of **$5.00 USD** (or ₺100 TL) for spot market trades.\nAmounts below $5.00 (such as $2.36) cannot be sold directly on the spot order book."
+                    else:
+                        friendly_err = "⚠️ *Borsa Kuralı (Minimum Emir Limiti - MIN_NOTIONAL):*\nBinance borsasında spot işlem yapabilmek için tek seferlik emir tutarı en az **$5.00 USD** (veya ₺100 TL) olmak zorundadır.\n$2.36 gibi $5'ın altındaki küçük bakiyeler borsa kuralı gereği spot tahtasında satılamaz."
+                    send_message(chat_id, friendly_err)
+                elif is_en_pref:
                     send_message(chat_id, f"⚠️ *Order Failed:*\n\n`{err}`\n\nPlease check your account balance or API permissions.")
                 else:
                     send_message(chat_id, f"⚠️ *Emir İletilemedi:*\n\n`{err}`\n\nLütfen bakiyenizi veya borsa kısıtlamalarını kontrol edin.")
