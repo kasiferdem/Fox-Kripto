@@ -689,17 +689,34 @@ def handle_update(update: dict):
                     port = fetch_portfolio_balance(tenant)
                     h_tr = port.get("binance_tr", {}).get("holdings_details", {})
                     h_gl = port.get("binance_global", {}).get("holdings_details", {})
-                    c_info = h_tr.get(coin) or h_gl.get(coin) or port.get("holdings_details", {}).get(coin) or {}
+                    
+                    # Doğru borsadaki bakiyeyi öncelikle seç
+                    gl_info = h_gl.get(coin, {})
+                    tr_info = h_tr.get(coin, {})
+                    gl_val = float(gl_info.get("val_usd", 0.0))
+                    tr_val = float(tr_info.get("val_usd", 0.0))
+                    
+                    if not is_tr_user and gl_val > 0:
+                        c_info = gl_info
+                    elif is_tr_user and tr_val > 0:
+                        c_info = tr_info
+                    elif gl_val >= tr_val and gl_val > 0:
+                        c_info = gl_info
+                    elif tr_val > 0:
+                        c_info = tr_info
+                    else:
+                        c_info = port.get("holdings_details", {}).get(coin) or {}
+                        
                     c_amt = float(c_info.get("amount", 0.0))
                     c_val = float(c_info.get("val_usd", 0.0))
                     if c_val > 0:
                         amount_usd = c_val
-                        amount_display = f"Tüm Bakiye ({c_amt:,.4f} {coin} ~ ${c_val:.2f})"
+                        amount_display = f"Tüm Bakiye ({c_amt:,.6f} {coin} ~ ${c_val:.2f})"
                     else:
-                        amount_usd = 20.0
+                        amount_usd = 10.0
                         amount_display = f"Tüm {coin} Bakiyesi"
                 except Exception:
-                    amount_usd = 20.0
+                    amount_usd = 10.0
                     amount_display = f"Tüm {coin} Bakiyesi"
                     
             is_en_pref = str(tenant.get("preferred_language", "tr")).lower() == "en"
