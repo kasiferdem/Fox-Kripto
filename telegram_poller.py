@@ -792,11 +792,31 @@ def handle_update(update: dict):
             return
             
         else:
-            chat_reply = intent_data.get("chat_reply") or f"Merhaba {first_name}! Bana '500 TL SOL al', '10$ BNB sat', 'durum', 'haberler' veya 'analiz' şeklinde talimat verebilirsiniz! 🚀"
+            chat_reply = intent_data.get("chat_reply")
+            if not chat_reply or "bana '500 tl" in str(chat_reply).lower() or len(str(chat_reply)) < 15:
+                try:
+                    port = fetch_portfolio_balance(tenant)
+                    holdings_summary = str(port.get("holdings_details") or port.get("binance_tr", {}).get("holdings_details") or {})
+                    
+                    qa_system_prompt = (
+                        f"Sen Fox-Kripto Akıllı Portföy Yöneticisi ve Kripto Ticaret Asistanısın.\n"
+                        f"Kullanıcının Adı: {first_name}\n"
+                        f"Kullanıcı Portföy Durumu: {holdings_summary}\n"
+                        f"Görevin: Kullanıcının sorusuna doğrudan, açık, dürüst, profesyonel ve tatmin edici bir yanıt vermektir.\n"
+                        f"Kullanıcı neden belirli bir işlem yapıldığını, neden satış olmadığını, piyasa durumunu veya botun çalışma mantığını soruyor olabilir.\n"
+                        f"Asla ezbere generic karşılama mesajı verme! Soruya nokta atışı yanıt ver."
+                    )
+                    chat_reply = call_gpt4o(qa_system_prompt, f"Kullanıcı Mesajı: {user_text}")
+                except Exception:
+                    pass
+                    
+            if not chat_reply:
+                chat_reply = f"Merhaba {first_name}! 'durum', 'haberler', 'analiz' yazabilir veya 'BTC sat', '500 TL SOL al' gibi talimatlar verebilirsiniz. Sorunuzu detaylandırırsanız memnuniyetle yardımcı olurum!"
+                
             send_message(chat_id, chat_reply)
             return
     except Exception as nle:
-        send_message(chat_id, f"🤖 Merhaba {first_name}! '500 TL SOL al', 'durum' veya 'haberler' yazarak işlem yapabilirsiniz.")
+        send_message(chat_id, f"🤖 Merhaba {first_name}! Talimatınız alındı. 'durum', 'haberler' veya 'BTC sat' gibi komutlarla da işlem yapabilirsiniz.")
         return
 
 def start_poller():
