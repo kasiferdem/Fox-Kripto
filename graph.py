@@ -177,28 +177,33 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     sentiment_score = float(state.get("sentiment_score") or 0.0)
     
     if proposed_base in current_assets or proposed_base in ["BTC", "ETH"]:
-        # Skor çok yüksek değilse otomatik olarak cüzdanda olmayan sıcak/erken balina altcoinlerine geç
+        # KATI KURAL: Sadece erken balina hacim patlamaları (Pre-Pump) ve yüksek ivmeli patlama coinleri
         dynamic_candidates = []
         try:
             early_surges = detect_early_volume_breakouts()
             for es in early_surges:
-                dynamic_candidates.append(es["symbol"])
+                if es.get("symbol") and es["symbol"] not in dynamic_candidates:
+                    dynamic_candidates.append(es["symbol"])
         except Exception:
             pass
             
         try:
             top_g = fetch_top_volume_gainers(limit=15)
             for tg in top_g:
-                dynamic_candidates.append(tg["symbol"])
+                if tg.get("symbol") and tg["symbol"] not in dynamic_candidates:
+                    dynamic_candidates.append(tg["symbol"])
         except Exception:
             pass
             
+        # Sadece agresif patlama ve mikro balina adayları (SUI, RENDER, NEAR, SOL gibi hantal L1'ler YASAKLANDI)
         fallback_pool = [
-            "PEPE/USDT", "BONK/USDT", "DOGE/USDT", "FLOKI/USDT", "SUI/USDT", 
-            "RENDER/USDT", "NEAR/USDT", "GPS/USDT", "PORTAL/USDT", "ACE/USDT", 
-            "FLM/USDT", "CLV/USDT", "WAVES/USDT", "UTK/USDT", "AVAX/USDT"
+            "FLM/USDT", "WAVES/USDT", "CLV/USDT", "UTK/USDT", "GPS/USDT", 
+            "ACE/USDT", "PORTAL/USDT", "TURBO/USDT", "NEIRO/USDT", "PEPE/USDT", 
+            "BONK/USDT", "FLOKI/USDT", "MEME/USDT", "WIF/USDT", "1000SATS/USDT"
         ]
-        dynamic_candidates.extend(fallback_pool)
+        for fb in fallback_pool:
+            if fb not in dynamic_candidates:
+                dynamic_candidates.append(fb)
         
         fresh_coin = None
         for c in dynamic_candidates:
