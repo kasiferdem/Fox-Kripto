@@ -117,7 +117,7 @@ def run_autonomous_trading_loop():
                         symbol = exec_res.get("symbol") or (proposal.get("symbol") if proposal else "BTC/USDT")
                         if not symbol or "AUTO" in symbol.upper():
                             symbol = "BTC/USDT"
-                            
+                        is_en_user = str(tenant.get("preferred_language", "tr")).lower() == "en"
                         is_tr_tenant = bool(tenant and tenant.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
                         wallet_label = "TL" if is_tr_tenant else "USDT"
                         quote_sym = "TRY" if is_tr_tenant else "USDT"
@@ -126,26 +126,30 @@ def run_autonomous_trading_loop():
                         
                         is_stop_loss = bool(proposal.get("is_stop_loss", False)) if proposal else False
                         raw_action = str(proposal.get("direction", "BUY")).upper() if proposal else "BUY"
+                        action_type = raw_action
+                        is_take_profit = (raw_action not in ["BUY", "ALIM"]) and (not is_stop_loss)
+                        is_executed = is_exec_success
+                        
                         if raw_action in ["BUY", "ALIM"]:
-                            action_title = "🛒 ALIM (BUY)"
-                            status_title = f"✅ Canlı Alım Başarıyla Gerçekleştirildi ({wallet_label} Cüzdanı)" if is_exec_success else f"⚠️ Alım İletilemedi: {exec_res.get('error', 'Bakiye/Emir Limiti')}"
+                            action_title = "🛒 BUY SPOT ORDER" if is_en_user else "🛒 ALIM (BUY)"
+                            status_title = f"✅ Live Buy Executed Successfully ({wallet_label} Wallet)" if is_en_user else f"✅ Canlı Alım Başarıyla Gerçekleştirildi ({wallet_label} Cüzdanı)"
                         else:
                             if is_stop_loss:
-                                action_title = "🛡️ SATIM (STOP-LOSS / ZARAR KES)"
-                                status_title = f"🛡️ Canlı Stop-Loss Gerçekleşti ve Sermaye {wallet_label} Cüzdanına Alındı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
+                                action_title = "🛡️ SELL (STOP-LOSS)" if is_en_user else "🛡️ SATIM (STOP-LOSS / ZARAR KES)"
+                                status_title = f"🛡️ Stop-Loss Triggered & Capital Preserved in {wallet_label} Wallet" if is_en_user else f"🛡️ Canlı Stop-Loss Gerçekleşti ve Sermaye {wallet_label} Cüzdanına Alındı"
                             else:
-                                action_title = "🎯 SATIM (SELL / KÂR ALMA)"
-                                status_title = f"🎉 Canlı Satış Gerçekleşti ve {wallet_label} Cüzdanına Aktarıldı" if is_exec_success else f"⚠️ Satış İletilemedi: {exec_res.get('error', 'Miktar Limiti')}"
+                                action_title = "🎯 SELL (TAKE-PROFIT)" if is_en_user else "🎯 SATIM (SELL / KÂR ALMA)"
+                                status_title = f"🎉 Live Take-Profit Executed & Transferred to {wallet_label} Wallet" if is_en_user else f"🎉 Canlı Satış Gerçekleşti ve {wallet_label} Cüzdanına Aktarıldı"
                             
                         amount = proposal.get("amount_usd", 10.0) if proposal else 10.0
                         if is_tr_tenant:
-                            amount_try = round(amount * 34.80, 2)
+                            amount_try = round(amount * 47.80, 2)
                             amount_display = f"₺{amount_try:.2f} TL"
                         else:
                             amount_display = f"${amount:.2f} USD"
                         
                         order_id = exec_res.get("order_id")
-                        order_text = f"\n📄 Emir No: #{order_id}" if (is_exec_success and order_id) else ""
+                        order_text = f"\n📄 Order ID: #{order_id}" if (is_en_user and order_id) else (f"\n📄 Emir No: #{order_id}" if order_id else "")
                         
                         price_detail_line = ""
                         if raw_action not in ["BUY", "ALIM"]:
@@ -165,7 +169,7 @@ def run_autonomous_trading_loop():
                                     gross_pct = ((exit_try - entry_try) / entry_try * 100) if entry_try > 0 else 1.7
                                     net_pct = gross_pct - 0.20 # %0.20 borsa komisyonu düşülür
                                     
-                                    tot_sell_try = (coin_qty * exit_try) if coin_qty > 0 else (amount * 34.80)
+                                    tot_sell_try = (coin_qty * exit_try) if coin_qty > 0 else (amount * 47.80)
                                     tot_buy_try = (coin_qty * entry_try) if coin_qty > 0 else (tot_sell_try / (1 + (gross_pct/100.0) if gross_pct > 0 else 1.0))
                                     net_profit_fiat = tot_sell_try - tot_buy_try - (tot_sell_try * 0.002)
                                     if abs(net_profit_fiat) < 0.01:
@@ -178,8 +182,8 @@ def run_autonomous_trading_loop():
                                         entry_str = f"₺{entry_try:.4f}"
                                         exit_str = f"₺{exit_try:.4f}"
                                     else:
-                                        entry_str = f"₺{entry_try:,.2f} TL"
-                                        exit_str = f"₺{exit_try:,.2f} TL"
+                                        entry_str = f"₺{entry_try:,.2f}"
+                                        exit_str = f"₺{exit_try:,.2f}"
                                         
                                     if is_en_user:
                                         if net_pct >= 0:
@@ -253,17 +257,14 @@ def run_autonomous_trading_loop():
                         exch_display = "BINANCE.TR 🇹🇷" if is_tr_tenant else "BINANCE GLOBAL 🌍"
                         
                         if is_en_user:
-                            act_display = "🎯 SELL (TAKE-PROFIT)" if is_take_profit else ("🛡️ SELL (STOP-LOSS)" if is_stop_loss else f"⚡ {action_type} SPOT EXECUTION")
-                            st_display = "🎉 Live Execution Completed & Profit Transferred to Wallet!\n" if is_executed else "⚠️ Trade Pending\n"
-                            ord_display = f"📄 Order ID: #{order_id}\n" if order_id else ""
                             msg = (
                                 f"🤖 *24/7 AUTONOMOUS AI TRADING NOTIFICATION*\n\n"
                                 f"👤 User: {tenant_name}\n"
-                                f"⚡ Action: *{act_display}*\n"
+                                f"⚡ Action: *{action_title}*\n"
                                 f"🪙 Symbol: `{symbol}`\n"
                                 f"💵 Budget / Amount: {amount_display}{price_detail_line}\n"
-                                f"🏢 Exchange: {exch_display}\n"
-                                f"{st_display}{ord_display}"
+                                f"🏢 Exchange: {exch_display}\n\n"
+                                f"{status_title}{order_text}"
                             )
                         else:
                             msg = (
@@ -272,7 +273,7 @@ def run_autonomous_trading_loop():
                                 f"⚡ İşlem Tipi: *{action_title}*\n"
                                 f"🪙 Sembol: `{symbol}`\n"
                                 f"💵 Bütçe / Tutar: {amount_display}{price_detail_line}\n"
-                                f"🏢 Borsa: {exch_display}\n"
+                                f"🏢 Borsa: {exch_display}\n\n"
                                 f"{status_title}{order_text}"
                             )
                         send_message(chat_id, msg)
