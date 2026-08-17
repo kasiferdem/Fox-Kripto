@@ -500,9 +500,18 @@ def execute_spot_trade(
                     amount_usd=amount_usd
                 )
             else:
-                # CCXT Binance Global hassasiyet kalibrasyonu
+                # CCXT Binance Global hassasiyet ve serbest bakiye kalibrasyonu
+                base_c = symbol.split("/")[0].upper()
                 try:
                     exchange.load_markets()
+                    if side.lower() == "sell":
+                        try:
+                            bal = exchange.fetch_balance()
+                            free_c = float(bal.get('free', {}).get(base_c, 0.0))
+                            if free_c > 0 and (quantity >= free_c * 0.85):
+                                quantity = free_c
+                        except Exception:
+                            pass
                     fmt_qty = float(exchange.amount_to_precision(symbol, quantity))
                 except Exception:
                     fmt_qty = round(quantity, 3 if ("BNB" in symbol or "SOL" in symbol or "AVAX" in symbol) else (6 if "BTC" in symbol else 2))
