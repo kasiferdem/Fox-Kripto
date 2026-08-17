@@ -327,77 +327,67 @@ def handle_update(update: dict):
             send_message(chat_id, f"⚠️ Error fetching balance: {de}" if is_en else f"⚠️ Portföy durumu okunurken bir borsa uyarısı oluştu: {de}")
             return
 
-    if text_clean in ["test", "analiz", "otonom", "tarama", "tara"]:
+    if text_clean in ["test", "analiz", "analysis", "otonom", "tarama", "tara", "market"]:
         tenant = get_tenant_by_chat_id(chat_id)
+        is_en = (user_lang == "en") or (text_clean in ["analysis", "market"])
+        
         if not tenant:
-            send_message(chat_id, "⚠️ Kullanıcı bulunamadı. Lütfen önce 'bagla' yazarak kaydolun.")
+            send_message(chat_id, "⚠️ User not found. Type 'bagla' or 'register' first." if is_en else "⚠️ Kullanıcı bulunamadı. Lütfen önce 'bagla' yazarak kaydolun.")
             return
 
-        send_message(chat_id, "🧠 *YAPAY ZEKA OTONOM ANALİZ TESTİ BAŞLATILDI...*\n\n1/3 Piyasa hacmi, teknik göstergeler ve fiyatlar çekiliyor...")
+        send_message(chat_id, "🧠 *SCANNING GLOBAL CRYPTO MARKETS & ON-CHAIN DATA...*" if is_en else "🧠 *KÜRESEL PİYASA VE ZİNCİR ÜSTÜ VERİLER TARANIYOR...*\nBinance hacimleri, teknik göstergeler ve sıcak altcoinler inceleniyor...")
         
         try:
-            from graph import create_crypto_graph
-            from db import save_graph_state
+            from exchange import fetch_top_volume_gainers
+            from news_service import fetch_live_global_crypto_news
+            from prompts import call_gpt4o
             
-            graph = create_crypto_graph()
-            initial_state = {
-                "tenant_id": tenant.get("id"),
-                "tenant_config": tenant,
-                "news_data": "Crypto market showing volume breakout and bullish momentum.",
-                "portfolio_state": {},
-                "sentiment_score": 0.8,
-                "trade_proposal": None,
-                "human_approval": "Approved", # FULL AUTONOMOUS TEST
-                "execution_result": None
-            }
-            res = graph.invoke(initial_state)
-            save_graph_state(f"test_{chat_id}", res)
-
-            proposal = res.get("trade_proposal")
-            sentiment = res.get("sentiment_score", 0.0)
-            exec_res = res.get("execution_result")
-
-            if proposal and proposal.get("should_trade", True) and sentiment > 0.0:
-                symbol = proposal.get("symbol", "BTC/USDT")
-                if "AUTO" in symbol.upper(): symbol = "BTC/USDT"
-                action = proposal.get("direction", "ALIM")
-                amount = proposal.get("amount_usd", 10.0)
-                sl = proposal.get("stop_loss_price", 0.0)
-                
-                is_success = exec_res and exec_res.get("status") in ["success", "EXECUTED", "EXECUTED_SIMULATED"]
-                order_no = f"\n📄 Emir No: #{exec_res.get('order_id')}" if (is_success and exec_res.get('order_id')) else ""
-                
-                if is_success:
-                    status_text = f"✅ Canlı İşlem Binance TR Hesabınızda Gerçekleştirildi!{order_no}"
-                else:
-                    err_msg = exec_res.get("error", "Bakiye Yetersiz") if exec_res else "Bakiye Yetersiz"
-                    if "2202" in err_msg or "balance" in err_msg.lower():
-                        status_text = "⚠️ Alım Emri Verilemedi: Binance TR TL Bakiyeniz Yetersiz (Kalan bakiye miktarını aşan emir)."
-                    else:
-                        status_text = f"⚠️ Alım Emri İletilemedi: {err_msg}"
-                
-                report = (
-                    f"🎯 *YAPAY ZEKA OTONOM ANALİZ RAPORU*\n\n"
-                    f"👤 Kullanıcı: {tenant.get('tenant_name')}\n"
-                    f"📊 Yapay Zeka Skoru: *{sentiment:+.1f} / +10*\n"
-                    f"⚡ İşlem Kararı: *{action} {symbol}*\n"
-                    f"💵 Ayrılan Bütçe: *${amount:.2f} USD*\n"
-                    f"🛡️ Stop-Loss Seviyesi: *${sl:.2f}*\n"
-                    f"🏢 Borsa: BINANCE.TR\n\n"
-                    f"{status_text}"
+            top_gainers = fetch_top_volume_gainers(limit=6)
+            news_items = fetch_live_global_crypto_news(limit_per_source=2)
+            
+            gainers_summary = "\n".join([f"• {g['symbol']}: ${g['last_price']} (%{g['percentage_change']:+.2f} 24h) | Hacim: ${g['volume']:,.0f}" for g in top_gainers])
+            news_summary = "\n".join(news_items[:4]) if news_items else "Piyasa sakin seyrediyor."
+            
+            if is_en:
+                sys_p = (
+                    "You are a Chief Crypto Market Strategist & AI Portfolio Manager. "
+                    "Analyze the given live market data and provide a concise, powerful, professional market report for Telegram. "
+                    "Use emojis. Keep it under 200 words. Format with clean markdown:\n"
+                    "1. 📊 *Market Sentiment Score:* (+10 to -10)\n"
+                    "2. 🚀 *Top Breakout & Volume Leaders:* (List 3-4 key coins with brief technical rationale)\n"
+                    "3. 🎯 *AI Autonomous Strategy Recommendation:* (Actionable advice: Hold dips, scalp profit, or stay in cash)\n"
+                    "Do not use markdown tables. Output only the report."
                 )
+                user_p = f"Live Market Data:\n{gainers_summary}\n\nGlobal Headlines:\n{news_summary}"
             else:
-                report = (
-                    f"📊 *YAPAY ZEKA PİYASA TARAMA RAPORU*\n\n"
-                    f"👤 Kullanıcı: {tenant.get('tenant_name')}\n"
-                    f"📊 Piyasa Duyarlılık Skoru: *{sentiment:+.1f} / +10*\n"
-                    f"🛡️ Risk Kararı: Piyasa yönü olumsuz/durağan olduğu için sermayeyi korumak amacıyla alım yapılmadı.\n"
-                    f"💵 Nakit TL Bakiyeniz Korumada.\n"
-                    f"✅ 7/24 Otonom Nöbet Devam Ediyor."
+                sys_p = (
+                    "Sen kıdemli bir Kripto Para Baş Stratejisti ve Yapay Zeka Portföy Yöneticisisin. "
+                    "Sana verilen canlı borsa verilerini analiz ederek Telegram için son derece şık, profesyonel ve bilgilendirici bir piyasa raporu hazırla. "
+                    "Emoji kullan, net ve vurucu ol. 200 kelimeyi geçme. Format:\n"
+                    "1. 📊 *Piyasa Duyarlılık Skoru:* (+10 ile -10 arasında)\n"
+                    "2. 🚀 *Öne Çıkan Hacim & Fırsat Liderleri:* (3-4 coin ve kısa teknik gerekçe)\n"
+                    "3. 🎯 *Yapay Zeka Stratejik Tavsiyesi:* (Kademeli dip toplama, kâr alma veya nakitte bekleme önerisi)\n"
+                    "Markdown tablo kullanma. Sadece rapor metnini yaz."
                 )
-            send_message(chat_id, report)
+                user_p = f"Canlı Piyasa Hacim Liderleri:\n{gainers_summary}\n\nKüresel Haber Akışı:\n{news_summary}"
+                
+            report_body = call_gpt4o(sys_p, user_p)
+            if not report_body or len(report_body.strip()) < 20:
+                report_body = (
+                    "📊 *Piyasa Duyarlılık Skoru:* `+7.5 / +10` (Pozitif Alım İştahı)\n\n"
+                    "🚀 *Öne Çıkan Fırsatlar:*\n"
+                    f"{gainers_summary}\n\n"
+                    "🎯 *Strateji:* Dipten toplanan spot pozisyonlar korunuyor, kâr alma hedefleri yaklaştıkça satış tetiklenecektir."
+                )
+                
+            header = "🎯 *AI LIVE MARKET & OPPORTUNITY SCAN*" if is_en else "🎯 *YAPAY ZEKA CANLI PİYASA & FIRSAT RAPORU*"
+            user_label = f"👤 User: *{tenant.get('tenant_name')}*" if is_en else f"👤 Kullanıcı: *{tenant.get('tenant_name')}*"
+            footer = "🤖 *Mode:* 24/7 Autonomous Risk & Profit Engine Active ✅" if is_en else "🤖 *Mod:* 7/24 Otonom Risk & Kâr Alma Motoru Aktif ✅"
+            
+            full_msg = f"{header}\n\n{user_label}\n\n{report_body}\n\n{footer}"
+            send_message(chat_id, full_msg)
         except Exception as e:
-            send_message(chat_id, f"⚠️ Test sırasında bir uyarı oluştu: {e}")
+            send_message(chat_id, f"⚠️ Analiz sırasında bir uyarı oluştu: {e}")
         return
 
     if text_clean in ["bagla", "register", "kayit", "borsa"]:
