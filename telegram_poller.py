@@ -684,8 +684,24 @@ def handle_update(update: dict):
                 else:
                     amount_usd = 10.0
                     amount_display = f"${amount_usd:.2f} USD"
-            else: # ALL_BALANCE
-                amount_usd = 10.0
+            else: # ALL_BALANCE (Tüm Bakiye Satışı)
+                try:
+                    port = fetch_portfolio_balance(tenant)
+                    h_tr = port.get("binance_tr", {}).get("holdings_details", {})
+                    h_gl = port.get("binance_global", {}).get("holdings_details", {})
+                    c_info = h_tr.get(coin) or h_gl.get(coin) or port.get("holdings_details", {}).get(coin) or {}
+                    c_amt = float(c_info.get("amount", 0.0))
+                    c_val = float(c_info.get("val_usd", 0.0))
+                    if c_val > 0:
+                        amount_usd = c_val
+                        amount_display = f"Tüm Bakiye ({c_amt:,.4f} {coin} ~ ${c_val:.2f})"
+                    else:
+                        amount_usd = 20.0
+                        amount_display = f"Tüm {coin} Bakiyesi"
+                except Exception:
+                    amount_usd = 20.0
+                    amount_display = f"Tüm {coin} Bakiyesi"
+                    
             is_en_pref = str(tenant.get("preferred_language", "tr")).lower() == "en"
             if is_en_pref:
                 send_message(chat_id, f"⚡ *INSTRUCTION RECEIVED: {action} {target_symbol}*\n💵 Budget / Amount: `{amount_display}`\n🏢 Exchange: {exch_label}\n\nTransmitting order to exchange...")
