@@ -182,11 +182,17 @@ class BinanceGlobalRESTClient:
         clean_symbol = symbol.replace("/", "").replace("-", "").replace("_", "").upper()
         base_c = symbol.split("/")[0].split("_")[0].upper()
         
-        # Miktar hassasiyeti
-        step_map = {"BTC": 5, "ETH": 4, "SOL": 2, "AVAX": 2, "BNB": 3, "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0}
-        dec = step_map.get(base_c, 2)
-        
-        if side.lower() == "sell":
+        if side.upper() == "BUY":
+            # Binance Global Market Alımında 'quoteOrderQty' kullanarak LOT_SIZE hassasiyet hatasını %100 sıfırla!
+            spend_usd = max(10.0, float(amount_usd or 10.0))
+            params = {
+                "symbol": clean_symbol,
+                "side": "BUY",
+                "type": "MARKET",
+                "quoteOrderQty": f"{spend_usd:.2f}"
+            }
+        else:
+            # Satışta serbest miktarı gönder
             try:
                 bal = self.fetch_balance()
                 free_c = float(bal.get("free", {}).get(base_c, 0.0))
@@ -195,17 +201,24 @@ class BinanceGlobalRESTClient:
             except Exception:
                 pass
                 
-        import math
-        mult = 10 ** dec
-        safe_qty = math.floor(amount * mult) / float(mult) if mult > 1 else int(amount)
-        qty_str = f"{safe_qty:.{dec}f}" if dec > 0 else str(int(safe_qty))
-        
-        params = {
-            "symbol": clean_symbol,
-            "side": side.upper(),
-            "type": "MARKET",
-            "quantity": qty_str
-        }
+            # Adım hassasiyeti
+            step_map = {
+                "BTC": 5, "ETH": 4, "SOL": 2, "AVAX": 2, "BNB": 3, 
+                "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0,
+                "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2
+            }
+            dec = step_map.get(base_c, 2)
+            import math
+            mult = 10 ** dec
+            safe_qty = math.floor(amount * mult) / float(mult) if mult > 1 else int(amount)
+            qty_str = f"{safe_qty:.{dec}f}" if dec > 0 else str(int(safe_qty))
+            
+            params = {
+                "symbol": clean_symbol,
+                "side": "SELL",
+                "type": "MARKET",
+                "quantity": qty_str
+            }
         
         query_str = self._sign(params)
         url = f"{self.base_url}/api/v3/order?{query_str}"
