@@ -443,6 +443,33 @@ def debug_binance_account():
     except Exception as e:
         res_dict["all_wallets_exception"] = str(e)
 
+    # 3. Simple Earn Flexible / Locked Positions
+    try:
+        r_earn_flex = requests.get(f"https://api.binance.com/sapi/v1/simple-earn/flexible/position?{query}&signature={sig}", headers=headers, timeout=10)
+        res_dict["simple_earn_flexible"] = r_earn_flex.json()
+    except Exception as ee:
+        res_dict["simple_earn_flexible_err"] = str(ee)
+
+    try:
+        r_earn_lock = requests.get(f"https://api.binance.com/sapi/v1/simple-earn/locked/position?{query}&signature={sig}", headers=headers, timeout=10)
+        res_dict["simple_earn_locked"] = r_earn_lock.json()
+    except Exception as ele:
+        res_dict["simple_earn_locked_err"] = str(ele)
+
+    # 4. Open Orders (Açık Emirler)
+    try:
+        r_ord = requests.get(f"https://api.binance.com/api/v3/openOrders?{query}&signature={sig}", headers=headers, timeout=10)
+        res_dict["open_orders"] = r_ord.json()
+    except Exception as oe:
+        res_dict["open_orders_err"] = str(oe)
+
+    # 5. User Asset (Funding Wallet)
+    try:
+        r_ua = requests.post(f"https://api.binance.com/sapi/v3/asset/getUserAsset?{query}&signature={sig}", headers=headers, timeout=10)
+        res_dict["user_asset_funding"] = r_ua.json()
+    except Exception as uae:
+        res_dict["user_asset_funding_err"] = str(uae)
+
     return res_dict
 
 @app_api.get("/api/tenants")
