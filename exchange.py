@@ -144,9 +144,93 @@ class BinanceTRClient:
         else:
             raise Exception(f"Binance TR Order Execution Error ({data.get('code')}): {data.get('msg')}")
 
+class BinanceGlobalRESTClient:
+    """Binance Global (api.binance.com) Doğrudan REST API İstemcisi"""
+    def __init__(self, api_key: str, secret_key: str):
+        self.id = "binance"
+        self.apiKey = api_key
+        self.secret = secret_key
+        self.base_url = "https://api.binance.com"
+
+    def _sign(self, params: dict) -> str:
+        params['timestamp'] = int(time.time() * 1000)
+        query = '&'.join([f'{k}={v}' for k, v in sorted(params.items())])
+        sig = hmac.new(self.secret.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
+        return f'{query}&signature={sig}'
+
+    def fetch_balance(self) -> dict:
+        query_str = self._sign({})
+        url = f"{self.base_url}/api/v3/account?{query_str}"
+        headers = {"X-MBX-APIKEY": self.apiKey}
+        res = requests.get(url, headers=headers, timeout=10)
+        data = res.json()
+        if "balances" in data:
+            free_dict = {}
+            tot_dict = {}
+            for b in data["balances"]:
+                coin = b.get("asset")
+                free_v = float(b.get("free", 0.0))
+                locked_v = float(b.get("locked", 0.0))
+                tot = free_v + locked_v
+                if tot > 0:
+                    tot_dict[coin] = tot
+                    free_dict[coin] = free_v
+            return {"total": tot_dict, "free": free_dict, "info": data}
+        raise Exception(f"Binance Global Balance Error: {data}")
+
+    def create_order(self, symbol: str, type: str, side: str, amount: float, amount_usd: float = 10.0) -> dict:
+        clean_symbol = symbol.replace("/", "").replace("-", "").replace("_", "").upper()
+        base_c = symbol.split("/")[0].split("_")[0].upper()
+        
+        # Miktar hassasiyeti
+        step_map = {"BTC": 5, "ETH": 4, "SOL": 2, "AVAX": 2, "BNB": 3, "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0}
+        dec = step_map.get(base_c, 2)
+        
+        if side.lower() == "sell":
+            try:
+                bal = self.fetch_balance()
+                free_c = float(bal.get("free", {}).get(base_c, 0.0))
+                if free_c > 0:
+                    amount = free_c
+            except Exception:
+                pass
+                
+        import math
+        mult = 10 ** dec
+        safe_qty = math.floor(amount * mult) / float(mult) if mult > 1 else int(amount)
+        qty_str = f"{safe_qty:.{dec}f}" if dec > 0 else str(int(safe_qty))
+        
+        params = {
+            "symbol": clean_symbol,
+            "side": side.upper(),
+            "type": "MARKET",
+            "quantity": qty_str
+        }
+        
+        query_str = self._sign(params)
+        url = f"{self.base_url}/api/v3/order?{query_str}"
+        headers = {"X-MBX-APIKEY": self.apiKey}
+        res = requests.post(url, headers=headers, timeout=10)
+        data = res.json()
+        if "orderId" in data:
+            exec_p = 0.0
+            fills = data.get("fills", [])
+            if fills:
+                exec_p = float(fills[0].get("price", 0.0))
+            return {
+                "id": str(data["orderId"]),
+                "symbol": symbol,
+                "price": exec_p,
+                "amount": amount,
+                "status": "closed",
+                "info": data
+            }
+        else:
+            raise Exception(f"Binance Global Error ({data.get('code')}): {data.get('msg')}")
+
 def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
     """
-    Multi-Tenant Borsa İstemcisi (Binance Global, Binance TR ve Çift Borsa Destekli):
+    Multi-Tenant Borsa İstemcisi (Binance Global REST, Binance TR REST ve Çift Borsa Destekli):
     """
     if tenant_config:
         exchange_id = tenant_config.get("exchange_id", "binance").lower()
@@ -167,16 +251,8 @@ def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
                 return BinanceTRClient(tr_k.get("api_key"), tr_k.get("secret_key"))
             elif "binance" in keys_dict:
                 gl_k = keys_dict.get("binance", {})
-                exchange_class = getattr(ccxt, "binance")
-                return exchange_class({
-                    'apiKey': gl_k.get("api_key"),
-                    'secret': gl_k.get("secret_key"),
-                    'enableRateLimit': True,
-                    'timeout': 6000,
-                    'options': {'defaultType': 'spot'}
-                })
+                return BinanceGlobalRESTClient(gl_k.get("api_key"), gl_k.get("secret_key"))
             elif "api_key" in keys_dict:
-                # Tekil kullanıcı JSON kaydı (Örn: Moonwalker)
                 api_key = keys_dict.get("api_key", "")
                 secret_key = keys_dict.get("secret_key") or secret_key
         except Exception:
@@ -185,22 +261,7 @@ def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
     if exchange_id in ["binancetr", "binance.tr", "trbinance"] or (isinstance(api_key, str) and api_key.startswith("BbD")):
         return BinanceTRClient(api_key, secret_key)
 
-    try:
-        exchange_class = getattr(ccxt, exchange_id)
-        exchange = exchange_class({
-            'apiKey': api_key,
-            'secret': secret_key,
-            'enableRateLimit': True,
-            'timeout': 6000,
-            'options': {'defaultType': 'spot'}
-        })
-        is_testnet = os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true"
-        if is_testnet and hasattr(exchange, 'set_sandbox_mode'):
-            exchange.set_sandbox_mode(True)
-        return exchange
-    except Exception as e:
-        print(f"⚠️ Multi-Tenant Bağlantı Uyarısı ({exchange_id}): {e}")
-        return None
+    return BinanceGlobalRESTClient(api_key, secret_key)
 
 _cached_price_map = {}
 _cached_price_map_ts = 0
@@ -491,37 +552,13 @@ def execute_spot_trade(
 
     if exchange and getattr(exchange, "apiKey", None) and not os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true":
         try:
-            if isinstance(exchange, BinanceTRClient):
-                order = exchange.create_order(
-                    symbol=symbol,
-                    type='market',
-                    side=side.lower(),
-                    amount=quantity,
-                    amount_usd=amount_usd
-                )
-            else:
-                # CCXT Binance Global hassasiyet ve serbest bakiye kalibrasyonu
-                base_c = symbol.split("/")[0].upper()
-                try:
-                    exchange.load_markets()
-                    if side.lower() == "sell":
-                        try:
-                            bal = exchange.fetch_balance()
-                            free_c = float(bal.get('free', {}).get(base_c, 0.0))
-                            if free_c > 0 and (quantity >= free_c * 0.85):
-                                quantity = free_c
-                        except Exception:
-                            pass
-                    fmt_qty = float(exchange.amount_to_precision(symbol, quantity))
-                except Exception:
-                    fmt_qty = round(quantity, 3 if ("BNB" in symbol or "SOL" in symbol or "AVAX" in symbol) else (6 if "BTC" in symbol else 2))
-                    
-                order = exchange.create_order(
-                    symbol=symbol,
-                    type='market',
-                    side=side.lower(),
-                    amount=fmt_qty
-                )
+            order = exchange.create_order(
+                symbol=symbol,
+                type='market',
+                side=side.lower(),
+                amount=quantity,
+                amount_usd=amount_usd
+            )
             print(f"✅ [CANLI MULTI-TENANT EMİR İNFAZ EDİLDİ]: Order ID #{order.get('id')}")
             return {
                 "status": "success",
