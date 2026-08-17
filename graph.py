@@ -177,7 +177,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     sentiment_score = float(state.get("sentiment_score") or 0.0)
     
     if proposed_base in current_assets or proposed_base in ["BTC", "ETH"]:
-        # KATI KURAL: Sadece erken balina hacim patlamaları (Pre-Pump) ve yüksek ivmeli patlama coinleri
+        # KATI KURAL: Statik havuz YOK. Sadece o an canlı hacim patlaması (Pre-Pump) yaşayan gerçek balina adayları
         dynamic_candidates = []
         try:
             early_surges = detect_early_volume_breakouts()
@@ -194,30 +194,20 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     dynamic_candidates.append(tg["symbol"])
         except Exception:
             pass
-            
-        # Sadece agresif patlama ve mikro balina adayları (SUI, RENDER, NEAR, SOL gibi hantal L1'ler YASAKLANDI)
-        fallback_pool = [
-            "FLM/USDT", "WAVES/USDT", "CLV/USDT", "UTK/USDT", "GPS/USDT", 
-            "ACE/USDT", "PORTAL/USDT", "TURBO/USDT", "NEIRO/USDT", "PEPE/USDT", 
-            "BONK/USDT", "FLOKI/USDT", "MEME/USDT", "WIF/USDT", "1000SATS/USDT"
-        ]
-        for fb in fallback_pool:
-            if fb not in dynamic_candidates:
-                dynamic_candidates.append(fb)
         
         fresh_coin = None
         for c in dynamic_candidates:
             c_base = c.split("/")[0].split("_")[0].upper()
-            if c_base not in current_assets and c_base not in ["BTC", "ETH", "TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
+            if c_base not in current_assets and c_base not in ["BTC", "ETH", "TRY", "USDT", "USDC", "FDUSD", "BUSD", "SUI", "RENDER", "NEAR", "SOL", "ADA"]:
                 fresh_coin = c
                 break
             
         if fresh_coin:
             fresh_base = fresh_coin.split("/")[0].upper()
-            print(f"   🔄 [Dinamik Erken Fırsat Seçimi]: '{proposed_base}' zaten cüzdanda. Yeni erken balina adayı '{fresh_base}/{pair_quote}' seçildi.")
+            print(f"   🚨 [Canlı Balina Seçimi]: Anlık 5dk hacim patlaması yakalanan '{fresh_base}/{pair_quote}' seçildi.")
             proposal["symbol"] = f"{fresh_base}/{pair_quote}"
         else:
-            print(f"   [Çeşitlendirme Reddi]: Tüm altcoinler cüzdanda mevcut. Yeni alım yapılmıyor.")
+            print(f"   ⏳ [Piyasa Beklemede (HOLD)]: Şu anda anlık balina hacim patlaması şartını sağlayan yeni coin bulunamadı. Nakit boş yere bağlanmıyor, balina bekleniyor.")
             return {"trade_proposal": None, "human_approval": "Rejected"}
                 
     final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
