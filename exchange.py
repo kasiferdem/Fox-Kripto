@@ -258,8 +258,11 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                     else:
                         combined_holdings[k] = v
                         
-            tot_usd = float(bal_tr.get("total_usdt", 0.0)) + float(bal_gl.get("total_usdt", 0.0))
-            free_usd = float(bal_tr.get("free_usdt", 0.0)) + float(bal_gl.get("free_usdt", 0.0))
+            gl_actual_usd = 0.0 if bal_gl.get("api_error") else float(bal_gl.get("total_usdt", 0.0))
+            gl_free_usd = 0.0 if bal_gl.get("api_error") else float(bal_gl.get("free_usdt", 0.0))
+            
+            tot_usd = float(bal_tr.get("total_usdt", 0.0)) + gl_actual_usd
+            free_usd = float(bal_tr.get("free_usdt", 0.0)) + gl_free_usd
             
             return {
                 "exchange": "dual",
