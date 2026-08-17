@@ -194,11 +194,14 @@ def formulate_trade_strategy(
         except Exception:
             pass
             
-    # Fallback Strateji: SADECE Gerçek Erken Balina Hacim Adayları
-    fallback_pool = ["FLM/USDT", "WAVES/USDT", "CLV/USDT", "UTK/USDT", "GPS/USDT", "ACE/USDT", "PORTAL/USDT", "TURBO/USDT", "NEIRO/USDT"]
-    chosen_symbol = "FLM/USDT"
+    # Fallback Strateji: Canlı Borsadan Anlık En Yüksek Hacim Liderlerini Çek
+    from exchange import fetch_top_volume_gainers
+    active_gainers = fetch_top_volume_gainers(limit=15)
+    top_active_symbols = [g["symbol"] for g in active_gainers if g.get("symbol")]
+    fallback_pool = top_active_symbols if top_active_symbols else ["GPS/USDT", "TUT/USDT", "ACE/USDT", "HEMI/USDT", "ALLO/USDT"]
+    chosen_symbol = fallback_pool[0]
     
-    # Portföyde olmayan taze bir balina adayına geç
+    # Portföyde olmayan taze bir canlı balina adayına geç
     for cand in fallback_pool:
         c_b = cand.split("/")[0]
         if c_b not in current_holdings:

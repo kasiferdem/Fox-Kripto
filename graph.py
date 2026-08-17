@@ -173,35 +173,41 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     if proposed_symbol.startswith("BTC") or proposed_symbol.startswith("ETH") or "AUTO" in proposed_symbol:
         proposed_symbol = "PEPE/USDT"
         
-    proposed_base = proposed_symbol.split("/")[0].split("_")[0].upper()
-    sentiment_score = float(state.get("sentiment_score") or 0.0)
-    
-    if proposed_base in current_assets or proposed_base in ["BTC", "ETH"]:
-        # KATI KURAL: Statik havuz YOK. Sadece o an canlı hacim patlaması (Pre-Pump) yaşayan gerçek balina adayları
+    from surge_detector import get_active_trading_symbols
+    active_syms = get_active_trading_symbols()
+    clean_prop_sym = proposed_symbol.replace("/", "").replace("_", "").upper()
+    is_prop_active = (not active_syms) or (clean_prop_sym in active_syms)
+
+    if proposed_base in current_assets or proposed_base in ["BTC", "ETH"] or not is_prop_active:
+        # KATI KURAL: Sadece o an canlı TRADING durumundaki balina patlaması adayları
         dynamic_candidates = []
         try:
             early_surges = detect_early_volume_breakouts()
             for es in early_surges:
-                if es.get("symbol") and es["symbol"] not in dynamic_candidates:
-                    dynamic_candidates.append(es["symbol"])
+                sym_c = es.get("symbol", "")
+                if sym_c and sym_c not in dynamic_candidates:
+                    dynamic_candidates.append(sym_c)
         except Exception:
             pass
             
         try:
             top_g = fetch_top_volume_gainers(limit=15)
             for tg in top_g:
-                if tg.get("symbol") and tg["symbol"] not in dynamic_candidates:
-                    dynamic_candidates.append(tg["symbol"])
+                sym_c = tg.get("symbol", "")
+                if sym_c and sym_c not in dynamic_candidates:
+                    dynamic_candidates.append(sym_c)
         except Exception:
             pass
         
         fresh_coin = None
         for c in dynamic_candidates:
             c_base = c.split("/")[0].split("_")[0].upper()
-            # Sadece cüzdanda zaten bulunanları ve sabit paraları (USDT/TRY) atla; tüm coinler hacim patlamasına göre serbest!
+            c_clean = c.replace("/", "").replace("_", "").upper()
+            # Sadece cüzdanda zaten bulunanları, kapalı tahtaları ve sabit paraları atla
             if c_base not in current_assets and c_base not in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
-                fresh_coin = c
-                break
+                if not active_syms or c_clean in active_syms:
+                    fresh_coin = c
+                    break
             
         if fresh_coin:
             fresh_base = fresh_coin.split("/")[0].upper()
