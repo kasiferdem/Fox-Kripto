@@ -1,6 +1,10 @@
+import os
 import requests
 import xml.etree.ElementTree as ET
 from typing import List
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def fetch_live_global_crypto_news(limit_per_source: int = 4) -> List[str]:
     """
@@ -61,30 +65,21 @@ def get_localized_crypto_news(lang: str = "tr", limit: int = 6) -> str:
     selected = raw_news[:limit]
     
     if lang == "tr":
-        import os
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if api_key:
-            try:
-                from openai import OpenAI
-                client = OpenAI(api_key=api_key)
-                prompt = (
-                    "Aşağıdaki İngilizce kripto haber başlıklarını doğal, akıcı ve profesyonel Türkçeye çevir. "
-                    "Haber kaynağı etiketlerini (örneğin [CoinTelegraph], [CoinDesk]) koru. "
-                    "Her birini '• ' ile başlayan birer madde olarak ver, ekstra açıklama yazma:\n\n" +
-                    "\n".join(selected)
-                )
-                resp = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3,
-                    max_tokens=600
-                )
-                translated_text = resp.choices[0].message.content.strip()
-                if translated_text:
-                    return translated_text
-            except Exception as te:
-                print(f"⚠️ Haber Çeviri Uyarısı: {te}")
-                
+        try:
+            from prompts import call_gpt4o
+            system_prompt = (
+                "Sen kıdemli bir finans ve kripto para tercümanısın. "
+                "Sana verilen İngilizce kripto haber başlıklarını akıcı, anlaşılır ve profesyonel Türkçeye çevireceksin. "
+                "Haber kaynağı etiketlerini (örneğin [CoinTelegraph], [CoinDesk], [Decrypt]) koru. "
+                "Her bir haberi '• 📰 [Kaynak]: Türkçe Başlık' formatında alt alta yaz. Başka hiçbir açıklama ekleme."
+            )
+            user_content = "Aşağıdaki haber başlıklarını Türkçeye çevir:\n\n" + "\n".join(selected)
+            translated_text = call_gpt4o(system_prompt, user_content)
+            if translated_text and len(translated_text.strip()) > 10:
+                return translated_text.strip()
+        except Exception as te:
+            pass
+            
         # Fallback Türkçe formatlama
         return "\n\n".join([f"• {h}" for h in selected])
     else:
