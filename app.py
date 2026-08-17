@@ -565,12 +565,29 @@ def delete_tenant(tenant_id: str):
 
 @app_api.get("/api/trade-logs")
 def list_trade_logs():
-    """Canlı Supabase işlem kararlarını ve loglarını listeler."""
+    """Canlı Supabase işlem kararlarını ve loglarını kullanıcı isimleriyle listeler."""
     client = get_supabase()
     if not client: return {"logs": []}
     try:
-        res = client.table("crypto_trade_logs").select("*").order("created_at", desc=True).limit(20).execute()
-        return {"logs": res.data or []}
+        tenants_res = client.table("user_tenants").select("id, tenant_name, exchange_id").execute()
+        tenant_map = {t["id"]: t for t in (tenants_res.data or [])}
+        
+        res = client.table("crypto_trade_logs").select("*").order("created_at", desc=True).limit(30).execute()
+        raw_logs = res.data or []
+        
+        enriched_logs = []
+        for l in raw_logs:
+            tid = l.get("tenant_id")
+            t_info = tenant_map.get(tid, {})
+            l["tenant_name"] = t_info.get("tenant_name", "S (Çift Borsa TR+Global)")
+            l["exchange_label"] = "Binance TR 🇹🇷" if t_info.get("exchange_id") == "binancetr" else "Binance Global 🌍"
+            
+            if l.get("symbol") in ["AUTO/USDT", "AUTO"]:
+                l["symbol"] = "DİNAMİK FIRSAT COIN"
+                
+            enriched_logs.append(l)
+            
+        return {"logs": enriched_logs}
     except Exception as e:
         return {"logs": [], "error": str(e)}
 
@@ -897,15 +914,52 @@ def get_dashboard_html():
                     const logRes = await fetch('/api/trade-logs');
                     const logData = await logRes.json();
                     const logContainer = document.getElementById('logs-container');
-                    if (logData.logs.length === 0) {
+                    if (!logData.logs || logData.logs.length === 0) {
                         logContainer.innerHTML = `<p style="color: var(--text-muted);">${t.noLogs}</p>`;
                     } else {
-                        logContainer.innerHTML = logData.logs.map(l => `
-                            <div class="log-item">
-                                <strong>${l.symbol} (${l.direction})</strong> - ${currentLang === 'tr' ? 'Tutar' : 'Amount'}: $${l.amount_usd} USD | ${currentLang === 'tr' ? 'Fiyat' : 'Price'}: $${l.entry_price || '—'} | SL: $${l.stop_loss_price || '—'} 
-                                <span class="badge badge-active" style="float: right;">${l.human_approval}</span>
+                        logContainer.innerHTML = `
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+                                    <thead>
+                                        <tr style="border-bottom: 2px solid var(--border); color: var(--text-muted); text-align: left; font-size: 13px;">
+                                            <th style="padding: 10px;">👤 ${currentLang === 'tr' ? 'Kullanıcı' : 'User'}</th>
+                                            <th style="padding: 10px;">🪙 ${currentLang === 'tr' ? 'İşlem & Coin' : 'Action & Symbol'}</th>
+                                            <th style="padding: 10px;">💵 ${currentLang === 'tr' ? 'Bütçe / Tutar' : 'Amount'}</th>
+                                            <th style="padding: 10px;">📥 ${currentLang === 'tr' ? 'Fiyat' : 'Price'}</th>
+                                            <th style="padding: 10px;">🎯 ${currentLang === 'tr' ? 'Kâr Al / SL' : 'TP / SL'}</th>
+                                            <th style="padding: 10px;">📊 ${currentLang === 'tr' ? 'Yapay Zeka Skoru' : 'AI Score'}</th>
+                                            <th style="padding: 10px;">🏷️ ${currentLang === 'tr' ? 'Durum & Borsa' : 'Status & Exchange'}</th>
+                                            <th style="padding: 10px;">⏱️ ${currentLang === 'tr' ? 'Zaman' : 'Time'}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${logData.logs.map(l => {
+                                            const d = l.created_at ? new Date(l.created_at).toLocaleString(currentLang === 'tr' ? 'tr-TR' : 'en-US') : '—';
+                                            const isBuy = (l.direction || 'BUY').toUpperCase() === 'BUY';
+                                            const dirBadge = isBuy ? '<span style="color: var(--success); font-weight: bold;">🛒 ALIM (BUY)</span>' : '<span style="color: var(--danger); font-weight: bold;">🎯 SATIM (SELL)</span>';
+                                            const score = l.sentiment_score ? (l.sentiment_score > 0 ? `+${l.sentiment_score}` : l.sentiment_score) : '—';
+                                            const statusColor = l.human_approval === 'Approved' ? 'var(--success)' : 'var(--text-muted)';
+                                            
+                                            return `
+                                                <tr style="border-bottom: 1px solid var(--border); font-size: 13px;">
+                                                    <td style="padding: 10px;"><strong>${l.tenant_name || 'Ana Kullanıcı'}</strong></td>
+                                                    <td style="padding: 10px;">${dirBadge} <code>${l.symbol}</code></td>
+                                                    <td style="padding: 10px;"><strong>$${l.amount_usd || 10} USD</strong></td>
+                                                    <td style="padding: 10px;">$${l.entry_price ? Number(l.entry_price).toLocaleString() : '—'}</td>
+                                                    <td style="padding: 10px; color: var(--text-muted);">$${l.take_profit_price || '—'} / $${l.stop_loss_price || '—'}</td>
+                                                    <td style="padding: 10px;"><span style="color: var(--accent); font-weight: bold;">${score} / +10</span></td>
+                                                    <td style="padding: 10px;">
+                                                        <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: ${statusColor};">${l.human_approval || 'Approved'}</span>
+                                                        <small style="display: block; color: var(--text-muted); margin-top: 2px;">${l.exchange_label || 'Binance'}</small>
+                                                    </td>
+                                                    <td style="padding: 10px; color: var(--text-muted); font-size: 12px;">${d}</td>
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
                             </div>
-                        `).join('');
+                        `;
                     }
                 } catch(e) { console.error(e); }
             }
