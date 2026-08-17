@@ -217,7 +217,18 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                 
     final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
     proposal["symbol"] = f"{final_base}/{pair_quote}"
-    print(f"   [Seçilen İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Bütçe: ${proposal['amount_usd']} USD ({pair_quote})")
+    
+    # GERÇEK COIN FİYATINI VE TP/SL SEVİYELERİNİ ANLIK TICKER'DAN HESAPLA:
+    real_ticker = fetch_ticker_price(proposal["symbol"])
+    real_entry_price = float(real_ticker.get("last_price") or 1.0)
+    user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
+    user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
+    
+    proposal["entry_price"] = real_entry_price
+    proposal["take_profit_price"] = round(real_entry_price * (1 + (user_tp / 100.0)), 6 if real_entry_price < 1 else 2)
+    proposal["stop_loss_price"] = round(real_entry_price * (1 - (user_sl / 100.0)), 6 if real_entry_price < 1 else 2)
+    
+    print(f"   [Seçilen İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Fiyat: ${real_entry_price} | TP: ${proposal['take_profit_price']} | SL: ${proposal['stop_loss_price']} | Bütçe: ${proposal['amount_usd']} USD ({pair_quote})")
     return {"trade_proposal": proposal, "human_approval": "Approved"}
 
 def node_human_approval(state: CryptoAgentState) -> Dict[str, Any]:

@@ -938,18 +938,31 @@ def get_dashboard_html():
                                             const isBuy = (l.direction || 'BUY').toUpperCase() === 'BUY';
                                             const dirBadge = isBuy ? '<span style="color: var(--success); font-weight: bold;">🛒 ALIM (BUY)</span>' : '<span style="color: var(--danger); font-weight: bold;">🎯 SATIM (SELL)</span>';
                                             const score = l.sentiment_score ? (l.sentiment_score > 0 ? `+${l.sentiment_score}` : l.sentiment_score) : '—';
-                                            const statusColor = l.human_approval === 'Approved' ? 'var(--success)' : 'var(--text-muted)';
+                                            
+                                            const isFailed = l.status === 'FAILED' || (l.execution_details && l.execution_details.status === 'FAILED');
+                                            const isExec = l.status === 'SUCCESS' || l.status === 'EXECUTED' || l.order_id;
+                                            
+                                            let badgeHtml = '';
+                                            if (isExec) {
+                                                badgeHtml = `<span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success);">✅ Canlı İnfaz Edildi</span>`;
+                                            } else if (isFailed) {
+                                                badgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger);">⏳ Nakit Beklemede (Hold)</span>`;
+                                            } else {
+                                                badgeHtml = `<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent);">${l.human_approval || 'Approved'}</span>`;
+                                            }
+                                            
+                                            const formattedPrice = l.entry_price ? (Number(l.entry_price) < 1 ? Number(l.entry_price).toFixed(4) : Number(l.entry_price).toLocaleString()) : '—';
                                             
                                             return `
                                                 <tr style="border-bottom: 1px solid var(--border); font-size: 13px;">
                                                     <td style="padding: 10px;"><strong>${l.tenant_name || 'Ana Kullanıcı'}</strong></td>
                                                     <td style="padding: 10px;">${dirBadge} <code>${l.symbol}</code></td>
                                                     <td style="padding: 10px;"><strong>$${l.amount_usd || 10} USD</strong></td>
-                                                    <td style="padding: 10px;">$${l.entry_price ? Number(l.entry_price).toLocaleString() : '—'}</td>
+                                                    <td style="padding: 10px;">$${formattedPrice}</td>
                                                     <td style="padding: 10px; color: var(--text-muted);">$${l.take_profit_price || '—'} / $${l.stop_loss_price || '—'}</td>
                                                     <td style="padding: 10px;"><span style="color: var(--accent); font-weight: bold;">${score} / +10</span></td>
                                                     <td style="padding: 10px;">
-                                                        <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: ${statusColor};">${l.human_approval || 'Approved'}</span>
+                                                        ${badgeHtml}
                                                         <small style="display: block; color: var(--text-muted); margin-top: 2px;">${l.exchange_label || 'Binance'}</small>
                                                     </td>
                                                     <td style="padding: 10px; color: var(--text-muted); font-size: 12px;">${d}</td>
