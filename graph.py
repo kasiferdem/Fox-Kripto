@@ -181,18 +181,35 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             proposal["scale_in_reason"] = f"Zirve Yapay Zeka Skoru (+{sentiment_score:.1f})"
             return {"trade_proposal": proposal, "human_approval": "Pending_Approval"}
         else:
-            # Skor çok yüksek değilse (küçük farklar için) otomatik olarak cüzdanda olmayan başka bir sıcak altcoine geç
-            candidate_pool = ["PEPE/USDT", "AVAX/USDT", "RENDER/USDT", "SUI/USDT", "NEAR/USDT", "XRP/USDT", "DOGE/USDT", "BTC/USDT", "ETH/USDT"]
+            # Skor çok yüksek değilse otomatik olarak cüzdanda olmayan sıcak/erken balina altcoinlerine geç
+            dynamic_candidates = []
+            try:
+                early_surges = detect_early_volume_breakouts()
+                for es in early_surges:
+                    dynamic_candidates.append(es["symbol"])
+            except Exception:
+                pass
+                
+            try:
+                top_g = fetch_top_volume_gainers(limit=10)
+                for tg in top_g:
+                    dynamic_candidates.append(tg["symbol"])
+            except Exception:
+                pass
+                
+            fallback_pool = ["SUI/USDT", "RENDER/USDT", "NEAR/USDT", "XRP/USDT", "FLM/USDT", "CLV/USDT", "WAVES/USDT", "PORTAL/USDT", "UTK/USDT"]
+            dynamic_candidates.extend(fallback_pool)
+            
             fresh_coin = None
-            for c in candidate_pool:
-                c_base = c.split("/")[0]
-                if c_base not in current_assets:
+            for c in dynamic_candidates:
+                c_base = c.split("/")[0].split("_")[0].upper()
+                if c_base not in current_assets and c_base not in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
                     fresh_coin = c
                     break
             
             if fresh_coin:
                 fresh_base = fresh_coin.split("/")[0].upper()
-                print(f"   🔄 [Portföy Çeşitlendirme Koruması]: '{proposed_base}' skoru normal (+{sentiment_score:.1f}). İkinci defa almak yerine cüzdanda olmayan '{fresh_base}/{pair_quote}' seçildi.")
+                print(f"   🔄 [Dinamik Erken Fırsat Seçimi]: '{proposed_base}' zaten cüzdanda. Yeni erken balina adayı '{fresh_base}/{pair_quote}' seçildi.")
                 proposal["symbol"] = f"{fresh_base}/{pair_quote}"
             else:
                 print(f"   [Çeşitlendirme Reddi]: Tüm altcoinler cüzdanda mevcut. Yeni alım yapılmıyor.")
