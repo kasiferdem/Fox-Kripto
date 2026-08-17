@@ -337,6 +337,16 @@ def get_my_egress_ip():
     except Exception as e:
         return {"error": str(e)}
 
+@app_api.get("/api/admin/test-moonwalker-balance")
+def test_moonwalker_balance():
+    """DigitalOcean sunucusundan (104.248.135.128) Moonwalker'ın canlı Binance Global bakiyesini okur."""
+    from db import get_tenant_by_chat_id
+    from exchange import BinanceGlobalRESTClient, fetch_portfolio_balance
+    tenant = get_tenant_by_chat_id(757146559)
+    if not tenant:
+        return {"error": "Tenant Moonwalker not found"}
+    return fetch_portfolio_balance(tenant)
+
 @app_api.get("/api/admin/test-spot-buy-user")
 def test_spot_buy_user():
     """DigitalOcean sunucusundan doğrudan $10 GPS/USDT alımını canlı test eder ve sonucu döner."""
