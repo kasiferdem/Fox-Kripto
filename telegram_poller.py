@@ -236,7 +236,7 @@ def handle_update(update: dict):
                     for a, info in gl_details.items():
                         amt = info["amount"]
                         val = info["val_usd"]
-                        if a != "USDT" and val > 0.5:
+                        if a != "USDT" and val > 0.01:
                             gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD)\n"
                 if not gl_holdings_str:
                     gl_holdings_str = " • _(No open coin positions)_\n" if is_en else " • _(Açık coin pozisyonu yok)_\n"

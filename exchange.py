@@ -285,20 +285,27 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                 total_usdt = free_usdt
             
             crypto_holdings = {}
-            # 1. Öncelik: Binance Ham REST API 'info.balances' yanıtını doğrudan oku
+            # 1. Öncelik: Binance Ham REST API 'info.balances' yanıtını doğrudan oku (Spot + Simple Earn LD)
             info_balances = balance.get('info', {}).get('balances', [])
             if isinstance(info_balances, list) and len(info_balances) > 0:
                 for item in info_balances:
-                    asset = item.get('asset')
-                    if asset and asset != 'USDT':
-                        try:
-                            free_val = float(item.get('free', 0.0))
-                            locked_val = float(item.get('locked', 0.0))
-                            tot_val = free_val + locked_val
-                            if tot_val > 0:
+                    asset = item.get('asset', '')
+                    try:
+                        free_val = float(item.get('free', 0.0))
+                        locked_val = float(item.get('locked', 0.0))
+                        tot_val = free_val + locked_val
+                        if tot_val > 0:
+                            if asset in ['USDT', 'LDUSDT']:
+                                if asset == 'LDUSDT':
+                                    free_usdt += tot_val
+                                    total_usdt += tot_val
+                            elif asset.startswith('LD') and len(asset) > 2:
+                                clean_coin = asset[2:]
+                                crypto_holdings[f"{clean_coin} (Earn)"] = tot_val
+                            else:
                                 crypto_holdings[asset] = tot_val
-                        except Exception:
-                            pass
+                    except Exception:
+                        pass
             else:
                 # 2. Öncelik: CCXT 'total' sözlük fallback'i
                 metadata_keys = {'info', 'free', 'used', 'total', 'timestamp', 'datetime', 'USDT', 'code', 'msg'}
@@ -310,7 +317,14 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                         try:
                             amt = float(details) if not isinstance(details, dict) else float(details.get('total') or details.get('free') or 0.0)
                             if amt > 0:
-                                crypto_holdings[asset] = amt
+                                if asset == 'LDUSDT':
+                                    free_usdt += amt
+                                    total_usdt += amt
+                                elif asset.startswith('LD') and len(asset) > 2:
+                                    clean_coin = asset[2:]
+                                    crypto_holdings[f"{clean_coin} (Earn)"] = amt
+                                else:
+                                    crypto_holdings[asset] = amt
                         except Exception:
                             pass
 
@@ -322,12 +336,13 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
             for asset, amount in crypto_holdings.items():
                 if amount > 0:
                     try:
-                        if asset == "TRY":
+                        clean_lookup_coin = asset.replace(" (Earn)", "").strip()
+                        if clean_lookup_coin == "TRY":
                             val_usd = amount / usdt_try_price if usdt_try_price > 0 else 0.0
                             estimated_total_usd += val_usd
                             holdings_details[asset] = {"amount": amount, "price": 1.0 / usdt_try_price if usdt_try_price > 0 else 0.0, "val_usd": val_usd}
                         else:
-                            price = price_map.get(f"{asset}USDT") or ((price_map.get(f"{asset}TRY", 0.0) / usdt_try_price) if usdt_try_price > 0 else 0.0) or 0.0
+                            price = price_map.get(f"{clean_lookup_coin}USDT") or ((price_map.get(f"{clean_lookup_coin}TRY", 0.0) / usdt_try_price) if usdt_try_price > 0 else 0.0) or 0.0
                             val_usd = amount * price
                             estimated_total_usd += val_usd
                             holdings_details[asset] = {"amount": amount, "price": price, "val_usd": val_usd}
