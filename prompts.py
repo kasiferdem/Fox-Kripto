@@ -98,23 +98,29 @@ def formulate_trade_strategy(
     KURAL 1: İşlem teklifi toplam portföy likiditesinin (USDT/TRY) %10'unu aşamaz (Minimum $10 USD).
     KURAL 2: Her teklifte %3 ile %5 arası dinamik Stop-Loss belirlenmelidir.
     """
-    # Serbest Nakit TL/USDT Bakiyesini Oku (Sadece kullanılabilir serbest nakdi baz alır)
+    # Serbest Nakit TL/USDT Bakiyesini Oku (Çift Borsa ve Tekil Borsa Tam Uyumlu)
     holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
     try_details = holdings.get("TRY", {}) if isinstance(holdings, dict) else {}
     free_try = try_details.get("amount", 0.0) if isinstance(try_details, dict) else float(try_details or 0.0)
-    free_usdt = float(portfolio_state.get("free_usdt") or 0.0)
     
+    free_usdt = float(portfolio_state.get("free_usdt") or 0.0)
+    if free_usdt <= 0 and isinstance(portfolio_state.get("binance_global"), dict):
+        free_usdt = float(portfolio_state["binance_global"].get("free_usdt") or 0.0)
+    if free_usdt <= 0 and isinstance(holdings, dict):
+        usdt_d = holdings.get("USDT", {})
+        free_usdt = float(usdt_d.get("amount", 0.0) if isinstance(usdt_d, dict) else usdt_d or 0.0)
+        
     free_cash_usd = (free_try / 34.80) + free_usdt
     
-    # EĞER SERBEST NAKİT TL/USDT $1.50 USD (~₺52 TL) ALTINDA İSE YENİ ALIM YAPMA (HOLD)!
-    if free_cash_usd < 1.50:
-        print(f"   ⏳ [Nakit Bakiye Yetersiz]: Serbest TL bakiyesi (₺{free_try:.2f} TL) tükenmiştir. Alım yapılmıyor (HOLD).")
+    # EĞER SERBEST NAKİT TL/USDT $1.00 USD ALTINDA İSE YENİ ALIM YAPMA (HOLD)!
+    if free_cash_usd < 1.00 and free_usdt < 1.00 and free_try < 30.0:
+        print(f"   ⏳ [Nakit Bakiye Yetersiz]: Serbest TL (₺{free_try:.2f}) ve USDT (${free_usdt:.2f}) tükenmiştir. Alım yapılmıyor (HOLD).")
         return {
             "should_trade": False,
-            "reason": f"Serbest nakit bakiye tükenmiştir (₺{free_try:.2f} TL). Tüm sermaye kârlı pozisyonlardadır. Bekletiliyor (HOLD)."
+            "reason": f"Serbest nakit bakiye tükenmiştir (₺{free_try:.2f} TL, ${free_usdt:.2f} USDT). Tüm sermaye kârlı pozisyonlardadır. Bekletiliyor (HOLD)."
         }
         
-    available_liquidity_usd = free_cash_usd
+    available_liquidity_usd = max(free_cash_usd, free_usdt, 10.0)
     sentiment_score = float(news_analysis.get("sentiment_score", 0.0))
     
     # Ultra-Hızlı Ticaret Modu (Ultra-Fast Scalping & Micro Trend): En ufak pozitif mikro hareketlerde derhal işleme girer
