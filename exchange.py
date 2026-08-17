@@ -364,7 +364,10 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                         tot_val = free_val + locked_val
                         if tot_val > 0:
                             if asset in ['USDT', 'LDUSDT']:
-                                if asset == 'LDUSDT':
+                                if asset == 'USDT':
+                                    free_usdt = free_val
+                                    total_usdt = tot_val
+                                elif asset == 'LDUSDT':
                                     free_usdt += tot_val
                                     total_usdt += tot_val
                             elif asset.startswith('LD') and len(asset) > 2:
