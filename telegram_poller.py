@@ -459,42 +459,86 @@ def handle_update(update: dict):
     try:
         from prompts import call_gpt4o
         from exchange import fetch_ticker_price
-        import json
-
-        system_prompt = (
-            "Sen kıdemli bir Telegram Kripto Ticaret ve Asistan Robotusun.\n"
-            "Kullanıcının Türkçe veya İngilizce mesajını analiz et ve niyetini (intent) belirle.\n\n"
-            "OLASI NİYETLER (intent):\n"
-            "1. 'TRADE': Kullanıcı doğrudan bir alım veya satım emri veriyor.\n"
-            "   Örnekler: '500 TL sol al', '10 dolar btc al', '10 adet sol al', 'elimdeki avaxı sat', '50 TL pepe sat', '1 sol al', 'bnb sat', '10$ usdt sat', 'sol al', 'near sat'\n"
-            "2. 'EXPLAIN_TRADE': Kullanıcı yapay zekaya bir coini (örn: PEPE, SOL, AVAX, BTC) neden aldığını, neden sattığını veya genel al-sat mantığını/gerekçesini soruyor.\n"
-            "   Örnekler: 'pepe neden aldın', 'sol neden sattın', 'neden avax aldın', 'btc neden sattın', 'neden doge aldın', 'why did you buy sol', 'why did you sell pepe', 'neden pepe aldın', 'neden sattın', 'işlem gerekçen nedir', 'neden alım yaptın'\n"
-            "3. 'UPDATE_SETTINGS': Kullanıcı kâr alma (take-profit), stop-loss veya bütçe oranını değiştirmek istiyor.\n"
-            "   Örnekler: 'kar hedefimi %3 yap', 'karımı %2.5 yap', 'stop loss'u %2 yap', 'kar alma oranım %4 olsun', 'kar %3 stop %1.5 yap'\n"
-            "4. 'PRICE_QUERY': Kullanıcı bir coinin anlık fiyatını veya durumunu soruyor.\n"
-            "   Örnekler: 'sol ne kadar', 'bitcoin kaç dolar', 'pepe ne durumda', 'eth fiyatı'\n"
-            "5. 'SET_LANGUAGE': Kullanıcı dil değiştirmek istiyor ('lang en', 'dil tr', 'english', 'türkçe').\n"
-            "6. 'CHAT': Genel soru, sohbet veya selamlama.\n\n"
-            "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
-            "{\n"
-            '  "intent": "TRADE" | "EXPLAIN_TRADE" | "UPDATE_SETTINGS" | "SET_LANGUAGE" | "PRICE_QUERY" | "CHAT",\n'
-            '  "action": "BUY" | "SELL" | null,\n'
-            '  "coin": "SOL" | "BTC" | "AVAX" | "PEPE" | "BNB" | "ETH" | "NEAR" | "SUI" | "RENDER" | "DOGE" | "BONK" | null,\n'
-            '  "amount_type": "FIAT_TRY" | "FIAT_USD" | "COIN_QTY" | "ALL_BALANCE" | null,\n'
-            '  "amount_value": 500.0 | 10.0 | 1.0 | null,\n'
-            '  "take_profit_percent": 3.0 | 2.5 | null,\n'
-            '  "stop_loss_percent": 2.0 | 1.5 | null,\n'
-            '  "language": "tr" | "en" | null,\n'
-            '  "chat_reply": "Friendly response in the language user spoke"\n'
-            "}"
-        )
+        import json, re
 
         user_text = raw_text.strip()
-        parsed_res = call_gpt4o(system_prompt, f"Kullanıcı Mesajı: {user_text}")
-        clean_json = parsed_res.strip("` \n").replace("json", "").strip() if parsed_res else "{}"
-        intent_data = json.loads(clean_json) if clean_json.startswith("{") else {}
         
-        intent = intent_data.get("intent", "CHAT")
+        # 1. HIZLI DOĞRUDAN ALIM/SATIM REGEX AYRIŞTIRICISI (Anında, Sıfır Gecikme)
+        fast_action = None
+        if re.search(r'\b(al|al\w*|buy)\b', user_text, re.IGNORECASE):
+            fast_action = "BUY"
+        elif re.search(r'\b(sat|sat\w*|sell)\b', user_text, re.IGNORECASE):
+            fast_action = "SELL"
+            
+        known_coins = ["SOL", "BTC", "ETH", "AVAX", "PEPE", "BNB", "SHIB", "BONK", "DOGE", "RENDER", "SUI", "NEAR", "XRP", "FLM", "CLV", "WAVES", "UTK", "GPS", "PORTAL", "ACE", "TUT"]
+        matched_coin = None
+        if fast_action:
+            for c in known_coins:
+                if re.search(r'\b' + c + r'\b', user_text, re.IGNORECASE):
+                    matched_coin = c
+                    break
+                    
+        if fast_action and matched_coin:
+            amt_usd = re.search(r'(\d+(?:[\.,]\d+)?)\s*(?:\$|usd|dolar|usdt)', user_text, re.IGNORECASE) or re.search(r'(?:\$)\s*(\d+(?:[\.,]\d+)?)', user_text, re.IGNORECASE)
+            amt_try = re.search(r'(\d+(?:[\.,]\d+)?)\s*(?:tl|try|lira)', user_text, re.IGNORECASE)
+            amt_coin = re.search(r'(\d+(?:[\.,]\d+)?)\s*(?:adet|tane)', user_text, re.IGNORECASE)
+            
+            if amt_usd:
+                amt_type = "FIAT_USD"
+                amt_val = float(amt_usd.group(1).replace(",", "."))
+            elif amt_try:
+                amt_type = "FIAT_TRY"
+                amt_val = float(amt_try.group(1).replace(",", "."))
+            elif amt_coin:
+                amt_type = "COIN_QTY"
+                amt_val = float(amt_coin.group(1).replace(",", "."))
+            else:
+                generic_num = re.search(r'(\d+(?:[\.,]\d+)?)', user_text)
+                if generic_num:
+                    amt_type = "FIAT_USD"
+                    amt_val = float(generic_num.group(1).replace(",", "."))
+                else:
+                    amt_type = "ALL_BALANCE"
+                    amt_val = 10.0
+                    
+            intent_data = {
+                "intent": "TRADE",
+                "action": fast_action,
+                "coin": matched_coin,
+                "amount_type": amt_type,
+                "amount_value": amt_val
+            }
+            intent = "TRADE"
+        else:
+            system_prompt = (
+                "Sen kıdemli bir Telegram Kripto Ticaret ve Asistan Robotusun.\n"
+                "Kullanıcının Türkçe veya İngilizce mesajını analiz et ve niyetini (intent) belirle.\n\n"
+                "OLASI NİYETLER (intent):\n"
+                "1. 'TRADE': Kullanıcı doğrudan bir alım veya satım emri veriyor.\n"
+                "   Örnekler: '500 TL sol al', '10 dolar btc al', '10 adet sol al', 'elimdeki avaxı sat', '50 TL pepe sat', '1 sol al', 'bnb sat', '10$ usdt sat', 'sol al', 'near sat', 'BNB 2.36$ sat', '2.36$ BNB sat'\n"
+                "2. 'EXPLAIN_TRADE': Kullanıcı yapay zekaya bir coini neden aldığını/sattığını soruyor.\n"
+                "3. 'UPDATE_SETTINGS': Kâr alma veya stop-loss oranı değiştirme ('kar %3 yap').\n"
+                "4. 'PRICE_QUERY': Fiyat sorma ('sol ne kadar', 'btc fiyatı').\n"
+                "5. 'SET_LANGUAGE': Dil değiştirme ('lang en', 'türkçe').\n"
+                "6. 'CHAT': Genel soru, sohbet veya selamlama.\n\n"
+                "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
+                "{\n"
+                '  "intent": "TRADE" | "EXPLAIN_TRADE" | "UPDATE_SETTINGS" | "SET_LANGUAGE" | "PRICE_QUERY" | "CHAT",\n'
+                '  "action": "BUY" | "SELL" | null,\n'
+                '  "coin": "SOL" | "BTC" | "AVAX" | "PEPE" | "BNB" | "ETH" | "NEAR" | "SUI" | "RENDER" | "DOGE" | "BONK" | null,\n'
+                '  "amount_type": "FIAT_TRY" | "FIAT_USD" | "COIN_QTY" | "ALL_BALANCE" | null,\n'
+                '  "amount_value": 500.0 | 10.0 | 2.36 | null,\n'
+                '  "take_profit_percent": 3.0 | 2.5 | null,\n'
+                '  "stop_loss_percent": 2.0 | 1.5 | null,\n'
+                '  "language": "tr" | "en" | null,\n'
+                '  "chat_reply": "Friendly response in the language user spoke"\n'
+                "}"
+            )
+
+            parsed_res = call_gpt4o(system_prompt, f"Kullanıcı Mesajı: {user_text}")
+            clean_json = parsed_res.strip("` \n").replace("json", "").strip() if parsed_res else "{}"
+            intent_data = json.loads(clean_json) if clean_json.startswith("{") else {}
+            intent = intent_data.get("intent", "CHAT")
 
         if intent == "SET_LANGUAGE":
             lang = str(intent_data.get("language") or "tr").lower()

@@ -31,7 +31,7 @@ def call_gpt4o(system_prompt: str, user_content: str) -> str:
             {"role": "user", "content": user_content}
         ],
         "temperature": 0.2,
-        "max_tokens": 1000
+        "max_tokens": 400
     }
     try:
         res = requests.post(url, json=payload, headers=headers, timeout=20)
