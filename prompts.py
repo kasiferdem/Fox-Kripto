@@ -202,22 +202,32 @@ def formulate_trade_strategy(
         except Exception:
             pass
             
-    # Fallback Strateji (Hızlı Mikro Scalp Kural Motoru)
-    max_budget = max(round(available_liquidity_usd * 0.10, 2), 10.0)
+    # Fallback Strateji (Hızlı Mikro Scalp Kural Motoru - Meme & Erken Trend Odaklı)
+    fallback_pool = ["PEPE/USDT", "BONK/USDT", "DOGE/USDT", "FLOKI/USDT", "SUI/USDT", "RENDER/USDT", "AVAX/USDT", "PORTAL/USDT", "GPS/USDT"]
+    chosen_symbol = symbol if (symbol and symbol not in ["AUTO", "BTC/USDT", "ETH/USDT"]) else "PEPE/USDT"
+    
+    # Portföyde olmayan sıcak bir meme/altcoine geç
+    for cand in fallback_pool:
+        c_b = cand.split("/")[0]
+        if c_b not in current_holdings:
+            chosen_symbol = cand
+            break
+            
+    max_budget = max(round(available_liquidity_usd * 0.33, 2), 10.0)
     sl_pct = 1.2
     sl_price = round(current_price * (1 - (sl_pct / 100)), 2)
     tp_price = round(current_price * 1.015, 2) # %1.5 Hızlı Kâr
     
     return {
         "should_trade": True,
-        "symbol": symbol,
+        "symbol": chosen_symbol,
         "direction": "BUY" if sentiment_score > 0 else "SELL",
         "amount_usd": max_budget,
         "entry_price": current_price,
         "stop_loss_percent": sl_pct,
         "stop_loss_price": sl_price,
         "take_profit_price": tp_price,
-        "risk_justification": f"Hızlı kâr modu: Duyarlılık ({sentiment_score}) doğrultusunda %10 bütçe ve +%2.5 kâr alma hedefiyle işlem açıldı."
+        "risk_justification": f"Yüksek volatilite ve ivme avcısı: Sıcak meme/altcoin {chosen_symbol} seçildi."
     }
 
 if __name__ == "__main__":

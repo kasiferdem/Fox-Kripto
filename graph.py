@@ -169,43 +169,43 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             if amt > 0.0001 and val >= 1.0:
                 current_assets.append(str(k).upper())
 
-    proposed_symbol = str(proposal.get("symbol", "BTC/USDT")).upper()
+    proposed_symbol = str(proposal.get("symbol", "PEPE/USDT")).upper()
+    if proposed_symbol.startswith("BTC") or proposed_symbol.startswith("ETH") or "AUTO" in proposed_symbol:
+        proposed_symbol = "PEPE/USDT"
+        
     proposed_base = proposed_symbol.split("/")[0].split("_")[0].upper()
     sentiment_score = float(state.get("sentiment_score") or 0.0)
     
-    if proposed_base in current_assets:
-        # EĞER YAPAY ZEKA SKORU ZİRVEDE VE ÇOK YÜKSEKSE (>= 8.5 / 10), KULLANICIYA INTERAKTİF SORSUN!
-        if sentiment_score >= 8.5:
-            print(f"   🚨 [Aşırı Yükseliş Beklentisi (+{sentiment_score:.1f})]: '{proposed_base}' zaten cüzdanda var ancak skoru zirvede! Kullanıcıya onay butonu gönderiliyor...")
-            proposal["requires_user_approval"] = True
-            proposal["scale_in_reason"] = f"Zirve Yapay Zeka Skoru (+{sentiment_score:.1f})"
-            return {"trade_proposal": proposal, "human_approval": "Pending_Approval"}
-        else:
-            # Skor çok yüksek değilse otomatik olarak cüzdanda olmayan sıcak/erken balina altcoinlerine geç
-            dynamic_candidates = []
-            try:
-                early_surges = detect_early_volume_breakouts()
-                for es in early_surges:
-                    dynamic_candidates.append(es["symbol"])
-            except Exception:
-                pass
-                
-            try:
-                top_g = fetch_top_volume_gainers(limit=10)
-                for tg in top_g:
-                    dynamic_candidates.append(tg["symbol"])
-            except Exception:
-                pass
-                
-            fallback_pool = ["SUI/USDT", "RENDER/USDT", "NEAR/USDT", "XRP/USDT", "FLM/USDT", "CLV/USDT", "WAVES/USDT", "PORTAL/USDT", "UTK/USDT"]
-            dynamic_candidates.extend(fallback_pool)
+    if proposed_base in current_assets or proposed_base in ["BTC", "ETH"]:
+        # Skor çok yüksek değilse otomatik olarak cüzdanda olmayan sıcak/erken balina altcoinlerine geç
+        dynamic_candidates = []
+        try:
+            early_surges = detect_early_volume_breakouts()
+            for es in early_surges:
+                dynamic_candidates.append(es["symbol"])
+        except Exception:
+            pass
             
-            fresh_coin = None
-            for c in dynamic_candidates:
-                c_base = c.split("/")[0].split("_")[0].upper()
-                if c_base not in current_assets and c_base not in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
-                    fresh_coin = c
-                    break
+        try:
+            top_g = fetch_top_volume_gainers(limit=15)
+            for tg in top_g:
+                dynamic_candidates.append(tg["symbol"])
+        except Exception:
+            pass
+            
+        fallback_pool = [
+            "PEPE/USDT", "BONK/USDT", "DOGE/USDT", "FLOKI/USDT", "SUI/USDT", 
+            "RENDER/USDT", "NEAR/USDT", "GPS/USDT", "PORTAL/USDT", "ACE/USDT", 
+            "FLM/USDT", "CLV/USDT", "WAVES/USDT", "UTK/USDT", "AVAX/USDT"
+        ]
+        dynamic_candidates.extend(fallback_pool)
+        
+        fresh_coin = None
+        for c in dynamic_candidates:
+            c_base = c.split("/")[0].split("_")[0].upper()
+            if c_base not in current_assets and c_base not in ["BTC", "ETH", "TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
+                fresh_coin = c
+                break
             
             if fresh_coin:
                 fresh_base = fresh_coin.split("/")[0].upper()
