@@ -207,13 +207,13 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                 fresh_coin = c
                 break
             
-            if fresh_coin:
-                fresh_base = fresh_coin.split("/")[0].upper()
-                print(f"   🔄 [Dinamik Erken Fırsat Seçimi]: '{proposed_base}' zaten cüzdanda. Yeni erken balina adayı '{fresh_base}/{pair_quote}' seçildi.")
-                proposal["symbol"] = f"{fresh_base}/{pair_quote}"
-            else:
-                print(f"   [Çeşitlendirme Reddi]: Tüm altcoinler cüzdanda mevcut. Yeni alım yapılmıyor.")
-                return {"trade_proposal": None, "human_approval": "Rejected"}
+        if fresh_coin:
+            fresh_base = fresh_coin.split("/")[0].upper()
+            print(f"   🔄 [Dinamik Erken Fırsat Seçimi]: '{proposed_base}' zaten cüzdanda. Yeni erken balina adayı '{fresh_base}/{pair_quote}' seçildi.")
+            proposal["symbol"] = f"{fresh_base}/{pair_quote}"
+        else:
+            print(f"   [Çeşitlendirme Reddi]: Tüm altcoinler cüzdanda mevcut. Yeni alım yapılmıyor.")
+            return {"trade_proposal": None, "human_approval": "Rejected"}
                 
     final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
     proposal["symbol"] = f"{final_base}/{pair_quote}"
