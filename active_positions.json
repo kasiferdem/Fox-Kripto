@@ -2,6 +2,11 @@
   "ALPINE": {
     "buy_price": 0.395,
     "currency": "USDT",
-    "time": 1787080895.316331
+    "time": 1787081944.4694066
+  },
+  "ALPINE_TR": {
+    "buy_price": 19.16,
+    "currency": "TRY",
+    "time": 1787081944.4694066
   }
 }
