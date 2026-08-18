@@ -118,6 +118,7 @@ class BinanceTRClient:
                 "SHIB": 0,
                 "BONK": 0,
                 "FLOKI": 0,
+                "GPS": 0,
                 "ACE": 1
             }
             

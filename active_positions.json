@@ -1,12 +1,7 @@
 {
-  "GPS": {
-    "buy_price": 0.01806,
+  "ALPINE": {
+    "buy_price": 0.395,
     "currency": "USDT",
-    "time": 1787062894.1891258
-  },
-  "GPS_TR": {
-    "buy_price": 0.865,
-    "currency": "TRY",
-    "time": 1787062894.1891258
+    "time": 1787080895.316331
   }
 }
