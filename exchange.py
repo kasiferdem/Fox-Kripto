@@ -51,8 +51,6 @@ class BinanceTRClient:
         clean_symbol = symbol.replace("/", "_").replace("-", "_").upper()
         if not clean_symbol.endswith("_TRY") and not clean_symbol.endswith("_USDT"):
             clean_symbol = f"{clean_symbol}_TRY"
-        elif clean_symbol.endswith("_USDT"):
-            clean_symbol = clean_symbol.replace("_USDT", "_TRY")
 
         side_code = 0 if side.lower() == "buy" else 1
         type_code = 2 if type.lower() == "market" else 1
@@ -63,25 +61,34 @@ class BinanceTRClient:
             "type": type_code,
         }
 
-        # Market Buy emrinde Binance TR quoteOrderQty (TL tutarı) bekler
+        # Market Buy emrinde Binance TR quoteOrderQty bekler
         if side_code == 0 and type_code == 2:
-            ticker = fetch_ticker_price("USDT/TRY")
-            usdt_try_price = float(ticker.get('last_price', 35.0))
-            calc_try = round(amount_usd * usdt_try_price, 2)
-            
-            # Cüzdandaki serbest TL bakiyesini oku ve aşmayı engelle
-            try:
-                bal = self.fetch_balance()
-                free_try = float(bal.get("free", {}).get("TRY", 0.0))
-                if free_try >= 10.0 and (calc_try > free_try or calc_try < 10.0):
-                    calc_try = round(free_try * 0.95, 2)
-            except Exception:
-                pass
+            if clean_symbol.endswith("_USDT"):
+                try:
+                    bal = self.fetch_balance()
+                    free_usdt = float(bal.get("free", {}).get("USDT", 0.0))
+                    amount_usdt = min(amount_usd, free_usdt * 0.99) if free_usdt > 1.0 else amount_usd
+                except Exception:
+                    amount_usdt = amount_usd
+                params["quoteOrderQty"] = f"{max(amount_usdt, 10.0):.2f}"
+            else:
+                ticker = fetch_ticker_price("USDT/TRY")
+                usdt_try_price = float(ticker.get('last_price', 35.0))
+                calc_try = round(amount_usd * usdt_try_price, 2)
                 
-            amount_try = max(calc_try, 10.0)
-            params["quoteOrderQty"] = f"{amount_try:.2f}"
+                # Cüzdandaki serbest TL bakiyesini oku ve aşmayı engelle
+                try:
+                    bal = self.fetch_balance()
+                    free_try = float(bal.get("free", {}).get("TRY", 0.0))
+                    if free_try >= 10.0 and (calc_try > free_try or calc_try < 10.0):
+                        calc_try = round(free_try * 0.95, 2)
+                except Exception:
+                    pass
+                    
+                amount_try = max(calc_try, 10.0)
+                params["quoteOrderQty"] = f"{amount_try:.2f}"
         else:
-            asset_coin = clean_symbol.replace("_TRY", "").replace("_USDT", "")
+            asset_coin = clean_symbol.split("_")[0].upper()
             qty_to_sell = amount
             try:
                 bal = self.fetch_balance()
@@ -99,6 +106,8 @@ class BinanceTRClient:
                 "SOL": 3,
                 "BNB": 3,
                 "AVAX": 2,
+                "USDT": 0,
+                "EDEN": 1,
                 "SUI": 1,
                 "RENDER": 1,
                 "NEAR": 1,
