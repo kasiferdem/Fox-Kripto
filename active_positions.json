@@ -2,41 +2,31 @@
   "OPN": {
     "buy_price": 0.0585,
     "currency": "USDT",
-    "time": 1787087457.0421815
+    "time": 1787090156.0231497
   },
   "OPN_TR": {
     "buy_price": 2.8,
     "currency": "TRY",
-    "time": 1787087457.0421815
+    "time": 1787090156.0231497
   },
   "LA": {
     "buy_price": 0.0583,
     "currency": "USDT",
-    "time": 1787087457.0421815
+    "time": 1787090156.0231497
   },
   "LA_TR": {
     "buy_price": 2.79,
     "currency": "TRY",
-    "time": 1787087457.0421815
+    "time": 1787090156.0231497
   },
   "TUT": {
     "buy_price": 0.0413,
     "currency": "USDT",
-    "time": 1787087457.0421815
+    "time": 1787090156.0231497
   },
   "RED_TR": {
     "buy_price": 4.47,
     "currency": "TRY",
-    "time": 1787087457.0421815
-  },
-  "GPS": {
-    "buy_price": 0.01777,
-    "currency": "USDT",
-    "time": 1787087457.0421815
-  },
-  "ACM_TR": {
-    "buy_price": 14.41,
-    "currency": "TRY",
-    "time": 1787087457.0421815
+    "time": 1787090156.0231497
   }
 }
