@@ -100,17 +100,20 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     
                 # Kalıcı Alış Fiyatını Oku (Doğrudan kullanıcının para biriminde)
                 recorded_buy_p = 0.0
-                if asset_upper in saved_positions and isinstance(saved_positions[asset_upper], dict):
-                    saved_cur = saved_positions[asset_upper].get("currency", pair_quote)
-                    if saved_cur == pair_quote:
-                        recorded_buy_p = float(saved_positions[asset_upper].get("buy_price", 0.0))
-                elif asset_upper in saved_positions and isinstance(saved_positions[asset_upper], (int, float)):
-                    recorded_buy_p = float(saved_positions[asset_upper])
+                entry_info = saved_positions.get(f"{asset_upper}_TR") if is_tr_user else (saved_positions.get(asset_upper) or saved_positions.get(f"{asset_upper}_TR"))
+                if not entry_info and asset_upper in saved_positions:
+                    entry_info = saved_positions[asset_upper]
+                    
+                if isinstance(entry_info, dict):
+                    recorded_buy_p = float(entry_info.get("buy_price", 0.0))
+                elif isinstance(entry_info, (int, float)):
+                    recorded_buy_p = float(entry_info)
                 
                 # Eğer daha önce kaydedilmemişse, o anki piyasa fiyatı referans alış kabul edilir (0.00% değişim)
                 if recorded_buy_p <= 0.0:
                     recorded_buy_p = curr_p
-                    saved_positions[asset_upper] = {"buy_price": recorded_buy_p, "currency": pair_quote, "time": time.time()}
+                    save_key = f"{asset_upper}_TR" if is_tr_user else asset_upper
+                    saved_positions[save_key] = {"buy_price": recorded_buy_p, "currency": pair_quote, "time": time.time()}
                     try:
                         with open(pos_file, "w", encoding="utf-8") as pf:
                             json.dump(saved_positions, pf, indent=2)
