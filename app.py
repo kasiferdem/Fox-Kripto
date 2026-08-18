@@ -357,15 +357,25 @@ def buy_tut_whale(amount_usd: float = 15.0):
         return {"error": "Tenant not found"}
     return execute_spot_trade(symbol="TUT/USDT", side="BUY", amount_usd=amount_usd, tenant_config=tenant)
 
-@app_api.get("/api/admin/sell-tut-now")
-def sell_tut_now():
-    """DigitalOcean sunucusundan TUT/USDT'yi kârla satar ve kârı nakde kilitler."""
+@app_api.get("/api/admin/buy-spot")
+def buy_spot_universal(symbol: str = "GPS/USDT", amount_usd: float = 15.0):
+    """DigitalOcean sunucusundan herhangi bir sembol icin aninda spot alis yapar."""
     from db import get_tenant_by_chat_id
     from exchange import execute_spot_trade
     tenant = get_tenant_by_chat_id(8739367825)
     if not tenant:
         return {"error": "Tenant not found"}
-    return execute_spot_trade(symbol="TUT/USDT", side="SELL", amount_usd=15.0, tenant_config=tenant)
+    return execute_spot_trade(symbol=symbol, side="BUY", amount_usd=amount_usd, tenant_config=tenant)
+
+@app_api.get("/api/admin/sell-spot")
+def sell_spot_universal(symbol: str = "GPS/USDT", amount_usd: float = 15.0):
+    """DigitalOcean sunucusundan herhangi bir sembol icin aninda spot satis yapar."""
+    from db import get_tenant_by_chat_id
+    from exchange import execute_spot_trade
+    tenant = get_tenant_by_chat_id(8739367825)
+    if not tenant:
+        return {"error": "Tenant not found"}
+    return execute_spot_trade(symbol=symbol, side="SELL", amount_usd=amount_usd, tenant_config=tenant)
 
 @app_api.get("/api/admin/sell-ace-now")
 def sell_ace_now():
