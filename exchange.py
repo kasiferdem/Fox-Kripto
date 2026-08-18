@@ -123,7 +123,9 @@ class BinanceTRClient:
                 "ALPINE": 2,
                 "OPN": 1,
                 "LA": 1,
-                "RED": 1
+                "RED": 1,
+                "ACM": 2,
+                "UTK": 0
             }
             
             base_coin = clean_symbol.split("_")[0].upper()
