@@ -347,6 +347,26 @@ def test_moonwalker_balance():
         return {"error": "Tenant Moonwalker not found"}
     return fetch_portfolio_balance(tenant)
 
+@app_api.get("/api/admin/sell-gps-and-buy-ace")
+def sell_gps_and_buy_ace():
+    """DigitalOcean sunucusundan (104.248.135.128) GPS'i kârla satıp ACE satın alır."""
+    from db import get_tenant_by_chat_id
+    from exchange import execute_spot_trade
+    tenant = get_tenant_by_chat_id(8739367825)
+    if not tenant:
+        return {"error": "Tenant not found"}
+    
+    # 1. GPS Sat (Kârı Al)
+    res_sell = execute_spot_trade(symbol="GPS/USDT", side="SELL", amount_usd=10.50, tenant_config=tenant)
+    
+    # 2. ACE Al ($10 USD)
+    res_buy = execute_spot_trade(symbol="ACE/USDT", side="BUY", amount_usd=10.0, tenant_config=tenant)
+    
+    return {
+        "sell_gps": res_sell,
+        "buy_ace": res_buy
+    }
+
 @app_api.get("/api/admin/test-spot-buy-user")
 def test_spot_buy_user():
     """DigitalOcean sunucusundan doğrudan $10 GPS/USDT alımını canlı test eder ve sonucu döner."""
