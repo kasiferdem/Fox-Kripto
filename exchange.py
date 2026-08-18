@@ -224,7 +224,7 @@ class BinanceGlobalRESTClient:
                 "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2,
                 "OPN": 1, "LA": 1, "TUT": 0, "RED": 1
             }
-            dec = step_map.get(base_c, 2)
+            dec = step_map.get(base_c, 1 if amount >= 10.0 else (2 if amount >= 1.0 else 4))
             import math
             mult = 10 ** dec
             safe_qty = math.floor(amount * mult) / float(mult) if mult > 1 else int(amount)
