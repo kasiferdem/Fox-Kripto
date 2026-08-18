@@ -241,6 +241,71 @@ class BinanceGlobalRESTClient:
         else:
             raise Exception(f"Binance Global Error ({data.get('code')}): {data.get('msg')}")
 
+    def convert_dust_to_bnb(self, assets: Optional[list] = None) -> dict:
+        """
+        Binance Global'deki küçük küsuratları (Dust Balances) resmi SAPI ile BNB'ye dönüştürür.
+        """
+        if not assets:
+            # 1. Dönüştürülebilir varlıkları sorgula
+            query_str = self._sign({"recvWindow": 60000})
+            url_list = f"{self.base_url}/sapi/v1/asset/dust-btc?{query_str}"
+            headers = {"X-MBX-APIKEY": self.apiKey}
+            try:
+                res_list = requests.post(url_list, headers=headers, timeout=10)
+                data_list = res_list.json()
+                details = data_list.get("details", [])
+                assets = [d["asset"] for d in details if d.get("asset") and d["asset"] not in ["BNB", "USDT", "LDUSDT"]]
+            except Exception as e:
+                return {"status": "failed", "error": f"Toz bakiyeler sorgulanamadı: {e}"}
+            
+        if not assets:
+            return {"status": "success", "message": "Dönüştürülecek küçük bakiye (Dust) bulunamadı.", "converted_assets": [], "total_bnb_received": 0.0}
+            
+        # 2. Tozları BNB'ye dönüştür
+        ts = int(time.time() * 1000)
+        asset_queries = "&".join([f"asset={a}" for a in assets])
+        query_base = f"{asset_queries}&recvWindow=60000&timestamp={ts}"
+        sig = hmac.new(self.secret.encode('utf-8'), query_base.encode('utf-8'), hashlib.sha256).hexdigest()
+        
+        url_convert = f"{self.base_url}/sapi/v1/asset/dust?{query_base}&signature={sig}"
+        headers = {"X-MBX-APIKEY": self.apiKey}
+        try:
+            res = requests.post(url_convert, headers=headers, timeout=10)
+            data = res.json()
+            if "totalTransfered" in data or "totalServiceCharge" in data:
+                return {
+                    "status": "success",
+                    "total_bnb_received": float(data.get("totalTransfered", 0.0)),
+                    "service_charge": float(data.get("totalServiceCharge", 0.0)),
+                    "converted_assets": assets,
+                    "info": data
+                }
+            else:
+                return {
+                    "status": "failed",
+                    "error": f"Binance Dust Error ({data.get('code')}): {data.get('msg')}",
+                    "info": data
+                }
+        except Exception as ce:
+            return {"status": "failed", "error": f"Dust dönüştürme hatası: {ce}"}
+
+def convert_dust_to_bnb(tenant_config: Optional[Dict[str, Any]] = None, assets: Optional[list] = None) -> Dict[str, Any]:
+    """İlgili kullanıcının Binance Global hesabındaki tüm küçük küsuratları (Dust) tek hamlede BNB'ye çevirir."""
+    api_k = str((tenant_config or {}).get("exchange_api_key", ""))
+    if api_k.startswith("{"):
+        import json
+        try:
+            kd = json.loads(api_k)
+            if "binance" in kd:
+                client = BinanceGlobalRESTClient(kd["binance"].get("api_key"), kd["binance"].get("secret_key"))
+                return client.convert_dust_to_bnb(assets)
+        except Exception:
+            pass
+    client = get_exchange_for_tenant(tenant_config)
+    if hasattr(client, "convert_dust_to_bnb"):
+        return client.convert_dust_to_bnb(assets)
+    return {"status": "failed", "error": "Borsa istemcisi Dust to BNB özelliğini desteklemiyor."}
+
 def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
     """
     Multi-Tenant Borsa İstemcisi (Binance Global REST, Binance TR REST ve Çift Borsa Destekli):

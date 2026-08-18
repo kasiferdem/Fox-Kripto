@@ -194,6 +194,42 @@ def handle_update(update: dict):
             send_message(chat_id, f"⚠️ Error: {ne}")
         return
 
+    if text_clean in ["toz", "dust", "toz temizle", "tozlari temizle", "tozları temizle", "/dust", "dust to bnb", "toz bnb", "bnb ye cevir", "bnb ye dönüştür"]:
+        is_en = (user_lang == "en") or (text_clean in ["dust", "/dust", "dust to bnb"])
+        send_message(chat_id, "🧹 *CONVERTING DUST BALANCES TO BNB...*" if is_en else "🧹 *TOZ BAKİYELER (DUST) BİNANCE ÜZERİNDEN BNB'YE DÖNÜŞTÜRÜLÜYOR...*\nLütfen bekleyin...")
+        try:
+            from exchange import convert_dust_to_bnb
+            res_dust = convert_dust_to_bnb(tenant)
+            if res_dust.get("status") == "success":
+                converted = res_dust.get("converted_assets", [])
+                bnb_got = float(res_dust.get("total_bnb_received", 0.0))
+                if converted:
+                    conv_str = ", ".join(converted)
+                    if is_en:
+                        msg_d = (
+                            f"🎉 *DUST BALANCES SUCCESSFULLY CONVERTED TO BNB!* 🧹✅\n\n"
+                            f"🪙 Converted Assets: `{conv_str}`\n"
+                            f"📥 Total BNB Received: `+{bnb_got:.6f} BNB`\n"
+                            f"🏢 Exchange: BINANCE GLOBAL 🌍\n\n"
+                            f"💡 _All small fractions have been cleaned and added to your BNB fee pool!_"
+                        )
+                    else:
+                        msg_d = (
+                            f"🎉 *TOZ BAKİYELER BAŞARIYLA BNB'YE DÖNÜŞTÜRÜLDÜ!* 🧹✅\n\n"
+                            f"🪙 Dönüştürülen Coinler: `{conv_str}`\n"
+                            f"📥 Kasaya Eklenen BNB: `+{bnb_got:.6f} BNB`\n"
+                            f"🏢 Borsa: BINANCE GLOBAL 🌍\n\n"
+                            f"💡 _Tüm küçük küsuratlar temizlendi ve BNB komisyon havuzunuza aktarıldı!_"
+                        )
+                else:
+                    msg_d = f"ℹ️ {res_dust.get('message', 'Dönüştürülecek küçük bakiye (Dust) bulunamadı.')}"
+                send_message(chat_id, msg_d)
+            else:
+                send_message(chat_id, f"⚠️ *Dönüştürme Uyarısı:* {res_dust.get('error', 'İşlem gerçekleştirilemedi.')}")
+        except Exception as de:
+            send_message(chat_id, f"❌ Error: {de}")
+        return
+
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir", "status", "balance", "portfolio"]:
         is_en = (user_lang == "en") or (text_clean in ["status", "balance", "portfolio"])
         try:

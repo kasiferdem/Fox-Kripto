@@ -367,6 +367,16 @@ def sell_gps_and_buy_ace():
         "buy_ace": res_buy
     }
 
+@app_api.get("/api/admin/convert-dust")
+def admin_convert_dust(chat_id: int = 8739367825):
+    """Kullanıcının Binance Global hesabındaki tüm küçük toz bakiyeleri (Dust) BNB'ye dönüştürür."""
+    from db import get_tenant_by_chat_id
+    from exchange import convert_dust_to_bnb
+    tenant = get_tenant_by_chat_id(chat_id)
+    if not tenant:
+        return {"error": "Tenant not found"}
+    return convert_dust_to_bnb(tenant)
+
 @app_api.get("/api/admin/test-spot-buy-user")
 def test_spot_buy_user():
     """DigitalOcean sunucusundan doğrudan $10 GPS/USDT alımını canlı test eder ve sonucu döner."""
