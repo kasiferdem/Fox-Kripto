@@ -280,7 +280,7 @@ def run_autonomous_trading_loop():
         except Exception as e:
             print(f"⚠️ [Otonom Döngü Uyarısı]: {e}")
             
-        time.sleep(180) # Ultra-Fast Scalp Loop: Her 3 dakikada bir piyasayı tarar
+        time.sleep(20) # Real-Time High-Frequency Scalp Loop: Her 20 saniyede bir fiyat ve TP/SL kontrolü yapar
 
 # -----------------------------------------
 # OTOMATİK 7/24 TELEGRAM DİNLEYİCİ & OTONOM DÖNGÜ
@@ -346,6 +346,16 @@ def test_moonwalker_balance():
     if not tenant:
         return {"error": "Tenant Moonwalker not found"}
     return fetch_portfolio_balance(tenant)
+
+@app_api.get("/api/admin/sell-ace-now")
+def sell_ace_now():
+    """Binance Global'de eldeki tum ACE'yi derhal piyasa fiyatindan USDT'ye satar."""
+    from db import get_tenant_by_chat_id
+    from exchange import execute_spot_trade
+    tenant = get_tenant_by_chat_id(8739367825)
+    if not tenant:
+        return {"error": "Tenant not found"}
+    return execute_spot_trade(symbol="ACE/USDT", side="SELL", amount_usd=100.0, tenant_config=tenant)
 
 @app_api.get("/api/admin/buy-ace-whale")
 def buy_ace_whale(amount_usd: float = 15.0):
