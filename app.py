@@ -195,10 +195,10 @@ def run_autonomous_trading_loop():
                                     else:
                                         if net_pct >= 0:
                                             profit_label = "📈 *Net Kâr / Kazanç:*"
-                                            profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL Net Kazanç) {quote_label} Cüzdanına Kilitlendi!"
+                                            profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL / +${net_profit_fiat/47.80:,.2f} USD) {quote_label} Cüzdanına Kilitlendi!"
                                         else:
                                             profit_label = "📉 *Net Değişim / Stop-Loss:*"
-                                            profit_badge = f"-%{abs(net_pct):.2f} (-₺{abs(net_profit_fiat):,.2f} TL) {quote_label} Cüzdanına Aktarıldı"
+                                            profit_badge = f"-%{abs(net_pct):.2f} (-₺{abs(net_profit_fiat):,.2f} TL / -${abs(net_profit_fiat)/47.80:,.2f} USD) {quote_label} Cüzdanına Aktarıldı"
                                 else:
                                     # Binance Global (USDT)
                                     entry_usd = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
@@ -223,17 +223,17 @@ def run_autonomous_trading_loop():
                                     if is_en_user:
                                         if net_pct >= 0:
                                             profit_label = "📈 *Net Profit:*"
-                                            profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT Net Profit) Locked in {quote_label} Wallet!"
+                                            profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT) Locked in {quote_label} Wallet!"
                                         else:
                                             profit_label = "📉 *Net Change / Stop-Loss:*"
                                             profit_badge = f"-%{abs(net_pct):.2f} (-${abs(net_profit_fiat):,.2f} USDT) Transferred to {quote_label} Wallet"
                                     else:
                                         if net_pct >= 0:
                                             profit_label = "📈 *Net Kâr / Kazanç:*"
-                                            profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT Net Kazanç) {quote_label} Cüzdanına Kilitlendi!"
+                                            profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT / +₺{net_profit_fiat * 47.80:,.2f} TL) {quote_label} Cüzdanına Kilitlendi!"
                                         else:
                                             profit_label = "📉 *Net Değişim / Stop-Loss:*"
-                                            profit_badge = f"-%{abs(net_pct):.2f} (-${abs(net_profit_fiat):,.2f} USDT) {quote_label} Cüzdanına Aktarıldı"
+                                            profit_badge = f"-%{abs(net_pct):.2f} (-${abs(net_profit_fiat):,.2f} USDT / -₺{abs(net_profit_fiat) * 47.80:,.2f} TL) {quote_label} Cüzdanına Aktarıldı"
                             else:
                                 entry_str = "Entry Price" if is_en_user else "Alış Fiyatı"
                                 exit_str = "Exit Price" if is_en_user else "Satış Fiyatı"
