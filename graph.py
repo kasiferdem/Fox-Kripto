@@ -119,8 +119,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         
                 gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
 
-                # Kullanıcıya Özel Kâr Alma ve Stop-Loss Limitleri (Varsayılan: %1.5 Kâr, %1.5 Zarar Kes)
-                user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
+                # Kullanıcıya Özel Kâr Alma ve Stop-Loss Limitleri (Ultra-Hızlı Scalp: %0.8 Kâr)
+                user_tp = float(tenant_config.get("take_profit_percent") or 0.8)
                 user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
                 
                 # Binance Borsa Komisyonu (Alış %0.10 + Satış %0.10 = Toplam %0.20 Komisyon Düşülür)

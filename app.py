@@ -280,7 +280,7 @@ def run_autonomous_trading_loop():
         except Exception as e:
             print(f"⚠️ [Otonom Döngü Uyarısı]: {e}")
             
-        time.sleep(20) # Real-Time High-Frequency Scalp Loop: Her 20 saniyede bir fiyat ve TP/SL kontrolü yapar
+        time.sleep(5) # Real-Time Lightning Scalp Loop: Her 5 saniyede bir fiyat ve TP/SL kontrolü yapar
 
 # -----------------------------------------
 # OTOMATİK 7/24 TELEGRAM DİNLEYİCİ & OTONOM DÖNGÜ
