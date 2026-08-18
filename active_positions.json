@@ -2,21 +2,31 @@
   "TUT": {
     "buy_price": 0.0413,
     "currency": "USDT",
-    "time": 1787091134.3250115
-  },
-  "RED_TR": {
-    "buy_price": 4.47,
-    "currency": "TRY",
-    "time": 1787091134.3250115
+    "time": 1787091202.6241472
   },
   "GPS": {
     "buy_price": 0.01795,
     "currency": "USDT",
-    "time": 1787091134.3250115
+    "time": 1787091202.6241472
+  },
+  "ALPINE": {
+    "buy_price": 0.369,
+    "currency": "USDT",
+    "time": 1787091202.6241472
+  },
+  "RED_TR": {
+    "buy_price": 4.47,
+    "currency": "TRY",
+    "time": 1787091202.6241472
   },
   "GPS_TR": {
     "buy_price": 0.858,
     "currency": "TRY",
-    "time": 1787091134.3250115
+    "time": 1787091202.6241472
+  },
+  "ACM_TR": {
+    "buy_price": 14.29,
+    "currency": "TRY",
+    "time": 1787091202.6241472
   }
 }
