@@ -1,1 +1,12 @@
-{}
+{
+  "TUT": {
+    "buy_price": 0.04351,
+    "currency": "USDT",
+    "time": 1787051411.2884133
+  },
+  "EDEN": {
+    "buy_price": 2.807,
+    "currency": "TRY",
+    "time": 1787051411.2884133
+  }
+}
