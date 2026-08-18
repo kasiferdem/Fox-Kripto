@@ -82,37 +82,39 @@ def get_active_trading_symbols():
         pass
     return _cached_active_symbols
 
-def detect_early_volume_breakouts(min_volume_usd: float = 10000.0, max_recent_gain: float = 6.0) -> List[Dict[str, Any]]:
+def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 10000.0, max_recent_gain: float = 6.0) -> List[Dict[str, Any]]:
     """
-    Tüm Binance USDT tahtasını paralel tarayarak:
+    Tüm Binance USDT veya TRY tahtasını paralel tarayarak:
     1. YALNIZCA aktif işlem gören (TRADING durumundaki) spot tahtaları seçer.
     2. Son 5 dakikada normal ortalamasının 1.3x - 10x katı hacim girişi (Balina alımı) olan,
-    3. Fiyatı henüz %1 ile %6 arasında yeni yükselmeye başlamış (Zirveye çıkmamış),
+    3. Fiyatı henüz %0.3 ile %6 arasında yeni yükselmeye başlamış (Zirveye çıkmamış),
     4. Hacim patlaması yaşayan ERKEN FIRSAT COİNLERİNİ tespit eder.
     """
     breakouts = []
     try:
+        quote_upper = str(quote).upper()
         active_syms = get_active_trading_symbols()
         r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=5)
         if r.status_code != 200:
             return []
             
         tickers = r.json()
-        usdt_tickers = [
+        target_tickers = [
             t for t in tickers 
-            if t["symbol"].endswith("USDT") 
+            if t["symbol"].endswith(quote_upper) 
             and (not active_syms or t["symbol"] in active_syms)
-            and not any(t["symbol"].endswith(x) for x in ["UPUSDT", "DOWNUSDT", "FDUSDUSDT", "USDCUSDT"])
-            and float(t.get("quoteVolume", 0)) > 200000.0
+            and not any(t["symbol"].endswith(x) for x in ["UP" + quote_upper, "DOWN" + quote_upper, "FDUSD" + quote_upper, "USDC" + quote_upper, "EUR" + quote_upper])
+            and float(t.get("quoteVolume", 0)) > (100000.0 if quote_upper == "USDT" else 2000000.0)
             and float(t.get("lastPrice", 0)) > 0
         ]
         
-        by_gain = sorted(usdt_tickers, key=lambda x: float(x.get("priceChangePercent", 0)), reverse=True)[:30]
-        by_vol = sorted(usdt_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:25]
+        by_gain = sorted(target_tickers, key=lambda x: float(x.get("priceChangePercent", 0)), reverse=True)[:30]
+        by_vol = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:25]
         candidates = list({c["symbol"]: c for c in by_gain + by_vol}.values())
         
+        min_vol = min_volume_usd if quote_upper == "USDT" else (min_volume_usd * 47.8)
         with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
-            futures = [executor.submit(_evaluate_candidate, c, min_volume_usd, max_recent_gain) for c in candidates]
+            futures = [executor.submit(_evaluate_candidate, c, min_vol, max_recent_gain) for c in candidates]
             for f in concurrent.futures.as_completed(futures):
                 res = f.result()
                 if res:

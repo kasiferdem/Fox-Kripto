@@ -182,7 +182,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         # KATI KURAL: Sadece o an canlı TRADING durumundaki balina patlaması adayları
         dynamic_candidates = []
         try:
-            early_surges = detect_early_volume_breakouts()
+            early_surges = detect_early_volume_breakouts(quote=pair_quote)
             for es in early_surges:
                 sym_c = es.get("symbol", "")
                 if sym_c and sym_c not in dynamic_candidates:
