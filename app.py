@@ -347,6 +347,16 @@ def test_moonwalker_balance():
         return {"error": "Tenant Moonwalker not found"}
     return fetch_portfolio_balance(tenant)
 
+@app_api.get("/api/admin/buy-ace-whale")
+def buy_ace_whale(amount_usd: float = 15.0):
+    """DigitalOcean sunucusundan (104.248.135.128) ACE/USDT balina alımı yapar."""
+    from db import get_tenant_by_chat_id
+    from exchange import execute_spot_trade
+    tenant = get_tenant_by_chat_id(8739367825)
+    if not tenant:
+        return {"error": "Tenant not found"}
+    return execute_spot_trade(symbol="ACE/USDT", side="BUY", amount_usd=amount_usd, tenant_config=tenant)
+
 @app_api.get("/api/admin/sell-gps-and-buy-ace")
 def sell_gps_and_buy_ace():
     """DigitalOcean sunucusundan (104.248.135.128) GPS'i kârla satıp ACE satın alır."""
