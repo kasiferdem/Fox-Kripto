@@ -118,7 +118,7 @@ class BinanceTRClient:
                 "SHIB": 0,
                 "BONK": 0,
                 "FLOKI": 0,
-                "ACE": 2
+                "ACE": 1
             }
             
             base_coin = clean_symbol.split("_")[0].upper()
