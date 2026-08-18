@@ -213,12 +213,14 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             fresh_base = fresh_coin.split("/")[0].upper()
             print(f"   🚨 [Canlı Balina Seçimi]: Anlık 5dk hacim patlaması yakalanan '{fresh_base}/{pair_quote}' seçildi.")
             proposal["symbol"] = f"{fresh_base}/{pair_quote}"
+            proposal["amount_usd"] = min(15.0, max(10.0, free_cash_usd))
         else:
             print(f"   ⏳ [Piyasa Beklemede (HOLD)]: Şu anda anlık balina hacim patlaması şartını sağlayan yeni coin bulunamadı. Nakit boş yere bağlanmıyor, balina bekleniyor.")
             return {"trade_proposal": None, "human_approval": "Rejected"}
                 
     final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
     proposal["symbol"] = f"{final_base}/{pair_quote}"
+    proposal["amount_usd"] = min(15.0, max(10.0, free_cash_usd))
     
     # GERÇEK COIN FİYATINI VE TP/SL SEVİYELERİNİ ANLIK TICKER'DAN HESAPLA:
     real_ticker = fetch_ticker_price(proposal["symbol"])
