@@ -377,6 +377,16 @@ def admin_convert_dust(chat_id: int = 8739367825):
         return {"error": "Tenant not found"}
     return convert_dust_to_bnb(tenant)
 
+@app_api.get("/api/admin/convert-bnb-to-usdt")
+def admin_convert_bnb_to_usdt(chat_id: int = 8739367825):
+    """DigitalOcean sunucusundan (104.248.135.128) 0.095 BNB satıp USDT nakde çevirir."""
+    from db import get_tenant_by_chat_id
+    from exchange import execute_spot_trade
+    tenant = get_tenant_by_chat_id(chat_id)
+    if not tenant:
+        return {"error": "Tenant not found"}
+    return execute_spot_trade(symbol="BNB/USDT", side="SELL", amount_usd=55.0, tenant_config=tenant)
+
 @app_api.get("/api/admin/test-spot-buy-user")
 def test_spot_buy_user():
     """DigitalOcean sunucusundan doğrudan $10 GPS/USDT alımını canlı test eder ve sonucu döner."""
