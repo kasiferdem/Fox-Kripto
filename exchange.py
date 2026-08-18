@@ -221,7 +221,8 @@ class BinanceGlobalRESTClient:
             step_map = {
                 "BTC": 5, "ETH": 4, "SOL": 2, "AVAX": 2, "BNB": 3, 
                 "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0,
-                "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2
+                "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2,
+                "OPN": 1, "LA": 1, "TUT": 0, "RED": 1
             }
             dec = step_map.get(base_c, 2)
             import math
