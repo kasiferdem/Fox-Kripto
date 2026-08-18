@@ -247,6 +247,17 @@ def handle_update(update: dict):
                 bal_tr = balance.get("binance_tr", {})
                 bal_gl = balance.get("binance_global", {})
                 
+                # Kayıtlı Alış Fiyatlarını Oku
+                saved_pos = {}
+                try:
+                    import os, json
+                    pos_file = os.path.join(os.path.dirname(__file__), "active_positions.json")
+                    if os.path.exists(pos_file):
+                        with open(pos_file, "r", encoding="utf-8") as pf:
+                            saved_pos = json.load(pf)
+                except Exception:
+                    pass
+                
                 # TR Varlıkları
                 tr_holdings_str = ""
                 tr_details = bal_tr.get("holdings_details", {})
@@ -260,7 +271,18 @@ def handle_update(update: dict):
                         if a == "TRY":
                             free_try = amt
                         elif val_try > 0.5:
-                            tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{val_try:,.2f} TL)\n"
+                            pnl_str = ""
+                            entry_info = saved_pos.get(f"{a}_TR") or saved_pos.get(a)
+                            entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
+                            if entry_p > 0 and amt > 0:
+                                curr_unit_p = val_try / amt
+                                pnl_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
+                                pnl_fiat = val_try - (amt * entry_p)
+                                if pnl_pct >= 0:
+                                    pnl_str = f" | 📈 +%{pnl_pct:.2f} (+₺{pnl_fiat:,.2f} TL)"
+                                else:
+                                    pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-₺{abs(pnl_fiat):,.2f} TL)"
+                            tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{val_try:,.2f} TL{pnl_str})\n"
                 if not tr_holdings_str:
                     tr_holdings_str = " • _(No open coin positions)_\n" if is_en else " • _(Açık coin pozisyonu yok)_\n"
                             
@@ -280,7 +302,18 @@ def handle_update(update: dict):
                         amt = info["amount"]
                         val = info["val_usd"]
                         if a != "USDT" and val > 0.01:
-                            gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD)\n"
+                            pnl_str = ""
+                            entry_info = saved_pos.get(a)
+                            entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
+                            if entry_p > 0 and amt > 0:
+                                curr_unit_p = val / amt
+                                pnl_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
+                                pnl_fiat = val - (amt * entry_p)
+                                if pnl_pct >= 0:
+                                    pnl_str = f" | 📈 +%{pnl_pct:.2f} (+${pnl_fiat:,.2f} USD)"
+                                else:
+                                    pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-${abs(pnl_fiat):,.2f} USD)"
+                            gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{pnl_str})\n"
                 if not gl_holdings_str:
                     if gl_has_error:
                         gl_holdings_str = " • ⚠️ _(Binance Global API Key / Spot İzni Güncellenmeli)_\n"
