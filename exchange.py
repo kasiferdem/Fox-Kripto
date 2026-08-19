@@ -698,6 +698,15 @@ def execute_spot_trade(
     ticker = fetch_ticker_price(symbol if "/" in symbol else f"{symbol}/USDT")
     price = float(ticker.get("last_price") or 64000.0)
     quantity = amount_usd / price if price > 0 else 0
+    if side.lower() == "sell" and exchange and hasattr(exchange, "fetch_balance"):
+        base_asset = symbol.split("/")[0].split("_")[0].upper()
+        try:
+            bal_check = exchange.fetch_balance()
+            free_c = float(bal_check.get("free", {}).get(base_asset, 0.0))
+            if free_c > 0:
+                quantity = free_c
+        except Exception:
+            pass
 
     if exchange and getattr(exchange, "apiKey", None) and not os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true":
         try:
