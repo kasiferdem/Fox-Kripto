@@ -208,6 +208,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         "amount_usd": min(15.0, max(10.0, free_cash_usd)),
         "stop_loss_percent": 1.5,
         "risk_justification": f"Otomatik Balina Hacim Patlaması: {fresh_base}/{pair_quote} seçildi."
+    }
     final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
     proposal["symbol"] = f"{final_base}/{pair_quote}"
     proposal["amount_usd"] = min(15.0, max(10.0, free_cash_usd))
