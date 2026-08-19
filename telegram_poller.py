@@ -270,7 +270,7 @@ def handle_update(update: dict):
                         val_try = float(info.get("val_try", 0.0)) or (float(info.get("val_usd", 0.0)) * usd_try_rate)
                         if a == "TRY":
                             free_try = amt
-                        elif val_try > 0.5:
+                        elif val_try > 2.0: # 2 TL altı tozları gizle
                             pnl_str = ""
                             entry_info = saved_pos.get(f"{a}_TR") or saved_pos.get(a)
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
@@ -301,9 +301,9 @@ def handle_update(update: dict):
                     for a, info in gl_details.items():
                         amt = info["amount"]
                         val = info["val_usd"]
-                        if a != "USDT" and val > 0.01:
+                        if a != "USDT" and val >= 0.10: # $0.10 altı tozları gizle
                             pnl_str = ""
-                            entry_info = saved_pos.get(a)
+                            entry_info = saved_pos.get(a) or saved_pos.get(f"{a}_USDT") or saved_pos.get(f"{a}_GLOBAL")
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
                             if entry_p > 0 and amt > 0:
                                 curr_unit_p = val / amt
