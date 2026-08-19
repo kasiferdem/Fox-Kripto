@@ -190,17 +190,18 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         return {"trade_proposal": None, "human_approval": "Rejected"}
 
     fresh_base = fresh_coin.split("/")[0].split("_")[0].upper()
+    safe_budget_usd = round(min(15.0, max(10.0, free_cash_usd * 0.98)), 2)
     proposal = {
         "should_trade": True,
         "symbol": f"{fresh_base}/{pair_quote}",
         "direction": "BUY",
-        "amount_usd": min(15.0, max(10.0, free_cash_usd)),
+        "amount_usd": safe_budget_usd,
         "stop_loss_percent": 1.5,
         "risk_justification": f"Otomatik Balina Hacim Patlaması: {fresh_base}/{pair_quote} seçildi."
     }
     final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
     proposal["symbol"] = f"{final_base}/{pair_quote}"
-    proposal["amount_usd"] = min(15.0, max(10.0, free_cash_usd))
+    proposal["amount_usd"] = safe_budget_usd
     
     # GERÇEK COIN FİYATINI VE TP/SL SEVİYELERİNİ ANLIK TICKER'DAN HESAPLA:
     real_ticker = fetch_ticker_price(proposal["symbol"])
