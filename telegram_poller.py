@@ -280,10 +280,12 @@ def handle_update(update: dict):
                                 # Eğer maliyet USD olarak kaydedildiyse TRY'ye dönüştür
                                 if entry_cur == "USDT" or (entry_p < curr_unit_p / 20.0):
                                     entry_p = entry_p * usd_try_rate
-                                pnl_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
-                                pnl_fiat = val_try - (amt * entry_p)
+                                gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
+                                # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
+                                pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
+                                pnl_fiat = val_try - (amt * entry_p) - (val_try * 0.002 if gross_pct > 0 else 0.0)
                                 if pnl_pct >= 0:
-                                    pnl_str = f" | 📈 +%{pnl_pct:.2f} (+₺{pnl_fiat:,.2f} TL)"
+                                    pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+₺{pnl_fiat:,.2f} TL)"
                                 else:
                                     pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-₺{abs(pnl_fiat):,.2f} TL)"
                             tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{val_try:,.2f} TL{pnl_str})\n"
@@ -315,10 +317,12 @@ def handle_update(update: dict):
                                 # Eğer maliyet TRY olarak kaydedildiyse USD'ye dönüştür
                                 if entry_cur == "TRY" or (entry_p > curr_unit_p * 20.0):
                                     entry_p = entry_p / usd_try_rate
-                                pnl_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
-                                pnl_fiat = val - (amt * entry_p)
+                                gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
+                                # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
+                                pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
+                                pnl_fiat = val - (amt * entry_p) - (val * 0.002 if gross_pct > 0 else 0.0)
                                 if pnl_pct >= 0:
-                                    pnl_str = f" | 📈 +%{pnl_pct:.2f} (+${pnl_fiat:,.2f} USD)"
+                                    pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+${pnl_fiat:,.2f} USD)"
                                 else:
                                     pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-${abs(pnl_fiat):,.2f} USD)"
                             gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{pnl_str})\n"
