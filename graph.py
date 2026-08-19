@@ -94,6 +94,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         pass
                         
                 gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
+                BINANCE_COMMISSION_PCT = 0.20
+                net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT if gross_change_pct > 0 else gross_change_pct
 
                 # Kullanıcıya Özel Kâr Alma ve Stop-Loss Limitleri (Ultra-Hızlı Scalp: %0.8 Kâr)
                 user_tp = float(tenant_config.get("take_profit_percent") or 0.8)
