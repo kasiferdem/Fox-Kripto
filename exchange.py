@@ -126,7 +126,9 @@ class BinanceTRClient:
                 "RED": 1,
                 "ACM": 2,
                 "UTK": 0,
-                "JOE": 1
+                "JOE": 1,
+                "HEMI": 0,
+                "GNO": 3
             }
             
             base_coin = clean_symbol.split("_")[0].upper()
@@ -223,7 +225,8 @@ class BinanceGlobalRESTClient:
                 "BTC": 5, "ETH": 4, "SOL": 2, "AVAX": 2, "BNB": 3, 
                 "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0,
                 "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2,
-                "OPN": 1, "LA": 1, "TUT": 0, "RED": 1
+                "OPN": 1, "LA": 1, "TUT": 0, "RED": 1,
+                "HEMI": 0, "GNO": 3
             }
             dec = step_map.get(base_c, 1 if amount >= 10.0 else (2 if amount >= 1.0 else 4))
             import math

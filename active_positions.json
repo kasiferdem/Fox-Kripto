@@ -1,1 +1,22 @@
-{}
+{
+  "HEMI": {
+    "buy_price": 0.00853,
+    "currency": "USDT",
+    "time": 1787125637.6270528
+  },
+  "HEMI_TR": {
+    "buy_price": 0.4085,
+    "currency": "TRY",
+    "time": 1787125637.6270528
+  },
+  "ACM": {
+    "buy_price": 0.325,
+    "currency": "USDT",
+    "time": 1787125637.6270528
+  },
+  "ACM_TR": {
+    "buy_price": 15.66,
+    "currency": "TRY",
+    "time": 1787125637.6270528
+  }
+}
