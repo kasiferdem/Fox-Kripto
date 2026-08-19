@@ -645,6 +645,35 @@ def execute_spot_trade(
     if not symbol or "AUTO" in symbol.upper():
         symbol = "BTC/USDT"
         
+    # TRY Çiftlerini Doğrudan Binance TR İstemcisine Yönlendir
+    is_try_pair = symbol.endswith("/TRY") or symbol.endswith("_TRY")
+    api_k = str((tenant_config or {}).get("exchange_api_key", ""))
+    if is_try_pair and api_k.startswith("{"):
+        import json
+        try:
+            kd = json.loads(api_k)
+            if "binancetr" in kd:
+                client_tr = BinanceTRClient(kd["binancetr"].get("api_key"), kd["binancetr"].get("secret_key"))
+                clean_sym = symbol.replace("/", "_").upper()
+                ticker = fetch_ticker_price(symbol)
+                price = float(ticker.get("last_price") or 1.0)
+                amount_val = (amount_usd * 47.80) if side.lower() == "buy" else (amount_usd / price if price > 0 else 0)
+                res = client_tr.create_order(symbol=clean_sym, type="market", side=side.lower(), amount=amount_val)
+                print(f"✅ [CANLI BINANCE TR OTOMATİK EMİR İNFAZ EDİLDİ]: Order ID #{res.get('id')}")
+                return {
+                    "status": "success",
+                    "order_id": str(res.get("id")),
+                    "symbol": symbol,
+                    "side": side,
+                    "amount_usd": amount_usd,
+                    "executed_price": res.get("price") or price,
+                    "stop_loss_price": stop_loss_price,
+                    "raw_order": res
+                }
+        except Exception as e:
+            print(f"❌ [Canlı Binance TR Otomatik Emir Hatası]: {e}")
+            return {"status": "FAILED", "error": str(e)}
+
     exchange = get_exchange_for_tenant(tenant_config)
     ticker = fetch_ticker_price(symbol if "/" in symbol else f"{symbol}/USDT")
     price = float(ticker.get("last_price") or 64000.0)

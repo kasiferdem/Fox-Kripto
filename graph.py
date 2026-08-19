@@ -141,7 +141,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                 else:
                     print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} pozisyonu henüz kâr hedefinde değil ({gross_change_pct:+.2f}%). Satış yapılmıyor.")
 
-    # Serbest nakit kontrolü
+    # Serbest nakit kontrolü (Çift Borsa ve Tekil Borsa Tam Uyumlu)
     free_try = 0.0
     free_usdt = float(portfolio_state.get("free_usdt") or 0.0)
     if isinstance(holdings, dict):
@@ -149,9 +149,15 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         if free_usdt <= 0:
             free_usdt = float(holdings.get("USDT", {}).get("amount", 0.0) if isinstance(holdings.get("USDT"), dict) else holdings.get("USDT", 0.0))
             
-    free_cash_usd = (free_try / 47.80) if is_tr_user else free_usdt
-    if free_cash_usd < 8.0:
-        print(f"   ⏳ [Nakit Bakiye Yetersiz]: Serbest nakit (${free_cash_usd:.2f}) yeni alım için yetersiz. Bekletiliyor.")
+    if is_tr_user or (free_usdt < 5.0 and free_try >= 200.0):
+        is_tr_user = True
+        pair_quote = "TRY"
+        free_cash_usd = free_try / 47.80
+    else:
+        free_cash_usd = free_usdt
+
+    if free_cash_usd < 5.0 and free_try < 200.0:
+        print(f"   ⏳ [Nakit Bakiye Yetersiz]: Serbest nakit (${free_cash_usd:.2f} / ₺{free_try:.2f}) yeni alım için yetersiz. Bekletiliyor.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
 
     # KATI PORTFÖY ÇEŞİTLİLİK ENGELİ: Cüzdanda MADDETEN BULUNAN coinleri tekrar almayı KESİNLİKLE engeller
