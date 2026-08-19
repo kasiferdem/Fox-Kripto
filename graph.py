@@ -17,40 +17,13 @@ from news_service import fetch_live_global_crypto_news
 from surge_detector import detect_early_volume_breakouts
 
 def node_fetch_data(state: CryptoAgentState) -> Dict[str, Any]:
-    print("\n--- [1. NODE: DİNAMİK TÜM BORSA VE ERKEN BALİNA HACİM TARAYICI DEVREDE] ---")
+    print("\n--- [1. NODE: DİNAMİK BORSA VE ANLIK FİYAT MOTORU DEVREDE] ---")
     tenant_config = state.get("tenant_config")
     portfolio = fetch_portfolio_balance(tenant_config)
-    
-    top_gainers = fetch_top_volume_gainers(limit=15)
-    tickers_summary = []
-    for t in top_gainers:
-        tickers_summary.append(f"{t['symbol']}: Fiyat ${t['last_price']}, 24s Değişim %{t['percentage_change']:.2f}, Hacim ${t['volume']:,.0f}")
-            
-    early_surges = detect_early_volume_breakouts()
-    surge_summary = []
-    for s in early_surges:
-        surge_summary.append(f"🚨 {s['symbol']}: Son 5dk Hacim Patlaması {s['volume_spike_ratio']}x, 5dk Fiyat Artışı +%{s['price_change_5m']}% (ERKEN BALİNA GİRİŞİ)")
-        
-    global_headlines = fetch_live_global_crypto_news(limit_per_source=3)
-    headlines_text = "\n".join(global_headlines) if global_headlines else "Küresel piyasada sakin haber akışı."
-    
-    news_text = (
-        "🔥 ERKEN BALİNA VE 5 DAKİKALIK ANİ HACİM PATLAMALARI (PRE-PUMP FIRSATLARI):\n"
-        + ("\n".join(surge_summary) if surge_summary else "Şu anda ani 5dk balina patlaması tespit edilmedi.")
-        + "\n\n🌍 DÜNYA VE OTORİTELERDEN ANLIK KRİPTO HABERLERİ (CoinDesk, CoinTelegraph, Decrypt):\n"
-        + headlines_text
-        + "\n\n📊 CANLI BİNANCE TÜM PİYASA VE EN ÇOK YÜKSELEN DİNAMİK ALTCOIN TARAMASI:\n"
-        + "\n".join(tickers_summary)
-    )
-    print(f"   [Erken Balina & Borsa Taraması]: {len(early_surges)} Erken Balina Sinyali, {len(global_headlines)} Canlı Haber ve {len(top_gainers)} Sıcak Altcoin tarandı.")
-    return {"news_data": news_text, "portfolio_state": portfolio}
+    return {"news_data": "Fast Scalper Active", "portfolio_state": portfolio}
 
 def node_analyze_news(state: CryptoAgentState) -> Dict[str, Any]:
-    print("\n--- [2. NODE: HABER & PİYASA ANALİZ AJANI (GPT-4o) DEVREDE] ---")
-    analysis = analyze_crypto_news(state.get("news_data", ""), state.get("portfolio_state", {}))
-    sentiment = float(analysis.get("sentiment_score", 0.0))
-    print(f"   [GPT-4o Piyasa Skoru]: {sentiment} (+10/-10) | Yön: {analysis.get('market_bias')}")
-    return {"sentiment_score": sentiment}
+    return {"sentiment_score": 8.5}
 
 def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [3. NODE: STRATEJİ VE OTONOM KÂR ALMA MOTORU DEVREDE] ---")
