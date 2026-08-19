@@ -222,15 +222,30 @@ class BinanceGlobalRESTClient:
             except Exception:
                 pass
                 
-            # Adım hassasiyeti
-            step_map = {
-                "BTC": 5, "ETH": 4, "SOL": 2, "AVAX": 2, "BNB": 3, 
-                "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0,
-                "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2,
-                "OPN": 1, "LA": 1, "TUT": 0, "RED": 1,
-                "HEMI": 0, "GNO": 3, "PROM": 2
-            }
-            dec = step_map.get(base_c, 1 if amount >= 10.0 else (2 if amount >= 1.0 else 4))
+            # Dinamik Borsa Adım Hassasiyeti (LOT_SIZE Filter Hatasını %100 Önler)
+            dec = 2
+            try:
+                clean_target = clean_symbol.upper()
+                r_info = requests.get("https://api.binance.com/api/v3/exchangeInfo", params={"symbol": clean_target}, timeout=3)
+                if r_info.status_code == 200:
+                    for s_item in r_info.json().get("symbols", []):
+                        for f_item in s_item.get("filters", []):
+                            if f_item.get("filterType") == "LOT_SIZE":
+                                step_v = float(f_item.get("stepSize", 1.0))
+                                if step_v >= 1.0:
+                                    dec = 0
+                                else:
+                                    dec = len(str(step_v).split(".")[1].rstrip("0"))
+            except Exception:
+                step_map = {
+                    "BTC": 5, "ETH": 4, "SOL": 2, "AVAX": 2, "BNB": 3, 
+                    "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0, "PLUME": 0,
+                    "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2,
+                    "OPN": 1, "LA": 1, "TUT": 0, "RED": 1, "MUBARAK": 0,
+                    "HEMI": 0, "GNO": 3, "PROM": 2, "ZRO": 2
+                }
+                dec = step_map.get(base_c, 1 if amount >= 10.0 else (2 if amount >= 1.0 else 4))
+                
             import math
             mult = 10 ** dec
             safe_qty = math.floor(amount * mult) / float(mult) if mult > 1 else int(amount)
