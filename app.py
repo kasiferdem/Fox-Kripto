@@ -162,7 +162,11 @@ def run_autonomous_trading_loop():
                             
                             if raw_exit > 0:
                                 if is_tr_pair:
-                                    entry_try = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
+                                    # Eğer raw_entry USD cinsinden kaydedildiyse (yani exit_try/20'den küçükse), TRY'ye dönüştür
+                                    if raw_entry > 0 and (raw_entry < (raw_exit / 20.0)):
+                                        entry_try = raw_entry * 47.80
+                                    else:
+                                        entry_try = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
                                     exit_try = raw_exit
                                     
                                     # Net Kâr Hesaplama (TL)
@@ -201,7 +205,11 @@ def run_autonomous_trading_loop():
                                             profit_badge = f"-%{abs(net_pct):.2f} (-₺{abs(net_profit_fiat):,.2f} TL / -${abs(net_profit_fiat)/47.80:,.2f} USD) {quote_label} Cüzdanına Aktarıldı"
                                 else:
                                     # Binance Global (USDT)
-                                    entry_usd = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
+                                    # Eğer raw_entry TRY cinsinden kaydedildiyse (yani exit_usd*20'den büyükse), USD'ye dönüştür
+                                    if raw_entry > 0 and (raw_entry > (raw_exit * 20.0)):
+                                        entry_usd = raw_entry / 47.80
+                                    else:
+                                        entry_usd = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
                                     exit_usd = raw_exit
                                     
                                     gross_pct = ((exit_usd - entry_usd) / entry_usd * 100) if entry_usd > 0 else 1.7
