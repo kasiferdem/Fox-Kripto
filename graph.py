@@ -310,12 +310,6 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
                     saved_positions[base_sym] = {"buy_price": exec_p, "currency": quote_c, "time": time.time()}
                 else: # SELL
                     saved_positions.pop(base_sym, None)
-                    # 10$ / 10 TL ALTI KÜSURAT VE TOZ BAKİYELERİ OTONOM TEMİZLE:
-                    try:
-                        from exchange import convert_dust_to_bnb
-                        convert_dust_to_bnb(tenant_config)
-                    except Exception:
-                        pass
                     
                 with open(pos_file, "w", encoding="utf-8") as pf:
                     json.dump(saved_positions, pf, indent=2)
