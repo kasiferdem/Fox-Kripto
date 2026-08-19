@@ -1,7 +1,12 @@
 {
-  "MUBARAK": {
-    "buy_price": 0.897,
+  "ACE": {
+    "buy_price": 11.19,
     "currency": "TRY",
-    "time": 1787132973.2514834
+    "time": 1787130000.0
+  },
+  "MUBARAK": {
+    "buy_price": 0.892,
+    "currency": "TRY",
+    "time": 1787130000.0
   }
 }
