@@ -247,18 +247,23 @@ def handle_update(update: dict):
                 bal_tr = balance.get("binance_tr", {})
                 bal_gl = balance.get("binance_global", {})
                 
-                # Kayıtlı Alış Fiyatlarını Oku
-                saved_pos = {}
+                # %100 İZOLE BORSA POZİSYON HAFIZASI (TR vs Global Sıfır Karışma)
+                saved_pos_tr = {}
+                saved_pos_gl = {}
                 try:
                     import os, json
-                    pos_file = os.path.join(os.path.dirname(__file__), "active_positions.json")
-                    if os.path.exists(pos_file):
-                        with open(pos_file, "r", encoding="utf-8") as pf:
-                            saved_pos = json.load(pf)
+                    p_tr_file = os.path.join(os.path.dirname(__file__), "active_positions_tr.json")
+                    p_gl_file = os.path.join(os.path.dirname(__file__), "active_positions_global.json")
+                    if os.path.exists(p_tr_file):
+                        with open(p_tr_file, "r", encoding="utf-8") as pf:
+                            saved_pos_tr = json.load(pf)
+                    if os.path.exists(p_gl_file):
+                        with open(p_gl_file, "r", encoding="utf-8") as pf:
+                            saved_pos_gl = json.load(pf)
                 except Exception:
                     pass
                 
-                # TR Varlıkları
+                # 🇹🇷 TR Varlıkları (Yalnızca ve Tamamen TRY)
                 tr_holdings_str = ""
                 tr_details = bal_tr.get("holdings_details", {})
                 free_try = 0.0
@@ -272,14 +277,10 @@ def handle_update(update: dict):
                             free_try = amt
                         elif val_try > 2.0: # 2 TL altı tozları gizle
                             pnl_str = ""
-                            entry_info = saved_pos.get(f"{a}_TR") or saved_pos.get(a)
+                            entry_info = saved_pos_tr.get(a)
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
-                            entry_cur = str(entry_info.get("currency", "TRY")).upper() if isinstance(entry_info, dict) else "TRY"
                             if entry_p > 0 and amt > 0:
                                 curr_unit_p = val_try / amt
-                                # Eğer maliyet USD olarak kaydedildiyse TRY'ye dönüştür
-                                if entry_cur == "USDT" or (entry_p < curr_unit_p / 20.0):
-                                    entry_p = entry_p * usd_try_rate
                                 gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
                                 # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
                                 pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
@@ -296,7 +297,7 @@ def handle_update(update: dict):
                 if tot_tr_try <= 0:
                     tot_tr_try = tot_tr_usd * usd_try_rate
                 
-                # Global Varlıkları
+                # 🌍 Global Varlıkları (Yalnızca ve Tamamen USDT)
                 gl_holdings_str = ""
                 gl_details = bal_gl.get("holdings_details", {})
                 gl_has_error = bool(bal_gl.get("api_error"))
@@ -309,14 +310,10 @@ def handle_update(update: dict):
                         val = info["val_usd"]
                         if a != "USDT" and val >= 0.10: # $0.10 altı tozları gizle
                             pnl_str = ""
-                            entry_info = saved_pos.get(a) or saved_pos.get(f"{a}_USDT") or saved_pos.get(f"{a}_GLOBAL")
+                            entry_info = saved_pos_gl.get(a)
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
-                            entry_cur = str(entry_info.get("currency", "USDT")).upper() if isinstance(entry_info, dict) else "USDT"
                             if entry_p > 0 and amt > 0:
                                 curr_unit_p = val / amt
-                                # Eğer maliyet TRY olarak kaydedildiyse USD'ye dönüştür
-                                if entry_cur == "TRY" or (entry_p > curr_unit_p * 20.0):
-                                    entry_p = entry_p / usd_try_rate
                                 gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
                                 # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
                                 pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct

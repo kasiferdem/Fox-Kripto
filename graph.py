@@ -30,8 +30,25 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     portfolio_state = state.get("portfolio_state") or {}
     tenant_config = state.get("tenant_config") or {}
     
-    # 1. ÖNCELİK: Eldeki Pozisyonlarda Kalıcı Alış Takibi & Kâr Alma (+%1.0) / Stop-Loss (-%1.5) Denetimi
-    pos_file = os.path.join(os.path.dirname(__file__), "active_positions.json")
+    is_tr_user = bool(tenant_config and tenant_config.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
+    exch_id_str = str(tenant_config.get("exchange_id", "")).lower() if tenant_config else ""
+    if exch_id_str in ["dual", "both"]:
+        bal_tr = portfolio_state.get("binance_tr", {})
+        bal_gl = portfolio_state.get("binance_global", {})
+        free_u = float(bal_gl.get("free_usdt", 0.0))
+        free_t = float(bal_tr.get("free_try", 0.0))
+        if free_u >= 10.0:
+            is_tr_user = False
+            pair_quote = "USDT"
+        else:
+            is_tr_user = True
+            pair_quote = "TRY"
+    else:
+        pair_quote = "TRY" if is_tr_user else "USDT"
+
+    # %100 KATI İZOLE POZİSYON DOSYASI (TR vs Global Sıfır Karışma):
+    pos_file_name = "active_positions_tr.json" if is_tr_user else "active_positions_global.json"
+    pos_file = os.path.join(os.path.dirname(__file__), pos_file_name)
     saved_positions = {}
     if os.path.exists(pos_file):
         try:
@@ -49,22 +66,6 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         "BTC": 62900.0,
         "NEAR": 1.580
     }
-    
-    is_tr_user = bool(tenant_config and tenant_config.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
-    exch_id_str = str(tenant_config.get("exchange_id", "")).lower() if tenant_config else ""
-    if exch_id_str in ["dual", "both"]:
-        bal_tr = portfolio_state.get("binance_tr", {})
-        bal_gl = portfolio_state.get("binance_global", {})
-        free_u = float(bal_gl.get("free_usdt", 0.0))
-        free_t = float(bal_tr.get("free_try", 0.0))
-        if free_u >= 10.0:
-            is_tr_user = False
-            pair_quote = "USDT"
-        else:
-            is_tr_user = True
-            pair_quote = "TRY"
-    else:
-        pair_quote = "TRY" if is_tr_user else "USDT"
     
     holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
     if isinstance(holdings, dict):
@@ -84,11 +85,9 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                 if curr_p <= 0:
                     continue
                     
-                # Kalıcı Alış Fiyatını Oku (Doğrudan kullanıcının para biriminde)
+                # Kalıcı Alış Fiyatını Oku (Yalnızca ilgili borsanın kendi dosyasından)
                 recorded_buy_p = 0.0
-                entry_info = saved_positions.get(f"{asset_upper}_TR") if is_tr_user else (saved_positions.get(asset_upper) or saved_positions.get(f"{asset_upper}_TR"))
-                if not entry_info and asset_upper in saved_positions:
-                    entry_info = saved_positions[asset_upper]
+                entry_info = saved_positions.get(asset_upper)
                     
                 if isinstance(entry_info, dict):
                     recorded_buy_p = float(entry_info.get("buy_price", 0.0))
@@ -272,9 +271,11 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
             tenant_config=tenant_config
         )
         
-        # Pozisyon Hafızasını Güncelle (active_positions.json)
+        # Pozisyon Hafızasını Güncelle (%100 İzole Dosya: TR vs Global)
         try:
-            pos_file = os.path.join(os.path.dirname(__file__), "active_positions.json")
+            is_try_order = proposal["symbol"].upper().endswith("TRY") or proposal["symbol"].upper().endswith("_TRY")
+            pos_file_name = "active_positions_tr.json" if is_try_order else "active_positions_global.json"
+            pos_file = os.path.join(os.path.dirname(__file__), pos_file_name)
             saved_positions = {}
             if os.path.exists(pos_file):
                 with open(pos_file, "r", encoding="utf-8") as pf:
@@ -285,7 +286,7 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
             if status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]:
                 if proposal["direction"].upper() in ["BUY", "ALIM"]:
                     exec_p = float(result.get("executed_price") or proposal.get("entry_price") or 0.0)
-                    quote_c = proposal["symbol"].split("/")[1].upper() if "/" in proposal["symbol"] else "TRY"
+                    quote_c = "TRY" if is_try_order else "USDT"
                     saved_positions[base_sym] = {"buy_price": exec_p, "currency": quote_c, "time": time.time()}
                 else: # SELL
                     saved_positions.pop(base_sym, None)
