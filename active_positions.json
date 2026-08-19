@@ -2,11 +2,16 @@
   "HEMI_TR": {
     "buy_price": 0.4045,
     "currency": "TRY",
-    "time": 1787127624.9420714
+    "time": 1787128413.2630355
   },
   "PLUME": {
     "buy_price": 0.0125,
     "currency": "USDT",
-    "time": 1787127624.9420714
+    "time": 1787128413.2630355
+  },
+  "PROM": {
+    "buy_price": 2.067,
+    "currency": "USDT",
+    "time": 1787128413.2630355
   }
 }
