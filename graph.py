@@ -29,133 +29,102 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [3. NODE: STRATEJİ VE OTONOM KÂR ALMA MOTORU DEVREDE] ---")
     portfolio_state = state.get("portfolio_state") or {}
     tenant_config = state.get("tenant_config") or {}
+    user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
+    user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
     
-    is_tr_user = bool(tenant_config and tenant_config.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
-    exch_id_str = str(tenant_config.get("exchange_id", "")).lower() if tenant_config else ""
-    if exch_id_str in ["dual", "both"]:
-        bal_tr = portfolio_state.get("binance_tr", {})
-        bal_gl = portfolio_state.get("binance_global", {})
-        free_u = float(bal_gl.get("free_usdt", 0.0))
-        free_t = float(bal_tr.get("free_try", 0.0))
-        if free_u >= 10.0:
-            is_tr_user = False
-            pair_quote = "USDT"
-        else:
-            is_tr_user = True
-            pair_quote = "TRY"
-    else:
-        pair_quote = "TRY" if is_tr_user else "USDT"
-
-    # %100 KATI İZOLE POZİSYON DOSYASI (TR vs Global Sıfır Karışma):
-    pos_file_name = "active_positions_tr.json" if is_tr_user else "active_positions_global.json"
-    pos_file = os.path.join(os.path.dirname(__file__), pos_file_name)
-    saved_positions = {}
-    if os.path.exists(pos_file):
-        try:
-            with open(pos_file, "r", encoding="utf-8") as pf:
-                saved_positions = json.load(pf)
-        except Exception:
-            pass
-            
-    default_entries = {
-        "SOL": 74.80,
-        "SUI": 0.6720,
-        "PEPE": 0.00000262,
-        "AVAX": 6.420,
-        "RENDER": 1.250,
-        "BTC": 62900.0,
-        "NEAR": 1.580
-    }
+    # 🇹🇷 VE 🌍 HER İKİ BORSAYI DA AYRI AYRI VE TAM BAĞIMSIZ DENETLE:
+    exchange_silos = []
+    bal_tr = portfolio_state.get("binance_tr", {})
+    bal_gl = portfolio_state.get("binance_global", {})
     
-    holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
-    if isinstance(holdings, dict):
-        for coin_asset, details in holdings.items():
-            asset_upper = str(coin_asset).upper()
-            if asset_upper in ["TRY", "USDT", "BUSD", "USDC"]:
-                continue
+    if bal_tr and bal_tr.get("holdings_details"):
+        exchange_silos.append(("TRY", bal_tr.get("holdings_details", {}), "active_positions_tr.json", True))
+    if bal_gl and bal_gl.get("holdings_details"):
+        exchange_silos.append(("USDT", bal_gl.get("holdings_details", {}), "active_positions_global.json", False))
+        
+    if not exchange_silos:
+        # Tekil Borsa Fallback
+        is_tr_user = bool(tenant_config and tenant_config.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
+        pair_q = "TRY" if is_tr_user else "USDT"
+        pos_f = "active_positions_tr.json" if is_tr_user else "active_positions_global.json"
+        h = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
+        exchange_silos.append((pair_q, h, pos_f, is_tr_user))
+        
+    for pair_quote, holdings_map, pos_file_name, is_tr_silo in exchange_silos:
+        pos_file = os.path.join(os.path.dirname(__file__), pos_file_name)
+        saved_positions = {}
+        if os.path.exists(pos_file):
+            try:
+                with open(pos_file, "r", encoding="utf-8") as pf:
+                    saved_positions = json.load(pf)
+            except Exception:
+                pass
                 
-            coin_amount = details.get("amount", 0.0) if isinstance(details, dict) else float(details or 0.0)
-            val_usd = details.get("val_usd", 0.0) if isinstance(details, dict) else 0.0
-            
-            if coin_amount > 0.0001 and val_usd >= 1.0:
-                # KULLANICININ BORSA PARA BİRİMİNDE GERÇEK FİYAT OKU (TRY veya USDT)
-                target_symbol = f"{asset_upper}/{pair_quote}"
-                ticker = fetch_ticker_price(target_symbol)
-                curr_p = float(ticker.get("last_price", 0.0))
-                if curr_p <= 0:
+        if isinstance(holdings_map, dict):
+            for coin_asset, details in holdings_map.items():
+                asset_upper = str(coin_asset).upper()
+                if asset_upper in ["TRY", "USDT", "BUSD", "USDC"]:
                     continue
                     
-                # Kalıcı Alış Fiyatını Oku (Yalnızca ilgili borsanın kendi dosyasından)
-                recorded_buy_p = 0.0
-                entry_info = saved_positions.get(asset_upper)
-                    
-                if isinstance(entry_info, dict):
-                    recorded_buy_p = float(entry_info.get("buy_price", 0.0))
-                elif isinstance(entry_info, (int, float)):
-                    recorded_buy_p = float(entry_info)
+                coin_amount = details.get("amount", 0.0) if isinstance(details, dict) else float(details or 0.0)
+                val_fiat = details.get("val_try" if is_tr_silo else "val_usd", 0.0) if isinstance(details, dict) else 0.0
                 
-                # Eğer daha önce kaydedilmemişse, o anki piyasa fiyatı referans alış kabul edilir (0.00% değişim)
-                if recorded_buy_p <= 0.0:
-                    recorded_buy_p = curr_p
-                    save_key = f"{asset_upper}_TR" if is_tr_user else asset_upper
-                    saved_positions[save_key] = {"buy_price": recorded_buy_p, "currency": pair_quote, "time": time.time()}
-                    try:
-                        with open(pos_file, "w", encoding="utf-8") as pf:
-                            json.dump(saved_positions, pf, indent=2)
-                    except Exception:
-                        pass
+                # Minimum $1 / 40 TL altı tozları atla
+                min_thresh = 40.0 if is_tr_silo else 1.0
+                if coin_amount > 0.0001 and val_fiat >= min_thresh:
+                    target_symbol = f"{asset_upper}/{pair_quote}"
+                    ticker = fetch_ticker_price(target_symbol)
+                    curr_p = float(ticker.get("last_price", 0.0))
+                    if curr_p <= 0:
+                        continue
                         
-                gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
-                BINANCE_COMMISSION_PCT = 0.20
-                net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT if gross_change_pct > 0 else gross_change_pct
-
-                # Kullanıcıya Özel Kâr Alma ve Stop-Loss Limitleri (Ultra-Hızlı Scalp: %0.8 Kâr)
-                user_tp = float(tenant_config.get("take_profit_percent") or 0.8)
-                user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
-                
-                # 1. Sabit Güvence Limitleri: Net Kâr >= user_tp veya Brüt <= -user_sl
-                # 2. DİNAMİK BALİNA İVMESİ VE MOMENTUM ANALİZİ:
-                # Sabit limite körü körüne takılmadan; net kâr +%1.0'ı geçmişse ve tahtada alıcı duvarı zayıflayıp tepeye ulaştıysa kârı derhal nakde kilitle!
-                is_dynamic_tp = False
-                if net_profit_pct >= 1.0:
-                    try:
-                        clean_target = target_symbol.replace("/", "").replace("_", "").upper()
-                        depth_res = requests.get(f"https://api.binance.com/api/v3/depth?symbol={clean_target}&limit=5", timeout=2).json()
-                        bids = sum(float(b[1]) for b in depth_res.get("bids", []))
-                        asks = sum(float(a[1]) for a in depth_res.get("asks", []))
-                        # Eğer satış duvarı alıcı duvarını geçtiyse veya kâr +%1.8'in üzerindeyse kârı al
-                        if (asks > 0 and (bids / asks) < 1.10) or net_profit_pct >= 1.80:
-                            is_dynamic_tp = True
-                    except Exception:
-                        if net_profit_pct >= 1.80:
-                            is_dynamic_tp = True
-
-                # KÂR ALMA (Sabit TP veya Dinamik İvme Satışı) VEYA STOP-LOSS TETİKLENME KONTROLÜ
-                if net_profit_pct >= user_tp or is_dynamic_tp or gross_change_pct <= -user_sl:
-                    is_stop_loss = gross_change_pct <= -user_sl
-                    reason_type = f"Stop-Loss (%{gross_change_pct:.2f})" if is_stop_loss else (f"Dinamik Balina İvme Kârı (+%{net_profit_pct:.2f})" if is_dynamic_tp else f"Sabit Kâr Alma (+%{net_profit_pct:.2f})")
-                    print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Birim: {pair_quote}, Brüt: %{gross_change_pct:+.2f}, Net: %{net_profit_pct:+.2f}) piyasa emriyle satılıyor...")
+                    recorded_buy_p = 0.0
+                    entry_info = saved_positions.get(asset_upper)
+                    if isinstance(entry_info, dict):
+                        recorded_buy_p = float(entry_info.get("buy_price", 0.0))
+                    elif isinstance(entry_info, (int, float)):
+                        recorded_buy_p = float(entry_info)
+                        
+                    if recorded_buy_p <= 0.0:
+                        recorded_buy_p = curr_p
+                        saved_positions[asset_upper] = {"buy_price": recorded_buy_p, "currency": pair_quote, "time": time.time()}
+                        try:
+                            with open(pos_file, "w", encoding="utf-8") as pf:
+                                json.dump(saved_positions, pf, indent=2)
+                        except Exception:
+                            pass
+                            
+                    gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
+                    BINANCE_COMMISSION_PCT = 0.20
+                    net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT if gross_change_pct > 0 else gross_change_pct
                     
-                    sell_proposal = {
-                        "should_trade": True,
-                        "symbol": target_symbol,
-                        "direction": "SELL",
-                        "is_stop_loss": is_stop_loss,
-                        "amount_usd": round(val_usd, 2),
-                        "amount_coin": coin_amount,
-                        "entry_price": recorded_buy_p,
-                        "net_profit_pct": round(net_profit_pct, 2),
-                        "gross_change_pct": round(gross_change_pct, 2),
-                        "stop_loss_percent": user_sl,
-                        "stop_loss_price": round(recorded_buy_p * (1 - (user_sl/100.0)), 8 if recorded_buy_p < 1 else 2),
-                        "take_profit_price": round(recorded_buy_p * (1 + (user_tp/100.0)), 8 if recorded_buy_p < 1 else 2),
-                        "risk_justification": f"Otonom {reason_type}: {asset_upper} pozisyonu ({gross_change_pct:+.2f}%) {pair_quote} cüzdanına dönüştürülüyor."
-                    }
-                    return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
-                else:
-                    print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} pozisyonu henüz kâr hedefinde değil ({gross_change_pct:+.2f}%). Satış yapılmıyor.")
+                    # KÂR ALMA / STOP-LOSS TETİKLENME DENETİMİ
+                    if net_profit_pct >= user_tp or gross_change_pct <= -user_sl:
+                        is_stop_loss = gross_change_pct <= -user_sl
+                        reason_type = f"Stop-Loss (%{gross_change_pct:.2f})" if is_stop_loss else f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
+                        print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Borsa: {'TR' if is_tr_silo else 'Global'}, Net: %{net_profit_pct:+.2f}) satılıyor...")
+                        
+                        sell_proposal = {
+                            "should_trade": True,
+                            "symbol": target_symbol,
+                            "direction": "SELL",
+                            "is_stop_loss": is_stop_loss,
+                            "amount_usd": round(val_fiat / 47.80 if is_tr_silo else val_fiat, 2),
+                            "amount_coin": coin_amount,
+                            "entry_price": recorded_buy_p,
+                            "net_profit_pct": round(net_profit_pct, 2),
+                            "gross_change_pct": round(gross_change_pct, 2),
+                            "stop_loss_percent": user_sl,
+                            "stop_loss_price": round(recorded_buy_p * (1 - (user_sl/100.0)), 8 if recorded_buy_p < 1 else 2),
+                            "take_profit_price": curr_p,
+                            "risk_justification": f"Otomatik Kâr/Zarar Kapatma: {asset_upper}/{pair_quote} {reason_type}"
+                        }
+                        return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
+                    else:
+                        print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} (Birim: {pair_quote}, Net: %{net_profit_pct:+.2f}). Hedefe henüz ulaşmadı.")
 
     # Serbest nakit kontrolü (Çift Borsa ve Tekil Borsa Tam Uyumlu)
+    holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
     free_try = 0.0
     free_usdt = float(portfolio_state.get("free_usdt") or 0.0)
     if isinstance(holdings, dict):
