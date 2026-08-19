@@ -141,14 +141,19 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                 else:
                     print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} pozisyonu henüz kâr hedefinde değil ({gross_change_pct:+.2f}%). Satış yapılmıyor.")
 
-    news_analysis = {"sentiment_score": state.get("sentiment_score", 0.0), "market_data": state.get("news_data", "")}
-    # Main coins ve altcoinler arasından en yüksek potansiyelli coini seçer
-    proposal = formulate_trade_strategy(news_analysis, portfolio_state, 64000.0, symbol="AUTO")
-    
-    if not proposal.get("should_trade", True):
-        print("   [Risk Reddi]: İşlem şartları oluşmadı. Akış sonlandırılıyor.")
+    # Serbest nakit kontrolü
+    free_try = 0.0
+    free_usdt = float(portfolio_state.get("free_usdt") or 0.0)
+    if isinstance(holdings, dict):
+        free_try = float(holdings.get("TRY", {}).get("amount", 0.0) if isinstance(holdings.get("TRY"), dict) else holdings.get("TRY", 0.0))
+        if free_usdt <= 0:
+            free_usdt = float(holdings.get("USDT", {}).get("amount", 0.0) if isinstance(holdings.get("USDT"), dict) else holdings.get("USDT", 0.0))
+            
+    free_cash_usd = (free_try / 47.80) if is_tr_user else free_usdt
+    if free_cash_usd < 8.0:
+        print(f"   ⏳ [Nakit Bakiye Yetersiz]: Serbest nakit (${free_cash_usd:.2f}) yeni alım için yetersiz. Bekletiliyor.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
-        
+
     # KATI PORTFÖY ÇEŞİTLİLİK ENGELİ: Cüzdanda MADDETEN BULUNAN coinleri tekrar almayı KESİNLİKLE engeller
     current_assets = []
     if isinstance(holdings, dict):
@@ -158,55 +163,51 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             if amt > 0.0001 and val >= 1.0:
                 current_assets.append(str(k).upper())
 
-    proposed_symbol = str(proposal.get("symbol", "PEPE/USDT")).upper()
-    if proposed_symbol.startswith("BTC") or proposed_symbol.startswith("ETH") or "AUTO" in proposed_symbol:
-        proposed_symbol = "PEPE/USDT"
-        
     from surge_detector import get_active_trading_symbols
     active_syms = get_active_trading_symbols()
-    clean_prop_sym = proposed_symbol.replace("/", "").replace("_", "").upper()
-    is_prop_active = (not active_syms) or (clean_prop_sym in active_syms)
 
-    if proposed_base in current_assets or proposed_base in ["BTC", "ETH"] or not is_prop_active:
-        # KATI KURAL: Sadece o an canlı TRADING durumundaki balina patlaması adayları
-        dynamic_candidates = []
-        try:
-            early_surges = detect_early_volume_breakouts(quote=pair_quote)
-            for es in early_surges:
-                sym_c = es.get("symbol", "")
-                if sym_c and sym_c not in dynamic_candidates:
-                    dynamic_candidates.append(sym_c)
-        except Exception:
-            pass
-            
-        try:
-            top_g = fetch_top_volume_gainers(limit=15)
-            for tg in top_g:
-                sym_c = tg.get("symbol", "")
-                if sym_c and sym_c not in dynamic_candidates:
-                    dynamic_candidates.append(sym_c)
-        except Exception:
-            pass
+    # DOĞRUDAN VE KESİNTİSİZ ERKEN BALİNA VE HACİM PATLAMASI TARAYICI
+    dynamic_candidates = []
+    try:
+        early_surges = detect_early_volume_breakouts(quote=pair_quote)
+        for es in early_surges:
+            sym_c = es.get("symbol", "")
+            if sym_c and sym_c not in dynamic_candidates:
+                dynamic_candidates.append(sym_c)
+    except Exception:
+        pass
         
-        fresh_coin = None
-        for c in dynamic_candidates:
-            c_base = c.split("/")[0].split("_")[0].upper()
-            c_clean = c.replace("/", "").replace("_", "").upper()
-            # Sadece cüzdanda zaten bulunanları, kapalı tahtaları ve sabit paraları atla
-            if c_base not in current_assets and c_base not in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
-                if not active_syms or c_clean in active_syms:
-                    fresh_coin = c
-                    break
-            
-        if fresh_coin:
-            fresh_base = fresh_coin.split("/")[0].upper()
-            print(f"   🚨 [Canlı Balina Seçimi]: Anlık 5dk hacim patlaması yakalanan '{fresh_base}/{pair_quote}' seçildi.")
-            proposal["symbol"] = f"{fresh_base}/{pair_quote}"
-            proposal["amount_usd"] = min(15.0, max(10.0, free_cash_usd))
-        else:
-            print(f"   ⏳ [Piyasa Beklemede (HOLD)]: Şu anda anlık balina hacim patlaması şartını sağlayan yeni coin bulunamadı. Nakit boş yere bağlanmıyor, balina bekleniyor.")
-            return {"trade_proposal": None, "human_approval": "Rejected"}
-                
+    try:
+        top_g = fetch_top_volume_gainers(limit=15)
+        for tg in top_g:
+            sym_c = tg.get("symbol", "")
+            if sym_c and sym_c not in dynamic_candidates:
+                dynamic_candidates.append(sym_c)
+    except Exception:
+        pass
+    
+    fresh_coin = None
+    for c in dynamic_candidates:
+        c_base = c.split("/")[0].split("_")[0].upper()
+        c_clean = c.replace("/", "").replace("_", "").upper()
+        # Sadece cüzdanda zaten bulunanları, kapalı tahtaları ve sabit paraları atla
+        if c_base not in current_assets and c_base not in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
+            if not active_syms or c_clean in active_syms:
+                fresh_coin = c
+                break
+        
+    if not fresh_coin:
+        print("   ⏳ [Piyasa Beklemede (HOLD)]: Şu anda anlık balina hacim patlaması şartını sağlayan yeni coin bulunamadı.")
+        return {"trade_proposal": None, "human_approval": "Rejected"}
+
+    fresh_base = fresh_coin.split("/")[0].split("_")[0].upper()
+    proposal = {
+        "should_trade": True,
+        "symbol": f"{fresh_base}/{pair_quote}",
+        "direction": "BUY",
+        "amount_usd": min(15.0, max(10.0, free_cash_usd)),
+        "stop_loss_percent": 1.5,
+        "risk_justification": f"Otomatik Balina Hacim Patlaması: {fresh_base}/{pair_quote} seçildi."
     final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
     proposal["symbol"] = f"{final_base}/{pair_quote}"
     proposal["amount_usd"] = min(15.0, max(10.0, free_cash_usd))
