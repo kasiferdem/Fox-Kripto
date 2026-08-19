@@ -189,8 +189,10 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         print("   ⏳ [Piyasa Beklemede (HOLD)]: Şu anda anlık balina hacim patlaması şartını sağlayan yeni coin bulunamadı.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
 
-    fresh_base = fresh_coin.split("/")[0].split("_")[0].upper()
-    safe_budget_usd = round(min(15.0, max(10.0, free_cash_usd * 0.98)), 2)
+    # KASADAKİ SERBEST NAKDİN TAMAMINI DİNAMİK VE ESNEK KULLAN (SABİT RAKAM DAYATMASI SIFIRLANDI)
+    budget_pct = float(tenant_config.get("max_budget_percent") or 100.0) / 100.0
+    safe_budget_usd = round(free_cash_usd * budget_pct * 0.98, 2)
+    
     proposal = {
         "should_trade": True,
         "symbol": f"{fresh_base}/{pair_quote}",
