@@ -89,7 +89,7 @@ class BinanceTRClient:
                 params["quoteOrderQty"] = f"{amount_try:.2f}"
         else:
             asset_coin = clean_symbol.split("_")[0].upper()
-            qty_to_sell = amount
+            qty_to_sell = 0.0
             try:
                 bal = self.fetch_balance()
                 free_coin_amount = float(bal.get("free", {}).get(asset_coin, 0.0))
@@ -97,6 +97,8 @@ class BinanceTRClient:
                     qty_to_sell = free_coin_amount
             except Exception:
                 pass
+            if qty_to_sell <= 0.0:
+                qty_to_sell = amount
             
             # Sembole Özel Katı Adım Hassasiyeti (Exact Step Size Mapping for Binance TR)
             import math
