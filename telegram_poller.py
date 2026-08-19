@@ -274,8 +274,12 @@ def handle_update(update: dict):
                             pnl_str = ""
                             entry_info = saved_pos.get(f"{a}_TR") or saved_pos.get(a)
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
+                            entry_cur = str(entry_info.get("currency", "TRY")).upper() if isinstance(entry_info, dict) else "TRY"
                             if entry_p > 0 and amt > 0:
                                 curr_unit_p = val_try / amt
+                                # Eğer maliyet USD olarak kaydedildiyse TRY'ye dönüştür
+                                if entry_cur == "USDT" or (entry_p < curr_unit_p / 20.0):
+                                    entry_p = entry_p * usd_try_rate
                                 pnl_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
                                 pnl_fiat = val_try - (amt * entry_p)
                                 if pnl_pct >= 0:
@@ -305,8 +309,12 @@ def handle_update(update: dict):
                             pnl_str = ""
                             entry_info = saved_pos.get(a) or saved_pos.get(f"{a}_USDT") or saved_pos.get(f"{a}_GLOBAL")
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
+                            entry_cur = str(entry_info.get("currency", "USDT")).upper() if isinstance(entry_info, dict) else "USDT"
                             if entry_p > 0 and amt > 0:
                                 curr_unit_p = val / amt
+                                # Eğer maliyet TRY olarak kaydedildiyse USD'ye dönüştür
+                                if entry_cur == "TRY" or (entry_p > curr_unit_p * 20.0):
+                                    entry_p = entry_p / usd_try_rate
                                 pnl_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
                                 pnl_fiat = val - (amt * entry_p)
                                 if pnl_pct >= 0:
