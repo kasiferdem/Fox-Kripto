@@ -176,28 +176,67 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         pass
     
     fresh_coin = None
+    best_candidate_meta = None
     for c in dynamic_candidates:
-        c_base = c.split("/")[0].split("_")[0].upper()
+        c_sym = c.get("symbol", "") if isinstance(c, dict) else str(c)
+        c_base = c_sym.split("/")[0].split("_")[0].upper()
         target_pair_clean = f"{c_base}{pair_quote}"
-        # Sadece cüzdanda zaten bulunanları, kapalı tahtaları ve sabit paraları atla
         if c_base not in current_assets and c_base not in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
             if not active_syms or target_pair_clean in active_syms:
                 fresh_coin = f"{c_base}/{pair_quote}"
+                best_candidate_meta = c if isinstance(c, dict) else {}
                 break
         
     if not fresh_coin:
         print("   ⏳ [Piyasa Beklemede (HOLD)]: Şu anda anlık balina hacim patlaması şartını sağlayan yeni coin bulunamadı.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
 
-    # PORTFÖY RİSK VE SEPET DİSİPLİNİ (Yumurtaları Asla Tek Sepete Koyma Kuralı)
-    total_portfolio_usd = float(portfolio_state.get("total_usdt", 0.0)) or free_cash_usd
-    budget_pct = float(tenant_config.get("max_budget_percent") or 10.0) / 100.0
-    target_pos_size_usd = total_portfolio_usd * budget_pct
+    fresh_base = fresh_coin.split("/")[0].split("_")[0].upper()
     
+    # 🧠 1. ANALİZ BOTU DERİN DEĞERLENDİRMESİ (1.0 - 10.0 Arası Yapay Zeka Skoru)
+    base_score = float(best_candidate_meta.get("momentum_score", 7.0)) if best_candidate_meta else 7.0
+    vol_ratio = float(best_candidate_meta.get("volume_spike_ratio", 2.0)) if best_candidate_meta else 2.0
+    price_5m = float(best_candidate_meta.get("price_change_5m", 2.5)) if best_candidate_meta else 2.5
+    
+    # Derinlik (Orderbook) Analizi ile Skoru Hassaslaştır
+    orderbook_boost = 0.0
+    try:
+        clean_target = f"{fresh_base}{pair_quote}".upper()
+        depth_res = requests.get(f"https://api.binance.com/api/v3/depth?symbol={clean_target}&limit=5", timeout=2).json()
+        bids_vol = sum(float(b[1]) for b in depth_res.get("bids", []))
+        asks_vol = sum(float(a[1]) for a in depth_res.get("asks", []))
+        if asks_vol > 0 and (bids_vol / asks_vol) >= 1.5:
+            orderbook_boost = 1.0 # Alıcı duvarı çok baskın (+1.0 puan)
+        elif asks_vol > 0 and (bids_vol / asks_vol) <= 0.7:
+            orderbook_boost = -1.0 # Satış duvarı var (-1.0 puan)
+    except Exception:
+        pass
+        
+    ai_conviction_score = min(10.0, max(1.0, round(base_score + orderbook_boost, 1)))
+    
+    # 🤖 2. STRATEJİ BOTU DİNAMİK BÜTÇE VE SEPET KARARI (Kalıplar Değil, Zeka Konuşur):
+    # Analiz botunun verdiği skora göre serbest kasanın ne kadarının ayrılacağı dinamik belirlenir:
+    if ai_conviction_score >= 8.5:
+        # Zirve Balina / Devasa Sıçrama Beklentisi -> Kasanın %35 - %45'i
+        allocation_ratio = 0.40
+        conviction_label = "Zirve Balina İvmesi (Yüksek Güven)"
+    elif ai_conviction_score >= 7.0:
+        # Güçlü Balina / Net Kırılım -> Kasanın %25 - %35'i
+        allocation_ratio = 0.30
+        conviction_label = "Güçlü Balina Kırılımı (Güçlü Güven)"
+    elif ai_conviction_score >= 5.5:
+        # Standart Kırılım -> Kasanın %15 - %25'i
+        allocation_ratio = 0.20
+        conviction_label = "Standart Balina Hareketi (Orta Güven)"
+    else:
+        # Skor 5.5 altı yetersiz -> İşlem iptal
+        print(f"   ⏳ [Analiz Botu Reddi]: {fresh_base} analiz skoru düşük ({ai_conviction_score}/10). İşlem açılmıyor.")
+        return {"trade_proposal": None, "human_approval": "Rejected"}
+        
     min_order_usd = 5.0 if pair_quote == "TRY" else 10.0
-    safe_budget_usd = round(min(target_pos_size_usd, free_cash_usd * 0.98), 2)
+    safe_budget_usd = round(free_cash_usd * allocation_ratio * 0.98, 2)
     
-    # Eğer serbest nakit pozisyon hedefinden az ama borsa asgarisini karşılıyorsa serbest nakdi kullan
+    # Eğer hesaplanan bütçe borsa asgarisinin altındaysa ama kasadaki para asgariye yetiyorsa, serbest parayla gir
     if safe_budget_usd < min_order_usd and free_cash_usd >= min_order_usd:
         safe_budget_usd = round(free_cash_usd * 0.98, 2)
         
@@ -206,8 +245,9 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         "symbol": f"{fresh_base}/{pair_quote}",
         "direction": "BUY",
         "amount_usd": safe_budget_usd,
+        "sentiment_score": ai_conviction_score,
         "stop_loss_percent": 1.5,
-        "risk_justification": f"Otomatik Sepet & Balina Girişi: {fresh_base}/{pair_quote} (Bütçe Payı: %{budget_pct*100:.0f})"
+        "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10 ({conviction_label}) -> Strateji Kararı: Serbest kasanın %{allocation_ratio*100:.0f}'i (${safe_budget_usd} USD) tahsis edildi."
     }
     final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
     proposal["symbol"] = f"{final_base}/{pair_quote}"
