@@ -419,11 +419,26 @@ def handle_update(update: dict):
             from prompts import call_gpt4o
             
             top_gainers = fetch_top_volume_gainers(limit=5)
-            early_surges = detect_early_volume_breakouts()
+            early_surges_usdt = detect_early_volume_breakouts(quote="USDT")
+            early_surges_try = detect_early_volume_breakouts(quote="TRY")
+            all_surges = early_surges_usdt[:3] + early_surges_try[:3]
             news_items = fetch_live_global_crypto_news(limit_per_source=2)
             
-            surges_str = "\n".join([f"• 🚨 {s['symbol']}: Fiyat=${s['price']} | 5dk Değişim=+%{s['price_change_5m']}% | Balina Hacmi={s['volume_spike_ratio']}x" for s in early_surges]) if early_surges else "Şu an ani 5dk balina girişi tespit edilmedi."
-            gainers_summary = "\n".join([f"• {g['symbol']}: ${g['last_price']} (%{g['percentage_change']:+.2f} 24h) | Hacim: ${g['volume']:,.0f}" for g in top_gainers])
+            surges_lines = []
+            for s in all_surges:
+                sym = s['symbol']
+                exch_badge = "🇹🇷 Binance TR" if sym.endswith("TRY") else "🌍 Binance Global"
+                cur_badge = "₺" if sym.endswith("TRY") else "$"
+                surges_lines.append(f"• 🚨 *{sym}* ({exch_badge}): {cur_badge}{s['price']} | 5dk Değişim=+%{s['price_change_5m']}% | Balina Hacmi={s['volume_spike_ratio']}x")
+                
+            gainers_lines = []
+            for g in top_gainers:
+                sym = g['symbol']
+                exch_badge = "🇹🇷 Binance TR" if sym.endswith("TRY") else "🌍 Binance Global"
+                gainers_lines.append(f"• *{sym}* ({exch_badge}): ${g['last_price']} (%{g['percentage_change']:+.2f} 24h) | Hacim: ${g['volume']:,.0f}")
+                
+            surges_str = "\n".join(surges_lines) if surges_lines else "Şu an ani 5dk balina girişi tespit edilmedi."
+            gainers_summary = "\n".join(gainers_lines)
             news_summary = "\n".join(news_items[:3]) if news_items else "Piyasa sakin seyrediyor."
             
             if is_en:
