@@ -173,6 +173,7 @@ class BinanceGlobalRESTClient:
         self.base_url = "https://api.binance.com"
 
     def _sign(self, params: dict) -> str:
+        params['recvWindow'] = 60000
         params['timestamp'] = int(time.time() * 1000)
         query = '&'.join([f'{k}={v}' for k, v in sorted(params.items())])
         sig = hmac.new(self.secret.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
