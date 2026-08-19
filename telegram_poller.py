@@ -276,19 +276,26 @@ def handle_update(update: dict):
                         if a == "TRY":
                             free_try = amt
                         elif val_try > 2.0: # 2 TL altı tozları gizle
-                            pnl_str = ""
+                            curr_unit_p = val_try / amt if amt > 0 else 0.0
                             entry_info = saved_pos_tr.get(a)
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
-                            if entry_p > 0 and amt > 0:
-                                curr_unit_p = val_try / amt
-                                gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
-                                # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
-                                pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
-                                pnl_fiat = val_try - (amt * entry_p) - (val_try * 0.002 if gross_pct > 0 else 0.0)
-                                if pnl_pct >= 0:
-                                    pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+₺{pnl_fiat:,.2f} TL)"
-                                else:
-                                    pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-₺{abs(pnl_fiat):,.2f} TL)"
+                            if entry_p <= 0 and curr_unit_p > 0:
+                                entry_p = curr_unit_p
+                                saved_pos_tr[a] = {"buy_price": entry_p, "currency": "TRY", "time": time.time()}
+                                try:
+                                    with open(p_tr_file, "w", encoding="utf-8") as pf:
+                                        json.dump(saved_pos_tr, pf, indent=2)
+                                except Exception:
+                                    pass
+                            
+                            gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
+                            # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
+                            pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
+                            pnl_fiat = val_try - (amt * entry_p) - (val_try * 0.002 if gross_pct > 0 else 0.0)
+                            if pnl_pct >= 0:
+                                pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+₺{pnl_fiat:,.2f} TL)"
+                            else:
+                                pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-₺{abs(pnl_fiat):,.2f} TL)"
                             tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{val_try:,.2f} TL{pnl_str})\n"
                 if not tr_holdings_str:
                     tr_holdings_str = " • _(No open coin positions)_\n" if is_en else " • _(Açık coin pozisyonu yok)_\n"
@@ -309,19 +316,26 @@ def handle_update(update: dict):
                         amt = info["amount"]
                         val = info["val_usd"]
                         if a != "USDT" and val >= 0.10: # $0.10 altı tozları gizle
-                            pnl_str = ""
+                            curr_unit_p = val / amt if amt > 0 else 0.0
                             entry_info = saved_pos_gl.get(a)
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
-                            if entry_p > 0 and amt > 0:
-                                curr_unit_p = val / amt
-                                gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0
-                                # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
-                                pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
-                                pnl_fiat = val - (amt * entry_p) - (val * 0.002 if gross_pct > 0 else 0.0)
-                                if pnl_pct >= 0:
-                                    pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+${pnl_fiat:,.2f} USD)"
-                                else:
-                                    pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-${abs(pnl_fiat):,.2f} USD)"
+                            if entry_p <= 0 and curr_unit_p > 0:
+                                entry_p = curr_unit_p
+                                saved_pos_gl[a] = {"buy_price": entry_p, "currency": "USDT", "time": time.time()}
+                                try:
+                                    with open(p_gl_file, "w", encoding="utf-8") as pf:
+                                        json.dump(saved_pos_gl, pf, indent=2)
+                                except Exception:
+                                    pass
+                            
+                            gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
+                            # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
+                            pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
+                            pnl_fiat = val - (amt * entry_p) - (val * 0.002 if gross_pct > 0 else 0.0)
+                            if pnl_pct >= 0:
+                                pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+${pnl_fiat:,.2f} USD)"
+                            else:
+                                pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-${abs(pnl_fiat):,.2f} USD)"
                             gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{pnl_str})\n"
                 if not gl_holdings_str:
                     if gl_has_error:
