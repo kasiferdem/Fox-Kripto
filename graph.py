@@ -176,95 +176,84 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         pass
     
     fresh_coin = None
-    best_candidate_meta = None
+    selected_proposal = None
+    
     for c in dynamic_candidates:
         c_sym = c.get("symbol", "") if isinstance(c, dict) else str(c)
         c_base = c_sym.split("/")[0].split("_")[0].upper()
         target_pair_clean = f"{c_base}{pair_quote}"
-        if c_base not in current_assets and c_base not in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
-            if not active_syms or target_pair_clean in active_syms:
-                fresh_coin = f"{c_base}/{pair_quote}"
-                best_candidate_meta = c if isinstance(c, dict) else {}
-                break
+        if c_base in current_assets or c_base in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
+            continue
+        if active_syms and target_pair_clean not in active_syms:
+            continue
+            
+        # 🧠 1. ANALİZ BOTU DERİN DEĞERLENDİRMESİ
+        best_candidate_meta = c if isinstance(c, dict) else {}
+        base_score = float(best_candidate_meta.get("momentum_score", 7.0))
         
-    if not fresh_coin:
-        print("   ⏳ [Piyasa Beklemede (HOLD)]: Şu anda anlık balina hacim patlaması şartını sağlayan yeni coin bulunamadı.")
+        # Derinlik (Orderbook) Analizi ile Skoru Hassaslaştır
+        orderbook_boost = 0.0
+        try:
+            depth_res = requests.get(f"https://api.binance.com/api/v3/depth?symbol={target_pair_clean}&limit=5", timeout=2).json()
+            bids_vol = sum(float(b[1]) for b in depth_res.get("bids", []))
+            asks_vol = sum(float(a[1]) for a in depth_res.get("asks", []))
+            if asks_vol > 0 and (bids_vol / asks_vol) >= 1.3:
+                orderbook_boost = 1.0
+            elif asks_vol > 0 and (bids_vol / asks_vol) <= 0.7:
+                orderbook_boost = -1.0
+        except Exception:
+            pass
+            
+        ai_conviction_score = min(10.0, max(1.0, round(base_score + orderbook_boost, 1)))
+        if ai_conviction_score < 5.5:
+            # Skor zayıf, bir sonraki adaya geç
+            continue
+            
+        # 🤖 2. STRATEJİ BOTU DİNAMİK BÜTÇE TAHSİSİ
+        if ai_conviction_score >= 8.5:
+            allocation_ratio = 0.40
+            conviction_label = "Zirve Balina İvmesi (Yüksek Güven)"
+        elif ai_conviction_score >= 7.0:
+            allocation_ratio = 0.30
+            conviction_label = "Güçlü Balina Kırılımı (Güçlü Güven)"
+        else:
+            allocation_ratio = 0.20
+            conviction_label = "Standart Balina Hareketi (Orta Güven)"
+            
+        min_order_usd = 5.0 if pair_quote == "TRY" else 10.0
+        safe_budget_usd = round(free_cash_usd * allocation_ratio * 0.98, 2)
+        if safe_budget_usd < min_order_usd and free_cash_usd >= min_order_usd:
+            safe_budget_usd = round(free_cash_usd * 0.98, 2)
+            
+        if safe_budget_usd < min_order_usd:
+            continue
+            
+        fresh_coin = f"{c_base}/{pair_quote}"
+        real_ticker = fetch_ticker_price(fresh_coin)
+        real_entry_price = float(real_ticker.get("last_price") or 1.0)
+        if real_entry_price <= 0:
+            continue
+            
+        selected_proposal = {
+            "should_trade": True,
+            "symbol": fresh_coin,
+            "direction": "BUY",
+            "amount_usd": safe_budget_usd,
+            "sentiment_score": ai_conviction_score,
+            "stop_loss_percent": user_sl,
+            "entry_price": real_entry_price,
+            "take_profit_price": round(real_entry_price * (1 + (user_tp / 100.0)), 6 if real_entry_price < 1 else 2),
+            "stop_loss_price": round(real_entry_price * (1 - (user_sl / 100.0)), 6 if real_entry_price < 1 else 2),
+            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10 ({conviction_label}) -> Strateji Kararı: Serbest kasanın %{allocation_ratio*100:.0f}'i (${safe_budget_usd} USD) tahsis edildi."
+        }
+        break
+        
+    if not selected_proposal:
+        print("   ⏳ [Piyasa Beklemede (HOLD)]: Şu anda anlık balina şartını sağlayan onaylı yeni coin bulunamadı.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
 
-    fresh_base = fresh_coin.split("/")[0].split("_")[0].upper()
-    
-    # 🧠 1. ANALİZ BOTU DERİN DEĞERLENDİRMESİ (1.0 - 10.0 Arası Yapay Zeka Skoru)
-    base_score = float(best_candidate_meta.get("momentum_score", 7.0)) if best_candidate_meta else 7.0
-    vol_ratio = float(best_candidate_meta.get("volume_spike_ratio", 2.0)) if best_candidate_meta else 2.0
-    price_5m = float(best_candidate_meta.get("price_change_5m", 2.5)) if best_candidate_meta else 2.5
-    
-    # Derinlik (Orderbook) Analizi ile Skoru Hassaslaştır
-    orderbook_boost = 0.0
-    try:
-        clean_target = f"{fresh_base}{pair_quote}".upper()
-        depth_res = requests.get(f"https://api.binance.com/api/v3/depth?symbol={clean_target}&limit=5", timeout=2).json()
-        bids_vol = sum(float(b[1]) for b in depth_res.get("bids", []))
-        asks_vol = sum(float(a[1]) for a in depth_res.get("asks", []))
-        if asks_vol > 0 and (bids_vol / asks_vol) >= 1.5:
-            orderbook_boost = 1.0 # Alıcı duvarı çok baskın (+1.0 puan)
-        elif asks_vol > 0 and (bids_vol / asks_vol) <= 0.7:
-            orderbook_boost = -1.0 # Satış duvarı var (-1.0 puan)
-    except Exception:
-        pass
-        
-    ai_conviction_score = min(10.0, max(1.0, round(base_score + orderbook_boost, 1)))
-    
-    # 🤖 2. STRATEJİ BOTU DİNAMİK BÜTÇE VE SEPET KARARI (Kalıplar Değil, Zeka Konuşur):
-    # Analiz botunun verdiği skora göre serbest kasanın ne kadarının ayrılacağı dinamik belirlenir:
-    if ai_conviction_score >= 8.5:
-        # Zirve Balina / Devasa Sıçrama Beklentisi -> Kasanın %35 - %45'i
-        allocation_ratio = 0.40
-        conviction_label = "Zirve Balina İvmesi (Yüksek Güven)"
-    elif ai_conviction_score >= 7.0:
-        # Güçlü Balina / Net Kırılım -> Kasanın %25 - %35'i
-        allocation_ratio = 0.30
-        conviction_label = "Güçlü Balina Kırılımı (Güçlü Güven)"
-    elif ai_conviction_score >= 5.5:
-        # Standart Kırılım -> Kasanın %15 - %25'i
-        allocation_ratio = 0.20
-        conviction_label = "Standart Balina Hareketi (Orta Güven)"
-    else:
-        # Skor 5.5 altı yetersiz -> İşlem iptal
-        print(f"   ⏳ [Analiz Botu Reddi]: {fresh_base} analiz skoru düşük ({ai_conviction_score}/10). İşlem açılmıyor.")
-        return {"trade_proposal": None, "human_approval": "Rejected"}
-        
-    min_order_usd = 5.0 if pair_quote == "TRY" else 10.0
-    safe_budget_usd = round(free_cash_usd * allocation_ratio * 0.98, 2)
-    
-    # Eğer hesaplanan bütçe borsa asgarisinin altındaysa ama kasadaki para asgariye yetiyorsa, serbest parayla gir
-    if safe_budget_usd < min_order_usd and free_cash_usd >= min_order_usd:
-        safe_budget_usd = round(free_cash_usd * 0.98, 2)
-        
-    proposal = {
-        "should_trade": True,
-        "symbol": f"{fresh_base}/{pair_quote}",
-        "direction": "BUY",
-        "amount_usd": safe_budget_usd,
-        "sentiment_score": ai_conviction_score,
-        "stop_loss_percent": 1.5,
-        "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10 ({conviction_label}) -> Strateji Kararı: Serbest kasanın %{allocation_ratio*100:.0f}'i (${safe_budget_usd} USD) tahsis edildi."
-    }
-    final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
-    proposal["symbol"] = f"{final_base}/{pair_quote}"
-    proposal["amount_usd"] = safe_budget_usd
-    
-    # GERÇEK COIN FİYATINI VE TP/SL SEVİYELERİNİ ANLIK TICKER'DAN HESAPLA:
-    real_ticker = fetch_ticker_price(proposal["symbol"])
-    real_entry_price = float(real_ticker.get("last_price") or 1.0)
-    user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
-    user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
-    
-    proposal["entry_price"] = real_entry_price
-    proposal["take_profit_price"] = round(real_entry_price * (1 + (user_tp / 100.0)), 6 if real_entry_price < 1 else 2)
-    proposal["stop_loss_price"] = round(real_entry_price * (1 - (user_sl / 100.0)), 6 if real_entry_price < 1 else 2)
-    
-    print(f"   [Seçilen İşlem Teklifi]: {proposal['direction']} {proposal['symbol']} - Fiyat: ${real_entry_price} | TP: ${proposal['take_profit_price']} | SL: ${proposal['stop_loss_price']} | Bütçe: ${proposal['amount_usd']} USD ({pair_quote})")
-    return {"trade_proposal": proposal, "human_approval": "Approved"}
+    print(f"   [Seçilen İşlem Teklifi]: {selected_proposal['direction']} {selected_proposal['symbol']} - Fiyat: ${selected_proposal['entry_price']} | TP: ${selected_proposal['take_profit_price']} | SL: ${selected_proposal['stop_loss_price']} | Bütçe: ${selected_proposal['amount_usd']} USD ({pair_quote})")
+    return {"trade_proposal": selected_proposal, "human_approval": "Approved"}
 
 def node_human_approval(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [4. NODE: TAM OTONOM MOD ONAYI DEVREDE] ---")
