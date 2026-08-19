@@ -51,7 +51,20 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     }
     
     is_tr_user = bool(tenant_config and tenant_config.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
-    pair_quote = "TRY" if is_tr_user else "USDT"
+    exch_id_str = str(tenant_config.get("exchange_id", "")).lower() if tenant_config else ""
+    if exch_id_str in ["dual", "both"]:
+        bal_tr = portfolio_state.get("binance_tr", {})
+        bal_gl = portfolio_state.get("binance_global", {})
+        free_u = float(bal_gl.get("free_usdt", 0.0))
+        free_t = float(bal_tr.get("free_try", 0.0))
+        if free_u >= 10.0:
+            is_tr_user = False
+            pair_quote = "USDT"
+        else:
+            is_tr_user = True
+            pair_quote = "TRY"
+    else:
+        pair_quote = "TRY" if is_tr_user else "USDT"
     
     holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
     if isinstance(holdings, dict):
@@ -197,11 +210,11 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     fresh_coin = None
     for c in dynamic_candidates:
         c_base = c.split("/")[0].split("_")[0].upper()
-        c_clean = c.replace("/", "").replace("_", "").upper()
+        target_pair_clean = f"{c_base}{pair_quote}"
         # Sadece cüzdanda zaten bulunanları, kapalı tahtaları ve sabit paraları atla
         if c_base not in current_assets and c_base not in ["TRY", "USDT", "USDC", "FDUSD", "BUSD"]:
-            if not active_syms or c_clean in active_syms:
-                fresh_coin = c
+            if not active_syms or target_pair_clean in active_syms:
+                fresh_coin = f"{c_base}/{pair_quote}"
                 break
         
     if not fresh_coin:
