@@ -466,6 +466,69 @@ def admin_convert_bnb_to_usdt(chat_id: int = 8739367825):
         return {"error": "Tenant not found"}
     return execute_spot_trade(symbol="BNB/USDT", side="SELL", amount_usd=55.0, tenant_config=tenant)
 
+@app_api.get("/api/admin/liquidate-all-to-cash")
+def admin_liquidate_all_to_cash(chat_id: int = 8739367825):
+    """Kullanıcının TÜM açık pozisyonlarını piyasa fiyatından satarak %100 saf nakde (TRY ve USDT) çeker."""
+    from db import get_tenant_by_chat_id
+    from exchange import BinanceTRClient, BinanceGlobalRESTClient, fetch_portfolio_balance
+    import json
+    
+    tenant = get_tenant_by_chat_id(chat_id)
+    if not tenant:
+        return {"error": "Tenant not found"}
+        
+    results = {"binance_tr": {}, "binance_global": {}, "final_balances": {}}
+    raw_k = str(tenant.get("exchange_api_key", ""))
+    
+    if raw_k.startswith("{"):
+        kd = json.loads(raw_k)
+        
+        # 1. Binance TR Tasfiyesi
+        if "binancetr" in kd:
+            try:
+                cl_tr = BinanceTRClient(kd["binancetr"]["api_key"], kd["binancetr"]["secret_key"])
+                bal_tr = cl_tr.fetch_balance()
+                for c, amt in bal_tr.get("free", {}).items():
+                    c_up = str(c).upper()
+                    if c_up not in ["TRY", "USDT", "FDUSD", "BUSD", "USDC"] and float(amt or 0) > 0.001:
+                        try:
+                            r = cl_tr.create_order(symbol=f"{c_up}_TRY", type="market", side="sell", amount=0)
+                            results["binance_tr"][c_up] = {"status": "SOLD", "result": r}
+                        except Exception as te:
+                            results["binance_tr"][c_up] = {"status": "FAIL", "error": str(te)}
+            except Exception as e:
+                results["binance_tr_error"] = str(e)
+                
+        # 2. Binance Global Tasfiyesi
+        if "binance" in kd:
+            try:
+                cl_gl = BinanceGlobalRESTClient(kd["binance"]["api_key"], kd["binance"]["secret_key"])
+                bal_gl = cl_gl.fetch_balance()
+                for c, amt in bal_gl.get("free", {}).items():
+                    c_up = str(c).upper()
+                    if c_up not in ["TRY", "USDT", "FDUSD", "BUSD", "USDC"] and float(amt or 0) > 0.0001:
+                        try:
+                            r = cl_gl.create_order(symbol=f"{c_up}/USDT", type="market", side="sell", amount=float(amt))
+                            results["binance_global"][c_up] = {"status": "SOLD", "result": r}
+                        except Exception as ge:
+                            results["binance_global"][c_up] = {"status": "FAIL", "error": str(ge)}
+            except Exception as e:
+                results["binance_global_error"] = str(e)
+                
+    # Pozisyon dosyalarını sıfırla
+    import os
+    for pf_name in ["active_positions_tr.json", "active_positions_global.json"]:
+        pf_p = os.path.join(os.path.dirname(__file__), pf_name)
+        try:
+            with open(pf_p, "w", encoding="utf-8") as f:
+                json.dump({}, f)
+        except Exception:
+            pass
+
+    bal_after = fetch_portfolio_balance(tenant)
+    results["final_balances"] = bal_after
+    return results
+
 @app_api.get("/api/admin/test-spot-buy-user")
 def test_spot_buy_user():
     """DigitalOcean sunucusundan doğrudan $10 GPS/USDT alımını canlı test eder ve sonucu döner."""
