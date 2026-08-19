@@ -189,17 +189,25 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         print("   ⏳ [Piyasa Beklemede (HOLD)]: Şu anda anlık balina hacim patlaması şartını sağlayan yeni coin bulunamadı.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
 
-    # KASADAKİ SERBEST NAKDİN TAMAMINI DİNAMİK VE ESNEK KULLAN (SABİT RAKAM DAYATMASI SIFIRLANDI)
-    budget_pct = float(tenant_config.get("max_budget_percent") or 100.0) / 100.0
-    safe_budget_usd = round(free_cash_usd * budget_pct * 0.98, 2)
+    # PORTFÖY RİSK VE SEPET DİSİPLİNİ (Yumurtaları Asla Tek Sepete Koyma Kuralı)
+    total_portfolio_usd = float(portfolio_state.get("total_usdt", 0.0)) or free_cash_usd
+    budget_pct = float(tenant_config.get("max_budget_percent") or 10.0) / 100.0
+    target_pos_size_usd = total_portfolio_usd * budget_pct
     
+    min_order_usd = 5.0 if pair_quote == "TRY" else 10.0
+    safe_budget_usd = round(min(target_pos_size_usd, free_cash_usd * 0.98), 2)
+    
+    # Eğer serbest nakit pozisyon hedefinden az ama borsa asgarisini karşılıyorsa serbest nakdi kullan
+    if safe_budget_usd < min_order_usd and free_cash_usd >= min_order_usd:
+        safe_budget_usd = round(free_cash_usd * 0.98, 2)
+        
     proposal = {
         "should_trade": True,
         "symbol": f"{fresh_base}/{pair_quote}",
         "direction": "BUY",
         "amount_usd": safe_budget_usd,
         "stop_loss_percent": 1.5,
-        "risk_justification": f"Otomatik Balina Hacim Patlaması: {fresh_base}/{pair_quote} seçildi."
+        "risk_justification": f"Otomatik Sepet & Balina Girişi: {fresh_base}/{pair_quote} (Bütçe Payı: %{budget_pct*100:.0f})"
     }
     final_base = proposal["symbol"].split("/")[0].split("_")[0].upper()
     proposal["symbol"] = f"{final_base}/{pair_quote}"
