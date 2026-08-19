@@ -42,7 +42,7 @@ def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
 def run_autonomous_trading_loop():
     """
     7/24 Otonom Yapay Zeka Alım-Satım ve Piyasa Analiz Döngüsü.
-    Sistemdeki tüm aktif kullanıcılar (Tenants) için 15 dakikada bir piyasayı tarar.
+    Sistemdeki tüm aktif kullanıcılar (Tenants) için 5 saniyede bir piyasayı tarar.
     """
     print("🤖 [Yapay Zeka Otonom Ajan]: 7/24 Tam Otonom Alım-Satım Döngüsü Aktif!")
     import time
@@ -88,7 +88,7 @@ def run_autonomous_trading_loop():
                             "inline_keyboard": [
                                 [
                                     {"text": f"✅ Evet, Ek Alım Yap (${amount:.2f})", "callback_data": f"approve_scalein_{chat_id}"},
-                                    {"text": "❌ Hayır, Pas Geç", "callback_data": f"reject_scalein_{chat_id}"}
+                                    {"text": "❌ İptal Et (Pas Geç)", "callback_data": f"reject_scalein_{chat_id}"}
                                 ]
                             ]
                         }
@@ -108,10 +108,31 @@ def run_autonomous_trading_loop():
                         status_str = str(exec_res.get("status", "")).upper()
                         is_exec_success = status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]
                         
-                        # TEKRARLAYAN HATALAR İÇİN SPAM ENGELLEYİCİ:
-                        # Eğer emir bakiye vb. nedenlerle başarısız olduysa Telegram'ı mesajla darlama, sessizce logla!
+                        is_tr_tenant = bool(tenant and tenant.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
+                        
+                        # 🚨 BORSA HATALARINI DERHAL TELEGRAM İLE KULLANICIYA BİLDİR:
                         if not is_exec_success:
-                            print(f"   ⚠️ [Sessiz Filtre]: İşlem borsa tarafında gerçekleştirilemedi ({exec_res.get('error')}). Telegram spam engellendi.")
+                            err_msg = str(exec_res.get("error", "Bilinmeyen Borsa Hatası"))
+                            sym_target = proposal.get("symbol", "COIN") if proposal else "COIN"
+                            action_name = "ALIM (BUY)" if (proposal and proposal.get("direction") == "BUY") else "SATIM (SELL)"
+                            
+                            current_time = time.time()
+                            err_key = f"{sym_target}_{action_name}"
+                            if current_time - last_error_alerts.get(err_key, 0) > 300: # 5 dk spam filtresi
+                                last_error_alerts[err_key] = current_time
+                                from telegram_poller import send_message
+                                exch_name = "BINANCE.TR 🇹🇷" if is_tr_tenant else "BINANCE GLOBAL 🌍"
+                                warning_msg = (
+                                    f"⚠️ *7/24 OTONOM BORSA İŞLEM UYARISI*\n\n"
+                                    f"👤 Kullanıcı: {tenant_name}\n"
+                                    f"🪙 Hedef Balina / Coin: `{sym_target}`\n"
+                                    f"⚡ Yapılmak İstenen İşlem: *{action_name}*\n"
+                                    f"🏢 Borsa: {exch_name}\n\n"
+                                    f"❌ *Borsa Reddi / Hata Sebebi:*\n"
+                                    f"`{err_msg}`\n\n"
+                                    f"💡 *Gereken Aksiyon:* Bot bu işlemi yakaladı ancak borsa emri reddetti. Lütfen borsa hesabınızdaki Spot işlem iznini, bakiye veya IP tanımlarını kontrol edin."
+                                )
+                                send_message(chat_id, warning_msg)
                             continue
                         
                         symbol = exec_res.get("symbol") or (proposal.get("symbol") if proposal else "BTC/USDT")
