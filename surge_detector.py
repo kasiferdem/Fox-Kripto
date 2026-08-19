@@ -43,21 +43,31 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
         
     volume_spike_ratio = recent_5m_volume / avg_prev_volume
     price_change_5m = ((last_candle["close"] - last_candle["open"]) / last_candle["open"]) * 100.0
+    candle_range = last_candle["high"] - last_candle["low"]
     
-    # ERKEN FIRSAT ŞARTLARI:
-    # 1. Son 5 dakikada hacim ortalamasının en az 1.3x - 10x katı olmalı (Balina girişi)
-    # 2. Son 5 dakikada en az 10,000$ hacim girmiş olmalı
-    # 3. Fiyat değişimi +%0.3 ile +%6.0 arasında olmalı (Henüz fırlamamış, erken aşamada)
-    if volume_spike_ratio >= 1.3 and recent_5m_volume >= min_volume_usd and 0.3 <= price_change_5m <= max_recent_gain:
-        clean_base = sym.replace("USDT", "")
+    # Mum Formasyonu ve Alıcı Baskısı (Üst Fitil Analizi):
+    # Eğer üst fitil küçükse ve kapanış en yüksek seviyeye yakınsa (Baskılı Kırılım), balinanın koşusu yeni başlıyor demektir!
+    upper_wick_ratio = ((last_candle["high"] - last_candle["close"]) / candle_range) if candle_range > 0 else 0.0
+    
+    # ERKEN BALİNA KIRILIMI VE %20 KOŞU POTANSİYELİ ŞARTLARI:
+    # 1. Hacim İvmesi: Son 5dk hacmi ortalamanın en az 1.8x - 15.0x katı olmalı (Agresif Balina Girişi)
+    # 2. Hacim Büyüklüğü: Son 5 dakikada en az 15,000$ değerinde gerçek emir infaz edilmiş olmalı
+    # 3. Kırılım Başlangıcı: Fiyat değişimi tam %1.0 ile %5.5 arasında olmalı (Koşunun en başı!)
+    # 4. Satış Direnci Yok: Üst fitil %35'in altında olmalı (Yani tepeye doğru güçlü itiş var, satıcılar henüz karşısına çıkamamış)
+    if volume_spike_ratio >= 1.8 and recent_5m_volume >= min_volume_usd and (1.0 <= price_change_5m <= 5.5) and upper_wick_ratio <= 0.35:
+        # İvme Skoru Hesabı (0-10): Hacim patlaması + Mum gücü
+        momentum_score = min(10.0, round(5.0 + (volume_spike_ratio * 0.5) + (price_change_5m * 0.4), 1))
+        clean_base = sym.replace("USDT", "").replace("TRY", "")
+        quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
         return {
-            "symbol": f"{clean_base}/USDT",
+            "symbol": f"{clean_base}/{quote_suffix}",
             "price": last_candle["close"],
             "price_change_5m": round(price_change_5m, 2),
             "volume_spike_ratio": round(volume_spike_ratio, 1),
             "recent_5m_volume_usd": round(recent_5m_volume, 0),
-            "signal": "🔥 GÜÇLÜ BALİNA HACİM GİRİŞİ (Pre-Pump)",
-            "recommendation": f"Erken Giriş: +%{price_change_5m:.1f} artış ve {volume_spike_ratio:.1f}x hacim patlaması."
+            "momentum_score": momentum_score,
+            "signal": f"🚀 ERKEN BALİNA KIRILIMI (%{price_change_5m:.1f} Başlangıç / {volume_spike_ratio:.1f}x Hacim / Skor: {momentum_score})",
+            "recommendation": f"Erken Kırılım Tespiti: %20 koşusu potansiyeli %{price_change_5m:.1f} aşamasında yakalandı."
         }
     return None
 
@@ -82,13 +92,12 @@ def get_active_trading_symbols():
         pass
     return _cached_active_symbols
 
-def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 10000.0, max_recent_gain: float = 3.5) -> List[Dict[str, Any]]:
+def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 10000.0, max_recent_gain: float = 5.5) -> List[Dict[str, Any]]:
     """
     Tüm Binance USDT veya TRY tahtasını paralel tarayarak:
     1. YALNIZCA aktif işlem gören (TRADING durumundaki) spot tahtaları seçer.
-    2. DOYUMA ULAŞMAMIŞ (-5.0% ile +8.0% 24s değişimi olan) dipteki coinleri filtreler.
-    3. Son 5 dakikada normal ortalamasının 1.5x - 10x katı hacim patlaması yaşayan TAZE PRE-PUMP balinaları tespit eder.
-    4. Fiyatı henüz %0.05 ile %3.5 arasında yeni hareketlenen (Asla tepede olmayan) fırsatları seçer.
+    2. Son 5 dakikada normal ortalamasının 1.8x - 15x katı hacim patlaması yaşayan TAZE PRE-PUMP balinaları tespit eder.
+    3. Büyük bir %20 - %50 rallisinin henüz %1.0 ile %5.5 başlangıç evresinde olan (İvmesi yeni patlayan) fırsatları öngörür.
     """
     breakouts = []
     try:
@@ -104,13 +113,12 @@ def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 1
             if t["symbol"].endswith(quote_upper) 
             and (not active_syms or t["symbol"] in active_syms)
             and not any(t["symbol"].startswith(x) for x in ["USDC", "FDUSD", "EUR", "BUSD", "TUSD", "UP", "DOWN"])
-            and -5.0 <= float(t.get("priceChangePercent", 0)) <= 8.0 # KATI KURAL: %8 ÜZERİNE ÇIKMIŞ DOYMUŞ COİNLER KESİNLİKLE YASAK!
             and float(t.get("quoteVolume", 0)) > (100000.0 if quote_upper == "USDT" else 2000000.0)
             and float(t.get("lastPrice", 0)) > 0
         ]
         
-        # Hacmi en dinamik ilk 35 adayı seç ve 5dk mum patlamasını paralel test et
-        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:35]
+        # Hacmi en dinamik ilk 40 adayı seç ve 5dk kırılım ivmesini paralel test et
+        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:40]
         
         min_vol = min_volume_usd if quote_upper == "USDT" else (min_volume_usd * 47.8)
         with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
