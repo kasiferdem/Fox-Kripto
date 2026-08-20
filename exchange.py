@@ -77,6 +77,7 @@ class BinanceTRClient:
                 calc_try = round(amount_usd * usdt_try_price, 2)
                 
                 # Cüzdandaki serbest TL bakiyesini oku ve aşmayı engelle
+                free_try = 999999.0
                 try:
                     bal = self.fetch_balance()
                     free_try = float(bal.get("free", {}).get("TRY", 0.0))
@@ -86,7 +87,51 @@ class BinanceTRClient:
                     pass
                     
                 amount_try = max(calc_try, 10.0)
-                params["quoteOrderQty"] = f"{amount_try:.2f}"
+                
+                # 🎯 KULLANICI ÖNERİSİ: NET SATILABİLİR ADET ALIMI (SIFIR KÜSURAT / ZERO DUST)
+                # Alınacak coinin fiyatını ve borsa LOT_SIZE adımını hesaplayıp tam satılabilir adede yuvarla
+                base_coin = clean_symbol.split("_")[0].upper()
+                num_decimals = decimals_map.get(base_coin)
+                if num_decimals is None:
+                    try:
+                        r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={base_coin}USDT", timeout=2)
+                        if r_tr_info.status_code == 200:
+                            for s_item in r_tr_info.json().get("symbols", []):
+                                for f_item in s_item.get("filters", []):
+                                    if f_item.get("filterType") == "LOT_SIZE":
+                                        step_v = float(f_item.get("stepSize", 1.0))
+                                        num_decimals = 0 if step_v >= 1.0 else len(str(step_v).split(".")[1].rstrip("0"))
+                    except Exception:
+                        pass
+                if num_decimals is None:
+                    num_decimals = 0 if ("MUBARAK" in base_coin or "HEMI" in base_coin or "HEI" in base_coin) else 2
+
+                try:
+                    c_ticker = fetch_ticker_price(f"{base_coin}/TRY")
+                    coin_price = float(c_ticker.get("last_price", 0.0))
+                    if coin_price > 0:
+                        raw_qty = amount_try / coin_price
+                        if num_decimals == 0:
+                            safe_buy_qty = math.floor(raw_qty)
+                            if safe_buy_qty * coin_price > free_try and safe_buy_qty > 1:
+                                safe_buy_qty -= 1
+                            if safe_buy_qty > 0:
+                                params["quantity"] = f"{int(safe_buy_qty)}"
+                            else:
+                                params["quoteOrderQty"] = f"{amount_try:.2f}"
+                        else:
+                            mult = 10 ** num_decimals
+                            safe_buy_qty = math.floor(raw_qty * mult) / float(mult)
+                            if safe_buy_qty * coin_price > free_try:
+                                safe_buy_qty = max(0.0, safe_buy_qty - (1.0 / mult))
+                            if safe_buy_qty > 0:
+                                params["quantity"] = f"{safe_buy_qty:.{num_decimals}f}"
+                            else:
+                                params["quoteOrderQty"] = f"{amount_try:.2f}"
+                    else:
+                        params["quoteOrderQty"] = f"{amount_try:.2f}"
+                except Exception:
+                    params["quoteOrderQty"] = f"{amount_try:.2f}"
         else:
             asset_coin = clean_symbol.split("_")[0].upper()
             qty_to_sell = 0.0
@@ -242,12 +287,62 @@ class BinanceGlobalRESTClient:
         
         if side.upper() == "BUY":
             spend_usd = max(10.0, float(amount_usd or 10.0))
-            params = {
-                "symbol": clean_symbol,
-                "side": "BUY",
-                "type": "MARKET",
-                "quoteOrderQty": f"{spend_usd:.2f}"
+            
+            # 🎯 KULLANICI ÖNERİSİ: NET SATILABİLİR ADET ALIMI (SIFIR KÜSURAT / ZERO DUST)
+            step_map_buy = {
+                "BTC": 5, "ETH": 4, "SOL": 2, "AVAX": 2, "BNB": 3, 
+                "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0, "PLUME": 0,
+                "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2,
+                "OPN": 1, "LA": 1, "TUT": 0, "RED": 1, "MUBARAK": 0,
+                "HEMI": 0, "GNO": 3, "PROM": 2, "ZRO": 2, "HEI": 0
             }
+            dec_buy = step_map_buy.get(base_c)
+            if dec_buy is None:
+                try:
+                    r_info = requests.get("https://api.binance.com/api/v3/exchangeInfo", params={"symbol": clean_symbol}, timeout=2)
+                    if r_info.status_code == 200:
+                        for s_item in r_info.json().get("symbols", []):
+                            for f_item in s_item.get("filters", []):
+                                if f_item.get("filterType") == "LOT_SIZE":
+                                    step_v = float(f_item.get("stepSize", 1.0))
+                                    dec_buy = 0 if step_v >= 1.0 else len(str(step_v).split(".")[1].rstrip("0"))
+                except Exception:
+                    pass
+            if dec_buy is None:
+                dec_buy = 0 if "MUBARAK" in base_c or "HEMI" in base_c or "HEI" in base_c or "TREE" in base_c else 2
+                
+            try:
+                g_ticker = fetch_ticker_price(f"{base_c}/USDT")
+                g_price = float(g_ticker.get("last_price", 0.0))
+                if g_price > 0:
+                    raw_qty = spend_usd / g_price
+                    if dec_buy == 0:
+                        safe_buy_qty = math.floor(raw_qty)
+                        if safe_buy_qty > 0 and (safe_buy_qty * g_price >= 5.0):
+                            params = {
+                                "symbol": clean_symbol,
+                                "side": "BUY",
+                                "type": "MARKET",
+                                "quantity": f"{int(safe_buy_qty)}"
+                            }
+                        else:
+                            params = {"symbol": clean_symbol, "side": "BUY", "type": "MARKET", "quoteOrderQty": f"{spend_usd:.2f}"}
+                    else:
+                        mult = 10 ** dec_buy
+                        safe_buy_qty = math.floor(raw_qty * mult) / float(mult)
+                        if safe_buy_qty > 0 and (safe_buy_qty * g_price >= 5.0):
+                            params = {
+                                "symbol": clean_symbol,
+                                "side": "BUY",
+                                "type": "MARKET",
+                                "quantity": f"{safe_buy_qty:.{dec_buy}f}"
+                            }
+                        else:
+                            params = {"symbol": clean_symbol, "side": "BUY", "type": "MARKET", "quoteOrderQty": f"{spend_usd:.2f}"}
+                else:
+                    params = {"symbol": clean_symbol, "side": "BUY", "type": "MARKET", "quoteOrderQty": f"{spend_usd:.2f}"}
+            except Exception:
+                params = {"symbol": clean_symbol, "side": "BUY", "type": "MARKET", "quoteOrderQty": f"{spend_usd:.2f}"}
         else:
             try:
                 bal = self.fetch_balance()
