@@ -130,6 +130,7 @@ class BinanceTRClient:
                 "UTK": 0,
                 "JOE": 1,
                 "HEMI": 0,
+                "HEI": 0,
                 "GNO": 3,
                 "PROM": 2,
                 "MUBARAK": 0,
@@ -137,7 +138,7 @@ class BinanceTRClient:
             }
             
             base_coin = clean_symbol.split("_")[0].upper()
-            num_decimals = decimals_map.get(base_coin, 0 if "MUBARAK" in base_coin or "HEMI" in base_coin else (2 if qty_to_sell >= 1.0 else 3))
+            num_decimals = decimals_map.get(base_coin, 0 if ("MUBARAK" in base_coin or "HEMI" in base_coin or "HEI" in base_coin) else (2 if qty_to_sell >= 1.0 else 3))
             
             if num_decimals == 0:
                 params["quantity"] = f"{int(qty_to_sell)}"
