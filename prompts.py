@@ -104,13 +104,14 @@ def formulate_trade_strategy(
     free_try = try_details.get("amount", 0.0) if isinstance(try_details, dict) else float(try_details or 0.0)
     
     free_usdt = float(portfolio_state.get("free_usdt") or 0.0)
-    if free_usdt <= 0 and isinstance(portfolio_state.get("binance_global"), dict):
-        free_usdt = float(portfolio_state["binance_global"].get("free_usdt") or 0.0)
     if free_usdt <= 0 and isinstance(holdings, dict):
         usdt_d = holdings.get("USDT", {})
         free_usdt = float(usdt_d.get("amount", 0.0) if isinstance(usdt_d, dict) else usdt_d or 0.0)
         
-    free_cash_usd = (free_try / 34.80) + free_usdt
+    from exchange import get_live_usd_try_rate
+    live_fx = get_live_usd_try_rate()
+    if live_fx <= 0: live_fx = 35.0
+    free_cash_usd = (free_try / live_fx) + free_usdt
     
     # EĞER SERBEST NAKİT TL/USDT $1.00 USD ALTINDA İSE YENİ ALIM YAPMA (HOLD)!
     if free_cash_usd < 1.00 and free_usdt < 1.00 and free_try < 30.0:

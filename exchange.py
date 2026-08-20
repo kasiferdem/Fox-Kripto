@@ -9,15 +9,35 @@ load_dotenv()
 
 def get_live_usd_try_rate() -> float:
     """Canlı USDT/TRY kurunu Binance API üzerinden okur."""
+    endpoints = [
+        "https://api.binance.com/api/v3/ticker/price?symbol=USDTTRY",
+        "https://api.binance.tr/open/v1/market/ticker/price?symbol=USDT_TRY"
+    ]
+    for url in endpoints:
+        try:
+            r = requests.get(url, timeout=3)
+            if r.status_code == 200:
+                data = r.json()
+                price_val = float(data.get("price") or data.get("data", {}).get("price") or 0.0)
+                if price_val > 10.0:
+                    return price_val
+        except Exception:
+            continue
+    return 0.0
+
+def quantize_amount(amount: float, step_size: float = 1.0) -> float:
+    """Miktarı borsanın LOT_SIZE adımına göre Decimal ile tam ve güvenli aşağı yuvarlar."""
+    if amount <= 0:
+        return 0.0
+    if step_size <= 0:
+        step_size = 1.0
     try:
-        r = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=USDTTRY", timeout=3)
-        if r.status_code == 200:
-            p = float(r.json().get("price", 0.0))
-            if p > 10.0:
-                return p
+        dec_amt = Decimal(str(amount))
+        dec_step = Decimal(str(step_size))
+        quantized = (dec_amt // dec_step) * dec_step
+        return float(quantized)
     except Exception:
-        pass
-    return 47.80
+        return float(math.floor(amount))
 
 class BinanceTRClient:
     """Binance TR (www.binance.tr) Özel REST API İstemcisi"""
@@ -68,15 +88,6 @@ class BinanceTRClient:
         side_code = 0 if side.lower() == "buy" else 1
         type_code = 2 if type.lower() == "market" else 1
 
-        decimals_map = {
-            "BTC": 6, "ETH": 4, "SOL": 3, "BNB": 3, "AVAX": 2, "USDT": 0,
-            "EDEN": 1, "SUI": 1, "RENDER": 1, "NEAR": 1, "XRP": 1, "DOGE": 1,
-            "ADA": 1, "PEPE": 0, "SHIB": 0, "BONK": 0, "FLOKI": 0, "BOME": 0,
-            "GPS": 0, "ACE": 1, "ALPINE": 2, "OPN": 1, "LA": 1, "RED": 1,
-            "ACM": 2, "UTK": 0, "JOE": 1, "HEMI": 0, "HEI": 0, "GNO": 3,
-            "PROM": 2, "MUBARAK": 0, "ZRO": 2, "TREE": 0, "BIO": 0, "ORDI": 2
-        }
-
         params = {
             "symbol": clean_symbol,
             "side": side_code,
@@ -92,69 +103,61 @@ class BinanceTRClient:
                     amount_usdt = min(amount_usd, free_usdt * 0.99) if free_usdt > 1.0 else amount_usd
                 except Exception:
                     amount_usdt = amount_usd
-                params["quoteOrderQty"] = f"{max(amount_usdt, 10.0):.2f}"
+                if amount_usdt < 10.0:
+                    raise Exception(f"USDT alım tutarı (${amount_usdt:.2f}) asgari $10 limitinin altında.")
+                params["quoteOrderQty"] = f"{amount_usdt:.2f}"
             else:
-                ticker = fetch_ticker_price("USDT/TRY")
-                usdt_try_price = float(ticker.get('last_price', 35.0))
-                calc_try = round(amount_usd * usdt_try_price, 2)
+                usdt_try_price = get_live_usd_try_rate()
+                if usdt_try_price <= 0:
+                    raise Exception("Canlı USD/TRY kuru alınamadı. Güvenlik amacıyla alım durduruldu (Fail-Closed).")
                 
-                # Cüzdandaki serbest TL bakiyesini oku ve aşmayı engelle
-                free_try = 999999.0
+                # Kesin ve sıkı bütçe hesabı: Asla bakiye %95 gibi kontrolsüz büyümelere izin verilmez
+                calc_try = round(amount_usd * usdt_try_price, 2)
                 try:
                     bal = self.fetch_balance()
                     free_try = float(bal.get("free", {}).get("TRY", 0.0))
-                    if free_try >= 10.0 and (calc_try > free_try or calc_try < 10.0):
-                        calc_try = round(free_try * 0.95, 2)
+                    if calc_try > free_try:
+                        calc_try = round(free_try * 0.99, 2)
                 except Exception:
                     pass
                     
-                amount_try = max(calc_try, 10.0)
+                if calc_try < 10.0:
+                    raise Exception(f"Hesaplanan işlem tutarı (₺{calc_try:.2f}) asgari işlem sınırının (₺10) altında.")
                 
-                # 🎯 KULLANICI ÖNERİSİ: NET SATILABİLİR ADET ALIMI (SIFIR KÜSURAT / ZERO DUST)
-                # Alınacak coinin fiyatını ve borsa LOT_SIZE adımını hesaplayıp tam satılabilir adede yuvarla
+                amount_try = calc_try
+                
+                # LOT_SIZE adım büyüklüğü ve tam adet alımı
                 base_coin = clean_symbol.split("_")[0].upper()
-                num_decimals = decimals_map.get(base_coin)
-                if num_decimals is None:
-                    try:
-                        r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={base_coin}USDT", timeout=2)
-                        if r_tr_info.status_code == 200:
-                            for s_item in r_tr_info.json().get("symbols", []):
-                                for f_item in s_item.get("filters", []):
-                                    if f_item.get("filterType") == "LOT_SIZE":
-                                        step_v = float(f_item.get("stepSize", 1.0))
-                                        num_decimals = 0 if step_v >= 1.0 else len(str(step_v).split(".")[1].rstrip("0"))
-                    except Exception:
-                        pass
-                if num_decimals is None:
-                    num_decimals = 0 if ("MUBARAK" in base_coin or "HEMI" in base_coin or "HEI" in base_coin) else 2
+                step_size = 1.0
+                try:
+                    r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={base_coin}USDT", timeout=2)
+                    if r_tr_info.status_code == 200:
+                        for s_item in r_tr_info.json().get("symbols", []):
+                            for f_item in s_item.get("filters", []):
+                                if f_item.get("filterType") == "LOT_SIZE":
+                                    step_size = float(f_item.get("stepSize", 1.0))
+                except Exception:
+                    pass
 
                 try:
                     c_ticker = fetch_ticker_price(f"{base_coin}/TRY")
                     coin_price = float(c_ticker.get("last_price", 0.0))
                     if coin_price > 0:
                         raw_qty = amount_try / coin_price
-                        if num_decimals == 0:
-                            safe_buy_qty = math.floor(raw_qty)
-                            if safe_buy_qty * coin_price > free_try and safe_buy_qty > 1:
-                                safe_buy_qty -= 1
-                            if safe_buy_qty > 0:
+                        safe_buy_qty = quantize_amount(raw_qty, step_size)
+                        if safe_buy_qty > 0 and (safe_buy_qty * coin_price >= 10.0):
+                            if step_size >= 1.0:
                                 params["quantity"] = f"{int(safe_buy_qty)}"
                             else:
-                                params["quoteOrderQty"] = f"{amount_try:.2f}"
+                                dec_places = len(str(step_size).split(".")[1].rstrip("0")) if "." in str(step_size) else 0
+                                params["quantity"] = f"{safe_buy_qty:.{dec_places}f}"
                         else:
-                            mult = 10 ** num_decimals
-                            safe_buy_qty = math.floor(raw_qty * mult) / float(mult)
-                            if safe_buy_qty * coin_price > free_try:
-                                safe_buy_qty = max(0.0, safe_buy_qty - (1.0 / mult))
-                            if safe_buy_qty > 0:
-                                params["quantity"] = f"{safe_buy_qty:.{num_decimals}f}"
-                            else:
-                                params["quoteOrderQty"] = f"{amount_try:.2f}"
+                            params["quoteOrderQty"] = f"{amount_try:.2f}"
                     else:
                         params["quoteOrderQty"] = f"{amount_try:.2f}"
                 except Exception:
                     params["quoteOrderQty"] = f"{amount_try:.2f}"
-        else:
+        else: # SELL
             asset_coin = clean_symbol.split("_")[0].upper()
             qty_to_sell = 0.0
             try:
@@ -167,68 +170,23 @@ class BinanceTRClient:
             if qty_to_sell <= 0.0:
                 qty_to_sell = amount
             
-            # Sembole Özel Katı Adım Hassasiyeti (Exact Step Size Mapping for Binance TR)
-            import math
-            decimals_map = {
-                "BTC": 6,
-                "ETH": 4,
-                "SOL": 3,
-                "BNB": 3,
-                "AVAX": 2,
-                "USDT": 0,
-                "EDEN": 1,
-                "SUI": 1,
-                "RENDER": 1,
-                "NEAR": 1,
-                "XRP": 1,
-                "DOGE": 1,
-                "ADA": 1,
-                "PEPE": 0,
-                "SHIB": 0,
-                "BONK": 0,
-                "FLOKI": 0,
-                "GPS": 0,
-                "ACE": 1,
-                "ALPINE": 2,
-                "OPN": 1,
-                "LA": 1,
-                "RED": 1,
-                "ACM": 2,
-                "UTK": 0,
-                "JOE": 1,
-                "HEMI": 0,
-                "HEI": 0,
-                "GNO": 3,
-                "PROM": 2,
-                "MUBARAK": 0,
-                "ZRO": 2
-            }
+            step_size = 1.0
+            try:
+                r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={asset_coin}USDT", timeout=2)
+                if r_tr_info.status_code == 200:
+                    for s_item in r_tr_info.json().get("symbols", []):
+                        for f_item in s_item.get("filters", []):
+                            if f_item.get("filterType") == "LOT_SIZE":
+                                step_size = float(f_item.get("stepSize", 1.0))
+            except Exception:
+                pass
             
-            base_coin = clean_symbol.split("_")[0].upper()
-            num_decimals = decimals_map.get(base_coin)
-            if num_decimals is None:
-                try:
-                    r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={base_coin}USDT", timeout=2)
-                    if r_tr_info.status_code == 200:
-                        for s_item in r_tr_info.json().get("symbols", []):
-                            for f_item in s_item.get("filters", []):
-                                if f_item.get("filterType") == "LOT_SIZE":
-                                    step_v = float(f_item.get("stepSize", 1.0))
-                                    if step_v >= 1.0:
-                                        num_decimals = 0
-                                    else:
-                                        num_decimals = len(str(step_v).split(".")[1].rstrip("0"))
-                except Exception:
-                    pass
-            if num_decimals is None:
-                num_decimals = 0 if qty_to_sell >= 10.0 else (1 if qty_to_sell >= 1.0 else 2)
-            
-            if num_decimals == 0:
-                params["quantity"] = f"{int(qty_to_sell)}"
+            safe_qty = quantize_amount(qty_to_sell, step_size)
+            if step_size >= 1.0:
+                params["quantity"] = f"{int(safe_qty)}"
             else:
-                multiplier = 10 ** num_decimals
-                safe_qty = math.floor(qty_to_sell * multiplier) / float(multiplier)
-                params["quantity"] = f"{safe_qty:.{num_decimals}f}"
+                dec_places = len(str(step_size).split(".")[1].rstrip("0")) if "." in str(step_size) else 0
+                params["quantity"] = f"{safe_qty:.{dec_places}f}"
 
         if price and type_code == 1:
             params["price"] = f"{price:.2f}"
@@ -833,9 +791,14 @@ def execute_spot_trade(
     if not symbol or "AUTO" in symbol.upper():
         symbol = "BTC/USDT"
         
+    live_fx = get_live_usd_try_rate()
+    if live_fx <= 0:
+        return {"status": "FAILED", "error": "Canlı USD/TRY kuru alınamadı (Fail-Closed)."}
+
     # TRY Çiftlerini Doğrudan Binance TR İstemcisine Yönlendir
     is_try_pair = symbol.endswith("/TRY") or symbol.endswith("_TRY")
     api_k = str((tenant_config or {}).get("exchange_api_key", ""))
+    
     if is_try_pair and api_k.startswith("{"):
         import json
         try:
@@ -844,10 +807,9 @@ def execute_spot_trade(
                 client_tr = BinanceTRClient(kd["binancetr"].get("api_key"), kd["binancetr"].get("secret_key"))
                 clean_sym = symbol.replace("/", "_").upper()
                 ticker = fetch_ticker_price(symbol)
-                price = float(ticker.get("last_price") or 1.0)
-                live_fx = get_live_usd_try_rate()
-                amount_val = (amount_usd * live_fx) if side.lower() == "buy" else (amount_usd / price if price > 0 else 0)
-                res = client_tr.create_order(symbol=clean_sym, type="market", side=side.lower(), amount=amount_val, amount_usd=amount_usd)
+                price_try = float(ticker.get("last_price") or 1.0)
+                amount_coin = (amount_usd * live_fx) / price_try if price_try > 0 else 0
+                res = client_tr.create_order(symbol=clean_sym, type="market", side=side.lower(), amount=amount_coin, amount_usd=amount_usd)
                 print(f"✅ [CANLI BINANCE TR OTOMATİK EMİR İNFAZ EDİLDİ]: Order ID #{res.get('id')}")
                 return {
                     "status": "success",
@@ -855,7 +817,8 @@ def execute_spot_trade(
                     "symbol": symbol,
                     "side": side,
                     "amount_usd": amount_usd,
-                    "executed_price": res.get("price") or price,
+                    "amount_coin": amount_coin,
+                    "executed_price": res.get("price") or price_try,
                     "stop_loss_price": stop_loss_price,
                     "raw_order": res
                 }
@@ -867,6 +830,7 @@ def execute_spot_trade(
     ticker = fetch_ticker_price(symbol if "/" in symbol else f"{symbol}/USDT")
     price = float(ticker.get("last_price") or 64000.0)
     quantity = amount_usd / price if price > 0 else 0
+    
     if side.lower() == "sell" and exchange and hasattr(exchange, "fetch_balance"):
         base_asset = symbol.split("/")[0].split("_")[0].upper()
         try:
@@ -893,6 +857,7 @@ def execute_spot_trade(
                 "symbol": symbol,
                 "side": side,
                 "amount_usd": amount_usd,
+                "amount_coin": quantity,
                 "executed_price": order.get('price') or price,
                 "stop_loss_price": stop_loss_price,
                 "raw_order": order
@@ -901,14 +866,18 @@ def execute_spot_trade(
             print(f"❌ [Canlı Multi-Tenant Emir Hatası]: {e}")
             return {"status": "FAILED", "error": str(e)}
     
-    # Simülasyon
-    print(f"🧪 [PAPER TRADING İNFAZ]: {side.upper()} {symbol} - Tutar: ${amount_usd} USD (Fiyat: ${price})")
+    # Canlı modda kimlik doğrulanamazsa Fail-Closed kuralı gereği işlem iptal edilir
+    if tenant_config and (tenant_config.get("exchange_api_key") or tenant_config.get("telegram_chat_id")):
+        return {"status": "FAILED", "error": "Borsa API anahtarı doğrulanamadı veya yetkisiz. Fail-Closed devreye girdi."}
+        
+    # Sadece tenant yapılandırması olmayan yerel geliştirme testlerinde simülasyon
     return {
         "status": "EXECUTED_SIMULATED",
         "order_id": f"SIM_{int(price * 100)}",
         "symbol": symbol,
         "side": side,
         "amount_usd": amount_usd,
+        "amount_coin": quantity,
         "executed_price": price,
         "stop_loss_price": stop_loss_price
     }

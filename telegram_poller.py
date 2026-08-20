@@ -12,7 +12,9 @@ from exchange import fetch_portfolio_balance, execute_spot_trade, fetch_ticker_p
 
 load_dotenv()
 
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8938326996:AAFLmy3S4uAb_GbF8TotsdL0CgWq4jGCFik")
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+if not TOKEN:
+    print("⚠️ [GÜVENLİK UYARISI]: TELEGRAM_BOT_TOKEN ortam değişkeni tanımlı değil!")
 BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 
 # Kullanıcı oturum durumları (Registration Wizards)
@@ -247,27 +249,20 @@ def handle_update(update: dict):
                 bal_tr = balance.get("binance_tr", {})
                 bal_gl = balance.get("binance_global", {})
                 
-                # %100 İZOLE BORSA POZİSYON HAFIZASI (TR vs Global Sıfır Karışma)
-                saved_pos_tr = {}
-                saved_pos_gl = {}
-                try:
-                    import os, json
-                    p_tr_file = os.path.join(os.path.dirname(__file__), "active_positions_tr.json")
-                    p_gl_file = os.path.join(os.path.dirname(__file__), "active_positions_global.json")
-                    if os.path.exists(p_tr_file):
-                        with open(p_tr_file, "r", encoding="utf-8") as pf:
-                            saved_pos_tr = json.load(pf)
-                    if os.path.exists(p_gl_file):
-                        with open(p_gl_file, "r", encoding="utf-8") as pf:
-                            saved_pos_gl = json.load(pf)
-                except Exception:
-                    pass
+                from db import get_active_positions_from_db, save_position_to_db
+                from exchange import get_live_usd_try_rate
+                
+                t_id = str(tenant.get("id") or tenant.get("telegram_chat_id") or "default_tenant")
+                saved_pos_tr = get_active_positions_from_db(tenant_id=t_id, exchange_id="binancetr")
+                saved_pos_gl = get_active_positions_from_db(tenant_id=t_id, exchange_id="binance")
+                usd_try_rate = get_live_usd_try_rate()
+                if usd_try_rate <= 0:
+                    usd_try_rate = 35.0
                 
                 # 🇹🇷 TR Varlıkları (Yalnızca ve Tamamen TRY)
                 tr_holdings_str = ""
                 tr_details = bal_tr.get("holdings_details", {})
                 free_try = 0.0
-                usd_try_rate = 47.80
                 tot_tr_try = float(bal_tr.get("total_try", 0.0)) or 0.0
                 if tr_details:
                     for a, info in tr_details.items():
@@ -281,12 +276,7 @@ def handle_update(update: dict):
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
                             if entry_p <= 0 and curr_unit_p > 0:
                                 entry_p = curr_unit_p
-                                saved_pos_tr[a] = {"buy_price": entry_p, "currency": "TRY", "time": time.time()}
-                                try:
-                                    with open(p_tr_file, "w", encoding="utf-8") as pf:
-                                        json.dump(saved_pos_tr, pf, indent=2)
-                                except Exception:
-                                    pass
+                                save_position_to_db(tenant_id=t_id, exchange_id="binancetr", symbol=f"{a}/TRY", base_asset=a, quote_asset="TRY", amount=amt, buy_price=entry_p)
                             
                             gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
                             # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
@@ -321,12 +311,7 @@ def handle_update(update: dict):
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
                             if entry_p <= 0 and curr_unit_p > 0:
                                 entry_p = curr_unit_p
-                                saved_pos_gl[a] = {"buy_price": entry_p, "currency": "USDT", "time": time.time()}
-                                try:
-                                    with open(p_gl_file, "w", encoding="utf-8") as pf:
-                                        json.dump(saved_pos_gl, pf, indent=2)
-                                except Exception:
-                                    pass
+                                save_position_to_db(tenant_id=t_id, exchange_id="binance", symbol=f"{a}/USDT", base_asset=a, quote_asset="USDT", amount=amt, buy_price=entry_p)
                             
                             gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
                             # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)

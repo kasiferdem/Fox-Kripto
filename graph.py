@@ -86,25 +86,18 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         recorded_buy_p = float(entry_info.get("buy_price", 0.0))
                         
                     if recorded_buy_p <= 0.0:
-                        recorded_buy_p = curr_p
-                        save_position_to_db(
-                            tenant_id=tenant_id,
-                            exchange_id=exch_name,
-                            symbol=target_symbol,
-                            base_asset=asset_upper,
-                            quote_asset=pair_quote,
-                            amount=coin_amount,
-                            buy_price=recorded_buy_p
-                        )
+                        print(f"   ⚠️ [Bilinmeyen Maliyet]: {asset_upper} için DB'de kayıtlı alış fiyatı bulunamadı. Hatalı stop tetiklememek için pozisyon bekletiliyor.")
+                        continue
                             
                     gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
                     BINANCE_COMMISSION_PCT = 0.20
-                    net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT if gross_change_pct > 0 else gross_change_pct
+                    # Komisyon hem kârda hem zararda düşülür (Gerçek Net P&L)
+                    net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT
                     
                     # KÂR ALMA / STOP-LOSS TETİKLENME DENETİMİ
-                    if net_profit_pct >= user_tp or gross_change_pct <= -user_sl:
-                        is_stop_loss = gross_change_pct <= -user_sl
-                        reason_type = f"Stop-Loss (%{gross_change_pct:.2f})" if is_stop_loss else f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
+                    if net_profit_pct >= user_tp or net_profit_pct <= -user_sl:
+                        is_stop_loss = (net_profit_pct <= -user_sl)
+                        reason_type = f"Stop-Loss (%{net_profit_pct:.2f} Net)" if is_stop_loss else f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
                         
                         sell_proposal = {
                             "should_trade": True,
@@ -127,6 +120,11 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} (Birim: {pair_quote}, Net: %{net_profit_pct:+.2f}). Hedefe henüz ulaşmadı.")
 
     # Serbest nakit kontrolü (Çift Borsa ve Tekil Borsa Tam Uyumlu)
+    live_fx = get_live_usd_try_rate()
+    if live_fx <= 0:
+        print("   ❌ [Canlı Kur Hatası]: USDT/TRY kuru okunamadı. Güvenlik amacıyla piyasa taraması durduruldu (Fail-Closed).")
+        return {"trade_proposal": None, "human_approval": "Rejected"}
+
     holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
     free_try = 0.0
     free_usdt = float(portfolio_state.get("free_usdt") or 0.0)
@@ -138,8 +136,9 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     if is_tr_user or (free_usdt < 5.0 and free_try >= 200.0):
         is_tr_user = True
         pair_quote = "TRY"
-        free_cash_usd = free_try / 47.80
+        free_cash_usd = free_try / live_fx
     else:
+        pair_quote = "USDT"
         free_cash_usd = free_usdt
 
     if free_cash_usd < 5.0 and free_try < 200.0:
@@ -183,6 +182,9 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     
     # 🛑 3. KURAL İÇİN SUPABASE ATOMİK SOĞUMA / GEÇMİŞ ÇIKIŞ HAFIZASI:
     active_db_cooldowns = get_active_cooldowns_from_db(tenant_id=tenant_id)
+    if active_db_cooldowns is None:
+        print("   ❌ [Veritabanı Uyarısı]: Supabase soğuma listesi okunamadı. Güvenlik amacıyla alım bekletiliyor (Fail-Closed).")
+        return {"trade_proposal": None, "human_approval": "Rejected"}
 
     fresh_coin = None
     selected_proposal = None
@@ -204,29 +206,30 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         # -------------------------------------------------------------
         # 1. KURAL: DİP GİRİŞ KONTROLÜ (Pre-Pump Ground-Floor Filter)
         # -------------------------------------------------------------
-        # Eğer bir balina en baştan alınmadıysa (%1-%8 bandı dışında tepe yapmışsa),
-        # tepe noktada girmek KESİNLİKLE ENGELLENİR.
+        # Eğer bir coin son 24 saatte %+8.5 üzeri primlenmişse veya 5 dakikada %+5.5'i aşmışsa tepeye girilmez!
         cand_24h_change = float(best_candidate_meta.get("price_change_24h", 0.0))
-        if cand_24h_change > 8.5 and price_change_5m > 6.0:
-            print(f"   🛑 [1. Kural Reddi]: {c_base} zaten %+8.5 üzeri primli ve tepe noktasında. FOMO girişi engellendi.")
+        if cand_24h_change > 8.5 or price_change_5m > 5.5:
+            print(f"   🛑 [1. Kural Reddi]: {c_base} zaten %+8.5 üzeri primli veya ani fırlamış (24s: %{cand_24h_change:+.1f}, 5dk: %{price_change_5m:+.1f}). FOMO engellendi.")
             continue
 
         # -------------------------------------------------------------
         # 2. KURAL: DOYUM NOKTASI VE DERİNLİK ANALİZİ (Saturation Engine)
         # -------------------------------------------------------------
-        # Tahtadaki anlık alış/satış derinliği ve doyum seviyesi incelenir.
-        orderbook_ratio = 1.0
+        # Tahtadaki anlık alış/satış derinliği ve doyum seviyesi incelenir (Fail-Closed).
         try:
             depth_res = requests.get(f"https://api.binance.com/api/v3/depth?symbol={target_pair_clean}&limit=10", timeout=2).json()
             bids_vol = sum(float(b[1]) for b in depth_res.get("bids", []))
             asks_vol = sum(float(a[1]) for a in depth_res.get("asks", []))
-            if asks_vol > 0:
-                orderbook_ratio = bids_vol / asks_vol
-        except Exception:
-            orderbook_ratio = 1.0
+            if asks_vol <= 0:
+                print(f"   🛑 [2. Kural Reddi]: {c_base} tahtasında satış derinliği bulunamadı. Alım iptal.")
+                continue
+            orderbook_ratio = bids_vol / asks_vol
+        except Exception as e_depth:
+            print(f"   🛑 [2. Kural Reddi]: {c_base} tahta derinliği okunamadı ({e_depth}). Fail-Closed gereği alım iptal.")
+            continue
 
-        # Satış baskısı alışın 1.3 katından fazlaysa: Doyum noktasına ulaşılmıştır!
-        if orderbook_ratio < 0.75:
+        # Satış baskısı alışın 1.3 katından fazlaysa (Alış/Satış < 0.77): Doyum noktasına ulaşılmıştır!
+        if asks_vol > (bids_vol * 1.3) or orderbook_ratio < 0.77:
             print(f"   🛑 [2. Kural Reddi]: {c_base} tahtasında doyum ve satış baskısı tespit edildi (Alış/Satış Oranı: {orderbook_ratio:.2f}). Alım iptal.")
             continue
 
@@ -250,24 +253,19 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         if ai_conviction_score < 6.0:
             continue
             
-        # 🤖 STRATEJİ BOTU DİNAMİK BÜTÇE TAHSİSİ
-        if ai_conviction_score >= 8.5:
-            allocation_ratio = 0.40
-            conviction_label = "Zirve Balina İvmesi (Heyet Tam Onaylı)"
-        elif ai_conviction_score >= 7.0:
-            allocation_ratio = 0.30
-            conviction_label = "Güçlü Balina Kırılımı (Yüksek Güven)"
-        else:
-            allocation_ratio = 0.20
-            conviction_label = "Standart Balina Hareketi (Orta Güven)"
-            
+        # 🤖 STRATEJİ BOTU DİNAMİK BÜTÇE TAHSİSİ (Sermaye Koruma & max_budget_percent)
+        # Asla serbest kasanın %10'undan fazlası tek coine tahsis edilmez!
+        user_max_budget = float(tenant_config.get("max_budget_percent") or 10.0)
+        enforced_max_pct = min(10.0, max(1.0, user_max_budget))
+        
+        safe_budget_usd = round(free_cash_usd * (enforced_max_pct / 100.0) * 0.98, 2)
         min_order_usd = 5.0 if pair_quote == "TRY" else 10.0
-        safe_budget_usd = round(free_cash_usd * allocation_ratio * 0.98, 2)
-        if safe_budget_usd < min_order_usd and free_cash_usd >= min_order_usd:
-            safe_budget_usd = round(free_cash_usd * 0.98, 2)
-            
+        
         if safe_budget_usd < min_order_usd:
-            continue
+            if free_cash_usd >= min_order_usd and (free_cash_usd * 0.98 <= min_order_usd * 1.5):
+                safe_budget_usd = round(min_order_usd, 2)
+            else:
+                continue
             
         fresh_coin = f"{c_base}/{pair_quote}"
         real_ticker = fetch_ticker_price(fresh_coin)
@@ -281,12 +279,12 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             "symbol": fresh_coin,
             "direction": "BUY",
             "amount_usd": safe_budget_usd,
-            "sentiment_score": ai_conviction_score,
-            "stop_loss_percent": user_sl,
             "entry_price": real_entry_price,
-            "take_profit_price": round(real_entry_price * (1 + (user_tp / 100.0)), 6 if real_entry_price < 1 else 2),
-            "stop_loss_price": round(real_entry_price * (1 - (user_sl / 100.0)), 6 if real_entry_price < 1 else 2),
-            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10 ({conviction_label}{reentry_tag}) -> Tahta Oranı: {orderbook_ratio:.2f} | Strateji Kararı: Serbest kasanın %{allocation_ratio*100:.0f}'i (${safe_budget_usd} USD) tahsis edildi."
+            "sentiment_score": ai_conviction_score,
+            "take_profit_price": round(real_entry_price * (1.0 + (user_tp / 100.0)), 6),
+            "stop_loss_price": round(real_entry_price * (1.0 - (user_sl / 100.0)), 6),
+            "stop_loss_percent": user_sl,
+            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10{reentry_tag} -> Tahta Oranı: {orderbook_ratio:.2f} | Bütçe: Serbest kasanın %{enforced_max_pct:.1f}'i (${safe_budget_usd:.2f} USD) tahsis edildi."
         }
         break
         

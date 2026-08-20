@@ -244,8 +244,12 @@ def run_autonomous_trading_loop():
                                 status_title = f"🎉 Live Take-Profit Executed & Transferred to {wallet_label} Wallet" if is_en_user else f"🎉 Canlı Satış Gerçekleşti ve {wallet_label} Cüzdanına Aktarıldı"
                             
                         amount = proposal.get("amount_usd", 10.0) if proposal else 10.0
+                        from exchange import get_live_usd_try_rate
+                        live_fx_app = get_live_usd_try_rate()
+                        if live_fx_app <= 0:
+                            live_fx_app = 35.0
                         if is_tr_tenant:
-                            amount_try = round(amount * 47.80, 2)
+                            amount_try = round(amount * live_fx_app, 2)
                             amount_display = f"₺{amount_try:.2f} TL"
                         else:
                             amount_display = f"${amount:.2f} USD"
@@ -266,7 +270,7 @@ def run_autonomous_trading_loop():
                                 if is_tr_pair:
                                     # Eğer raw_entry USD cinsinden kaydedildiyse (yani exit_try/20'den küçükse), TRY'ye dönüştür
                                     if raw_entry > 0 and (raw_entry < (raw_exit / 20.0)):
-                                        entry_try = raw_entry * 47.80
+                                        entry_try = raw_entry * live_fx_app
                                     else:
                                         entry_try = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
                                     exit_try = raw_exit
@@ -275,7 +279,7 @@ def run_autonomous_trading_loop():
                                     gross_pct = ((exit_try - entry_try) / entry_try * 100) if entry_try > 0 else 1.7
                                     net_pct = gross_pct - 0.20 # %0.20 borsa komisyonu düşülür
                                     
-                                    tot_sell_try = (coin_qty * exit_try) if coin_qty > 0 else (amount * 47.80)
+                                    tot_sell_try = (coin_qty * exit_try) if coin_qty > 0 else (amount * live_fx_app)
                                     tot_buy_try = (coin_qty * entry_try) if coin_qty > 0 else (tot_sell_try / (1 + (gross_pct/100.0) if gross_pct > 0 else 1.0))
                                     net_profit_fiat = tot_sell_try - tot_buy_try - (tot_sell_try * 0.002)
                                     if abs(net_profit_fiat) < 0.01:
@@ -301,15 +305,15 @@ def run_autonomous_trading_loop():
                                     else:
                                         if net_pct >= 0:
                                             profit_label = "📈 *Net Kâr / Kazanç:*"
-                                            profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL / +${net_profit_fiat/47.80:,.2f} USD) {quote_label} Cüzdanına Kilitlendi!"
+                                            profit_badge = f"+%{net_pct:.2f} (+₺{net_profit_fiat:,.2f} TL / +${net_profit_fiat/live_fx_app:,.2f} USD) {quote_label} Cüzdanına Kilitlendi!"
                                         else:
                                             profit_label = "📉 *Net Değişim / Stop-Loss:*"
-                                            profit_badge = f"-%{abs(net_pct):.2f} (-₺{abs(net_profit_fiat):,.2f} TL / -${abs(net_profit_fiat)/47.80:,.2f} USD) {quote_label} Cüzdanına Aktarıldı"
+                                            profit_badge = f"-%{abs(net_pct):.2f} (-₺{abs(net_profit_fiat):,.2f} TL / -${abs(net_profit_fiat)/live_fx_app:,.2f} USD) {quote_label} Cüzdanına Aktarıldı"
                                 else:
                                     # Binance Global (USDT)
                                     # Eğer raw_entry TRY cinsinden kaydedildiyse (yani exit_usd*20'den büyükse), USD'ye dönüştür
                                     if raw_entry > 0 and (raw_entry > (raw_exit * 20.0)):
-                                        entry_usd = raw_entry / 47.80
+                                        entry_usd = raw_entry / live_fx_app
                                     else:
                                         entry_usd = raw_entry if raw_entry > 0 else (raw_exit / 1.017)
                                     exit_usd = raw_exit
@@ -340,10 +344,10 @@ def run_autonomous_trading_loop():
                                     else:
                                         if net_pct >= 0:
                                             profit_label = "📈 *Net Kâr / Kazanç:*"
-                                            profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT / +₺{net_profit_fiat * 47.80:,.2f} TL) {quote_label} Cüzdanına Kilitlendi!"
+                                            profit_badge = f"+%{net_pct:.2f} (+${net_profit_fiat:,.2f} USDT / +₺{net_profit_fiat * live_fx_app:,.2f} TL) {quote_label} Cüzdanına Kilitlendi!"
                                         else:
                                             profit_label = "📉 *Net Değişim / Stop-Loss:*"
-                                            profit_badge = f"-%{abs(net_pct):.2f} (-${abs(net_profit_fiat):,.2f} USDT / -₺{abs(net_profit_fiat) * 47.80:,.2f} TL) {quote_label} Cüzdanına Aktarıldı"
+                                            profit_badge = f"-%{abs(net_pct):.2f} (-${abs(net_profit_fiat):,.2f} USDT / -₺{abs(net_profit_fiat) * live_fx_app:,.2f} TL) {quote_label} Cüzdanına Aktarıldı"
                             else:
                                 entry_str = "Entry Price" if is_en_user else "Alış Fiyatı"
                                 exit_str = "Exit Price" if is_en_user else "Satış Fiyatı"
@@ -735,40 +739,21 @@ def debug_binance_account():
         res_dict["simple_earn_flexible_err"] = str(ee)
 
     try:
-        r_earn_lock = requests.get(f"https://api.binance.com/sapi/v1/simple-earn/locked/position?{query}&signature={sig}", headers=headers, timeout=10)
-        res_dict["simple_earn_locked"] = r_earn_lock.json()
-    except Exception as ele:
-        res_dict["simple_earn_locked_err"] = str(ele)
-
-    # 4. Open Orders (Açık Emirler)
-    try:
-        r_ord = requests.get(f"https://api.binance.com/api/v3/openOrders?{query}&signature={sig}", headers=headers, timeout=10)
-        res_dict["open_orders"] = r_ord.json()
-    except Exception as oe:
-        res_dict["open_orders_err"] = str(oe)
-
-    # 5. User Asset (Funding Wallet)
-    try:
-        r_ua = requests.post(f"https://api.binance.com/sapi/v3/asset/getUserAsset?{query}&signature={sig}", headers=headers, timeout=10)
-        res_dict["user_asset_funding"] = r_ua.json()
-    except Exception as uae:
-        res_dict["user_asset_funding_err"] = str(uae)
-
-    return res_dict
-
-@app_api.get("/api/tenants")
+@app_api.get("/api/tenants", dependencies=[Depends(authenticate_admin)])
 def list_tenants():
-    """Tüm kullanıcıları (Tenants) listeler."""
+    """Tüm kullanıcıları (Tenants) listeler (Tam Güvenli & Maskelenmiş)."""
     tenants = get_all_active_tenants()
+    sanitized = []
     for t in tenants:
-        if "exchange_api_key" in t and t["exchange_api_key"]:
-            key = t["exchange_api_key"]
-            t["exchange_api_key_masked"] = key[:6] + "..." + key[-4:] if len(key) > 10 else "***"
-        if "exchange_secret_key" in t:
-            t["exchange_secret_key"] = "***HIDDEN***"
-    return {"status": "success", "count": len(tenants), "tenants": tenants}
+        safe_t = dict(t)
+        safe_t.pop("exchange_secret_key", None)
+        raw_k = safe_t.pop("exchange_api_key", "")
+        safe_t["exchange_api_key_configured"] = bool(raw_k)
+        safe_t["exchange_api_key_masked"] = "***CONFIGURED***" if raw_k else "NOT_CONFIGURED"
+        sanitized.append(safe_t)
+    return {"status": "success", "count": len(sanitized), "tenants": sanitized}
 
-@app_api.post("/api/tenants")
+@app_api.post("/api/tenants", dependencies=[Depends(authenticate_admin)])
 def create_tenant(req: TenantCreateRequest):
     """Yeni kullanıcı (Tenant) ekler veya günceller."""
     import json
@@ -787,10 +772,13 @@ def create_tenant(req: TenantCreateRequest):
         max_budget_percent=req.max_budget_percent
     )
     if res:
-        return {"status": "success", "message": f"Kullanıcı '{req.tenant_name}' eklendi.", "tenant": res}
+        safe_res = dict(res)
+        safe_res.pop("exchange_secret_key", None)
+        safe_res.pop("exchange_api_key", None)
+        return {"status": "success", "message": f"Kullanıcı '{req.tenant_name}' eklendi.", "tenant": safe_res}
     raise HTTPException(status_code=400, detail="Kullanıcı kaydedilemedi.")
 
-@app_api.post("/api/tenants/{tenant_id}/settings")
+@app_api.post("/api/tenants/{tenant_id}/settings", dependencies=[Depends(authenticate_admin)])
 def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
     """Kullanıcının kâr alma, stop-loss, bütçe ve dil tercihlerini günceller."""
     client = get_supabase()

@@ -28,12 +28,15 @@ def fetch_5m_candles(symbol: str, limit: int = 6) -> List[Dict[str, float]]:
 
 def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_gain: float) -> Optional[Dict[str, Any]]:
     sym = cand.get("symbol", "")
-    candles = fetch_5m_candles(sym, limit=6)
-    if len(candles) < 4:
+    price_change_24h = float(cand.get("priceChangePercent", 0.0))
+    candles = fetch_5m_candles(sym, limit=7)
+    if len(candles) < 5:
         return None
         
-    last_candle = candles[-1]
-    prev_candles = candles[:-1]
+    # Sinyal SIFIR REPAINT: Son kapanmamış mum yerine tamamlanmış en son kapalı mumu kullan
+    closed_candles = candles[:-1]
+    last_candle = closed_candles[-1]
+    prev_candles = closed_candles[:-1]
     
     recent_5m_volume = last_candle["quote_volume"]
     avg_prev_volume = sum(c["quote_volume"] for c in prev_candles) / len(prev_candles) if prev_candles else 1.0
@@ -46,16 +49,15 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     candle_range = last_candle["high"] - last_candle["low"]
     
     # Mum Formasyonu ve Alıcı Baskısı (Üst Fitil Analizi):
-    # Eğer üst fitil küçükse ve kapanış en yüksek seviyeye yakınsa (Baskılı Kırılım), balinanın koşusu yeni başlıyor demektir!
     upper_wick_ratio = ((last_candle["high"] - last_candle["close"]) / candle_range) if candle_range > 0 else 0.0
     
     # ERKEN BALİNA KIRILIMI VE %20 KOŞU POTANSİYELİ ŞARTLARI:
     # 1. Hacim İvmesi: Son 5dk hacmi ortalamanın en az 1.8x - 15.0x katı olmalı (Agresif Balina Girişi)
     # 2. Hacim Büyüklüğü: Son 5 dakikada en az 15,000$ değerinde gerçek emir infaz edilmiş olmalı
     # 3. Kırılım Başlangıcı: Fiyat değişimi tam %1.0 ile %5.5 arasında olmalı (Koşunun en başı!)
-    # 4. Satış Direnci Yok: Üst fitil %35'in altında olmalı (Yani tepeye doğru güçlü itiş var, satıcılar henüz karşısına çıkamamış)
-    if volume_spike_ratio >= 1.8 and recent_5m_volume >= min_volume_usd and (1.0 <= price_change_5m <= 5.5) and upper_wick_ratio <= 0.35:
-        # İvme Skoru Hesabı (0-10): Hacim patlaması + Mum gücü
+    # 4. Satış Direnci Yok: Üst fitil %35'in altında olmalı
+    # 5. 24 Saatlik Değişim Sınırı: %+8.5'i aşmamış olmalı (FOMO engeli)
+    if volume_spike_ratio >= 1.8 and recent_5m_volume >= min_volume_usd and (1.0 <= price_change_5m <= 5.5) and upper_wick_ratio <= 0.35 and (price_change_24h <= 8.5):
         momentum_score = min(10.0, round(5.0 + (volume_spike_ratio * 0.5) + (price_change_5m * 0.4), 1))
         clean_base = sym.replace("USDT", "").replace("TRY", "")
         quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
@@ -63,10 +65,11 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
             "symbol": f"{clean_base}/{quote_suffix}",
             "price": last_candle["close"],
             "price_change_5m": round(price_change_5m, 2),
+            "price_change_24h": round(price_change_24h, 2),
             "volume_spike_ratio": round(volume_spike_ratio, 1),
             "recent_5m_volume_usd": round(recent_5m_volume, 0),
             "momentum_score": momentum_score,
-            "signal": f"🚀 ERKEN BALİNA KIRILIMI (%{price_change_5m:.1f} Başlangıç / {volume_spike_ratio:.1f}x Hacim / Skor: {momentum_score})",
+            "signal": f"🚀 ERKEN BALİNA KIRILIMI (%{price_change_5m:.1f} Başlangıç / {volume_spike_ratio:.1f}x Hacim / 24s: %{price_change_24h:+.1f} / Skor: {momentum_score})",
             "recommendation": f"Erken Kırılım Tespiti: %20 koşusu potansiyeli %{price_change_5m:.1f} aşamasında yakalandı."
         }
     return None
