@@ -110,20 +110,21 @@ def run_autonomous_trading_loop():
                         status_str = str(exec_res.get("status", "")).upper()
                         is_exec_success = status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]
                         
-                        is_tr_tenant = bool(tenant and tenant.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
-                        
-                        # 🚨 BORSA HATALARINI DERHAL TELEGRAM İLE KULLANICIYA BİLDİR:
-                        if not is_exec_success:
-                            err_msg = str(exec_res.get("error", "Bilinmeyen Borsa Hatası"))
-                            sym_target = proposal.get("symbol", "COIN") if proposal else "COIN"
-                            action_name = "ALIM (BUY)" if (proposal and proposal.get("direction") == "BUY") else "SATIM (SELL)"
+                        # 🚨 GERÇEK BORSA HATALARINI TELEGRAM İLE KULLANICIYA BİLDİR:
+                        # (Yalnızca gerçek bir işlem teklifi varsa ve borsa emri reddettiyse bildir, normal HOLD durumlarında sus!)
+                        if not is_exec_success and proposal and proposal.get("should_trade") and exec_res.get("error"):
+                            err_msg = str(exec_res.get("error"))
+                            sym_target = proposal.get("symbol", "COIN")
+                            action_name = "ALIM (BUY)" if proposal.get("direction") == "BUY" else "SATIM (SELL)"
+                            
+                            is_try_sym = sym_target.upper().endswith("TRY") or sym_target.upper().endswith("_TRY")
+                            exch_name = "BINANCE.TR 🇹🇷" if is_try_sym else "BINANCE GLOBAL 🌍"
                             
                             current_time = time.time()
                             err_key = f"{sym_target}_{action_name}"
                             if current_time - last_error_alerts.get(err_key, 0) > 300: # 5 dk spam filtresi
                                 last_error_alerts[err_key] = current_time
                                 from telegram_poller import send_message
-                                exch_name = "BINANCE.TR 🇹🇷" if is_tr_tenant else "BINANCE GLOBAL 🌍"
                                 warning_msg = (
                                     f"⚠️ *7/24 OTONOM BORSA İŞLEM UYARISI*\n\n"
                                     f"👤 Kullanıcı: {tenant_name}\n"
