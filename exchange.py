@@ -130,7 +130,9 @@ class BinanceTRClient:
                 base_coin = clean_symbol.split("_")[0].upper()
                 step_size = 1.0
                 try:
-                    r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={base_coin}USDT", timeout=2)
+                    r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={base_coin}TRY", timeout=2)
+                    if r_tr_info.status_code != 200:
+                        r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={base_coin}USDT", timeout=2)
                     if r_tr_info.status_code == 200:
                         for s_item in r_tr_info.json().get("symbols", []):
                             for f_item in s_item.get("filters", []):
@@ -172,7 +174,9 @@ class BinanceTRClient:
             
             step_size = 1.0
             try:
-                r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={asset_coin}USDT", timeout=2)
+                r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={asset_coin}TRY", timeout=2)
+                if r_tr_info.status_code != 200:
+                    r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={asset_coin}USDT", timeout=2)
                 if r_tr_info.status_code == 200:
                     for s_item in r_tr_info.json().get("symbols", []):
                         for f_item in s_item.get("filters", []):
@@ -198,18 +202,33 @@ class BinanceTRClient:
         res = requests.post(url, headers=headers, timeout=10)
         data = res.json()
         
-        # 🛡️ 2 KADEMELİ İNFAZ DENEMESİ: Eğer 3203 miktar hatası gelirse, otomatik tam sayı (int) olarak 2. kez dene!
-        if data.get("code") in [3203, -1013] and side_code == 1:
+        # 🛡️ 2 KADEMELİ İNFAZ DENEMESİ: Eğer 3203 veya -1013 miktar hatası gelirse, otomatik tam sayı adet ile 2. kez dene!
+        if data.get("code") in [3203, -1013]:
             try:
-                curr_q = float(params.get("quantity", 0))
-                int_q = int(curr_q)
-                if int_q > 0 and str(int_q) != str(params.get("quantity")):
-                    print(f"⚠️ [Binance TR 2. Kademe]: {params.get('quantity')} reddedildi, tam sayı ({int_q}) ile 2. deneme yapılıyor...")
-                    params["quantity"] = str(int_q)
-                    query_str = self._sign(params)
-                    url = f"{self.base_url}/open/v1/orders?{query_str}"
-                    res = requests.post(url, headers=headers, timeout=10)
-                    data = res.json()
+                if side_code == 0: # BUY 2. Kademe
+                    base_c = clean_symbol.split("_")[0].upper()
+                    c_ticker = fetch_ticker_price(f"{base_c}/TRY")
+                    coin_p = float(c_ticker.get("last_price", 0.0))
+                    if coin_p > 0 and amount_try > 0:
+                        int_buy_q = int(amount_try / coin_p)
+                        if int_buy_q > 0:
+                            print(f"⚠️ [Binance TR 2. Kademe ALIM]: {data.get('msg')} -> Tam sayı ({int_buy_q} {base_c}) ile 2. deneme yapılıyor...")
+                            params.pop("quoteOrderQty", None)
+                            params["quantity"] = str(int_buy_q)
+                            query_str = self._sign(params)
+                            url = f"{self.base_url}/open/v1/orders?{query_str}"
+                            res = requests.post(url, headers=headers, timeout=10)
+                            data = res.json()
+                elif side_code == 1: # SELL 2. Kademe
+                    curr_q = float(params.get("quantity", 0))
+                    int_q = int(curr_q)
+                    if int_q > 0 and str(int_q) != str(params.get("quantity")):
+                        print(f"⚠️ [Binance TR 2. Kademe SATIM]: {params.get('quantity')} reddedildi, tam sayı ({int_q}) ile 2. deneme yapılıyor...")
+                        params["quantity"] = str(int_q)
+                        query_str = self._sign(params)
+                        url = f"{self.base_url}/open/v1/orders?{query_str}"
+                        res = requests.post(url, headers=headers, timeout=10)
+                        data = res.json()
             except Exception as e_retry:
                 print(f"⚠️ [Binance TR Retry Hatası]: {e_retry}")
 
