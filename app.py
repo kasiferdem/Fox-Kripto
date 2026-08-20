@@ -578,13 +578,13 @@ def list_trade_logs():
         
         res = client.table("crypto_trade_logs").select("*").order("created_at", desc=True).limit(30).execute()
         raw_logs = res.data or []
-        
         enriched_logs = []
         for l in raw_logs:
-            tid = l.get("tenant_id")
+            tid = str(l.get("tenant_id") or "")
             t_info = tenant_map.get(tid, {})
-            l["tenant_name"] = t_info.get("tenant_name", "S (Çift Borsa TR+Global)")
-            l["exchange_label"] = "Binance TR 🇹🇷" if t_info.get("exchange_id") == "binancetr" else "Binance Global 🌍"
+            det = l.get("execution_details") or {}
+            l["tenant_name"] = t_info.get("tenant_name") or det.get("tenant_name") or "S (Çift Borsa TR+Global)"
+            l["exchange_label"] = "Binance TR 🇹🇷" if (t_info.get("exchange_id") == "binancetr" or str(l.get("symbol")).endswith("TRY")) else "Binance Global 🌍"
             
             if l.get("symbol") in ["AUTO/USDT", "AUTO"]:
                 l["symbol"] = "DİNAMİK FIRSAT COIN"
