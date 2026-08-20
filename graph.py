@@ -4,8 +4,13 @@ from typing import Dict, Any, Optional, List
 from langgraph.graph import StateGraph, END
 from langgraph.types import interrupt
 from state import CryptoAgentState
-from exchange import fetch_portfolio_balance, fetch_ticker_price, execute_spot_trade, fetch_top_volume_gainers
-from db import log_trade_decision, save_graph_state
+from exchange import fetch_portfolio_balance, fetch_ticker_price, execute_spot_trade, fetch_top_volume_gainers, get_live_usd_try_rate
+from db import (
+    log_trade_decision, save_graph_state,
+    save_position_to_db, get_active_positions_from_db,
+    remove_position_from_db, set_cooldown_in_db,
+    get_active_cooldowns_from_db
+)
 from prompts import analyze_crypto_news, formulate_trade_strategy
 from telegram_bot import send_telegram_trade_approval
 
@@ -29,37 +34,34 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     print("\n--- [3. NODE: STRATEJİ VE OTONOM KÂR ALMA MOTORU DEVREDE] ---")
     portfolio_state = state.get("portfolio_state") or {}
     tenant_config = state.get("tenant_config") or {}
+    tenant_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id") or "default_tenant")
     user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
     user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
     is_tr_user = bool(tenant_config and str(tenant_config.get("exchange_id", "")).lower() in ["binancetr", "binance.tr", "trbinance"])
+    live_fx = get_live_usd_try_rate()
     
-    # 🇹🇷 VE 🌍 HER İKİ BORSAYI DA AYRI AYRI VE TAM BAĞIMSIZ DENETLE:
+    # -------------------------------------------------------------
+    # 1. KISIM: AÇIK POZİSYONLARIN KÂR ALMA / STOP-LOSS DENETİMİ (SUPABASE LEDGER)
+    # -------------------------------------------------------------
+    bal_tr = portfolio_state.get("binance_tr")
+    bal_gl = portfolio_state.get("binance_global")
     exchange_silos = []
-    bal_tr = portfolio_state.get("binance_tr", {})
-    bal_gl = portfolio_state.get("binance_global", {})
     
     if bal_tr and bal_tr.get("holdings_details"):
-        exchange_silos.append(("TRY", bal_tr.get("holdings_details", {}), "active_positions_tr.json", True))
+        exchange_silos.append(("TRY", bal_tr.get("holdings_details", {}), "binancetr", True))
     if bal_gl and bal_gl.get("holdings_details"):
-        exchange_silos.append(("USDT", bal_gl.get("holdings_details", {}), "active_positions_global.json", False))
+        exchange_silos.append(("USDT", bal_gl.get("holdings_details", {}), "binance", False))
         
     if not exchange_silos:
-        # Tekil Borsa Fallback
         pair_q = "TRY" if is_tr_user else "USDT"
-        pos_f = "active_positions_tr.json" if is_tr_user else "active_positions_global.json"
+        exch_name = "binancetr" if is_tr_user else "binance"
         h = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
-        exchange_silos.append((pair_q, h, pos_f, is_tr_user))
+        exchange_silos.append((pair_q, h, exch_name, is_tr_user))
         
-    for pair_quote, holdings_map, pos_file_name, is_tr_silo in exchange_silos:
-        pos_file = os.path.join(os.path.dirname(__file__), pos_file_name)
-        saved_positions = {}
-        if os.path.exists(pos_file):
-            try:
-                with open(pos_file, "r", encoding="utf-8") as pf:
-                    saved_positions = json.load(pf)
-            except Exception:
-                pass
-                
+    for pair_quote, holdings_map, exch_name, is_tr_silo in exchange_silos:
+        # DB Ledger üzerinden açık pozisyonları oku
+        saved_positions = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch_name)
+        
         if isinstance(holdings_map, dict):
             for coin_asset, details in holdings_map.items():
                 asset_upper = str(coin_asset).upper()
@@ -82,17 +84,18 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     entry_info = saved_positions.get(asset_upper)
                     if isinstance(entry_info, dict):
                         recorded_buy_p = float(entry_info.get("buy_price", 0.0))
-                    elif isinstance(entry_info, (int, float)):
-                        recorded_buy_p = float(entry_info)
                         
                     if recorded_buy_p <= 0.0:
                         recorded_buy_p = curr_p
-                        saved_positions[asset_upper] = {"buy_price": recorded_buy_p, "currency": pair_quote, "time": time.time()}
-                        try:
-                            with open(pos_file, "w", encoding="utf-8") as pf:
-                                json.dump(saved_positions, pf, indent=2)
-                        except Exception:
-                            pass
+                        save_position_to_db(
+                            tenant_id=tenant_id,
+                            exchange_id=exch_name,
+                            symbol=target_symbol,
+                            base_asset=asset_upper,
+                            quote_asset=pair_quote,
+                            amount=coin_amount,
+                            buy_price=recorded_buy_p
+                        )
                             
                     gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
                     BINANCE_COMMISSION_PCT = 0.20
@@ -102,14 +105,13 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     if net_profit_pct >= user_tp or gross_change_pct <= -user_sl:
                         is_stop_loss = gross_change_pct <= -user_sl
                         reason_type = f"Stop-Loss (%{gross_change_pct:.2f})" if is_stop_loss else f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
-                        print(f"   🎯 [Otonom {reason_type} Tetiklendi]: {asset_upper} (Borsa: {'TR' if is_tr_silo else 'Global'}, Net: %{net_profit_pct:+.2f}) satılıyor...")
                         
                         sell_proposal = {
                             "should_trade": True,
                             "symbol": target_symbol,
                             "direction": "SELL",
                             "is_stop_loss": is_stop_loss,
-                            "amount_usd": round(val_fiat / 47.80 if is_tr_silo else val_fiat, 2),
+                            "amount_usd": round(val_fiat / live_fx if is_tr_silo else val_fiat, 2),
                             "amount_coin": coin_amount,
                             "entry_price": recorded_buy_p,
                             "net_profit_pct": round(net_profit_pct, 2),
@@ -119,6 +121,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                             "take_profit_price": curr_p,
                             "risk_justification": f"Otomatik Kâr/Zarar Kapatma: {asset_upper}/{pair_quote} {reason_type}"
                         }
+                        print(f"   [Seçilen İşlem Teklifi]: SATIM ({sell_proposal['symbol']}) - Kâr/Zarar: %{sell_proposal['net_profit_pct']}% | Alış: ${sell_proposal['entry_price']} -> Güncel: ${curr_p}")
                         return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
                     else:
                         print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} (Birim: {pair_quote}, Net: %{net_profit_pct:+.2f}). Hedefe henüz ulaşmadı.")
@@ -175,17 +178,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     except Exception:
         pass
     
-    # 🛑 TESTEREYE VE PEŞ PEŞE AYNI COİNİ ALMAYA KARŞI SOĞUMA KİLİDİ (Anti-Chop Cooldown):
-    cooldown_file = os.path.join(os.path.dirname(__file__), "trade_cooldowns.json")
-    # 🛑 3. KURAL İÇİN SOĞUMA / GEÇMİŞ ÇIKIŞ HAFIZASI:
-    cooldown_file = os.path.join(os.path.dirname(__file__), "trade_cooldowns.json")
-    recent_sold_coins = {}
-    if os.path.exists(cooldown_file):
-        try:
-            with open(cooldown_file, "r", encoding="utf-8") as cf:
-                recent_sold_coins = json.load(cf)
-        except Exception:
-            pass
+    # 🛑 3. KURAL İÇİN SUPABASE ATOMİK SOĞUMA / GEÇMİŞ ÇIKIŞ HAFIZASI:
+    active_db_cooldowns = get_active_cooldowns_from_db(tenant_id=tenant_id)
 
     fresh_coin = None
     selected_proposal = None
@@ -241,10 +235,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         # -------------------------------------------------------------
         # Statik kilit yerine: Eğer bu coin son 60 dk içinde satıldıysa,
         # sadece ve sadece ANALİZ HEYETİ oybirliğiyle onaylarsa (Skor >= 8.5 ve Güçlü Alıcı Baskısı) 2. kez alınır!
-        is_recently_sold = False
-        last_exit_time = float(recent_sold_coins.get(c_base, 0))
-        if (time.time() - last_exit_time) < 3600: # Son 60 dakika içinde satılmış
-            is_recently_sold = True
+        is_recently_sold = (c_base in active_db_cooldowns)
+        if is_recently_sold:
             committee_approved = (ai_conviction_score >= 8.5) and (vol_spike >= 3.0) and (orderbook_ratio >= 1.4)
             if not committee_approved:
                 print(f"   ⏳ [3. Kural - Heyet Reddi]: {c_base} yakın zamanda satılmıştı. Heyet ikinci giriş için yeterli yeni ivme görmedi (Skor: {ai_conviction_score}, Hacim İvmesi: {vol_spike}x, Tahta Oranı: {orderbook_ratio:.2f}).")
@@ -327,30 +319,38 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
             tenant_config=tenant_config
         )
         
-        # Pozisyon Hafızasını Güncelle (%100 İzole Dosya: TR vs Global)
+        # Supabase Atomik DB Ledger Güncellemesi
         try:
             is_try_order = proposal["symbol"].upper().endswith("TRY") or proposal["symbol"].upper().endswith("_TRY")
-            pos_file_name = "active_positions_tr.json" if is_try_order else "active_positions_global.json"
-            pos_file = os.path.join(os.path.dirname(__file__), pos_file_name)
-            saved_positions = {}
-            if os.path.exists(pos_file):
-                with open(pos_file, "r", encoding="utf-8") as pf:
-                    saved_positions = json.load(pf)
-                    
+            exch_name = "binancetr" if is_try_order else "binance"
             base_sym = proposal["symbol"].split("/")[0].split("_")[0].upper()
+            quote_c = "TRY" if is_try_order else "USDT"
             status_str = str(result.get("status", "")).upper()
+            tenant_id = str((tenant_config or {}).get("id") or (tenant_config or {}).get("telegram_chat_id") or "default_tenant")
+            is_simulated = (status_str == "EXECUTED_SIMULATED")
+
             if status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]:
                 if proposal["direction"].upper() in ["BUY", "ALIM"]:
                     exec_p = float(result.get("executed_price") or proposal.get("entry_price") or 0.0)
-                    quote_c = "TRY" if is_try_order else "USDT"
-                    saved_positions[base_sym] = {"buy_price": exec_p, "currency": quote_c, "time": time.time()}
+                    coin_amt = float(proposal.get("amount_coin") or (proposal["amount_usd"] / exec_p if exec_p > 0 else 0))
+                    save_position_to_db(
+                        tenant_id=tenant_id,
+                        exchange_id=exch_name,
+                        symbol=proposal["symbol"],
+                        base_asset=base_sym,
+                        quote_asset=quote_c,
+                        amount=coin_amt,
+                        buy_price=exec_p,
+                        stop_loss_price=proposal.get("stop_loss_price"),
+                        take_profit_price=proposal.get("take_profit_price"),
+                        is_simulated=is_simulated
+                    )
                 else: # SELL
-                    saved_positions.pop(base_sym, None)
-                    
-                with open(pos_file, "w", encoding="utf-8") as pf:
-                    json.dump(saved_positions, pf, indent=2)
+                    remove_position_from_db(tenant_id=tenant_id, exchange_id=exch_name, symbol=proposal["symbol"])
+                    # Satılan coin için 60 dakika soğuma başlat
+                    set_cooldown_in_db(tenant_id=tenant_id, symbol=proposal["symbol"], base_asset=base_sym, duration_seconds=3600)
         except Exception as pe:
-            print(f"⚠️ [Pozisyon Hafıza Uyarısı]: {pe}")
+            print(f"⚠️ [DB Ledger Güncelleme Uyarısı]: {pe}")
             
         log_payload = {
             **proposal,

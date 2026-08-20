@@ -42,11 +42,47 @@ CREATE TABLE IF NOT EXISTS crypto_agent_states (
     state_data JSONB NOT NULL
 );
 
+-- 4. Aktif Pozisyonlar (Tenant ve Borsa İzoleli DB Ledger)
+CREATE TABLE IF NOT EXISTS tenant_positions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES user_tenants(id) ON DELETE CASCADE,
+    exchange_id VARCHAR(30) NOT NULL,
+    symbol VARCHAR(30) NOT NULL,
+    base_asset VARCHAR(20) NOT NULL,
+    quote_asset VARCHAR(20) NOT NULL,
+    amount NUMERIC(28, 8) NOT NULL,
+    buy_price NUMERIC(28, 8) NOT NULL,
+    stop_loss_price NUMERIC(28, 8),
+    take_profit_price NUMERIC(28, 8),
+    status VARCHAR(20) DEFAULT 'OPEN',
+    is_simulated BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tenant_id, exchange_id, symbol)
+);
+
+-- 5. Dinamik Soğuma Süreleri ve Anti-Chop Koruması
+CREATE TABLE IF NOT EXISTS tenant_cooldowns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES user_tenants(id) ON DELETE CASCADE,
+    symbol VARCHAR(30) NOT NULL,
+    base_asset VARCHAR(20) NOT NULL,
+    cooldown_until TIMESTAMPTZ NOT NULL,
+    reason VARCHAR(100) DEFAULT 'POST_TRADE_COOLDOWN',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tenant_id, base_asset)
+);
+
 -- RLS Güvenlik Politikaları
 ALTER TABLE user_tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE crypto_trade_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE crypto_agent_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_positions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_cooldowns ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Service Role full access to user_tenants" ON user_tenants FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Service Role full access to crypto_trade_logs" ON crypto_trade_logs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Service Role full access to crypto_agent_states" ON crypto_agent_states FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service Role full access to tenant_positions" ON tenant_positions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service Role full access to tenant_cooldowns" ON tenant_cooldowns FOR ALL USING (true) WITH CHECK (true);
+

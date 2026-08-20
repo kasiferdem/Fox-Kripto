@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, time
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
 from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
@@ -175,29 +175,18 @@ def log_trade_decision(trade_data: Dict[str, Any], tenant_id: Optional[str] = No
                 return res.data[0] if res.data else None
             except Exception:
                 pass
-        print(f"⚠️ [DB Loglama Uyarısı]: {e}")
-        return None
-
 def save_graph_state(session_id: str, state_data: Dict[str, Any], tenant_id: Optional[str] = None) -> bool:
-    """LangGraph State kalıcılığını (Persistence) tenant_id ile Supabase'e saklar."""
+    """LangGraph State kalıcılığını Supabase crypto_agent_states tablosuna saklar."""
     client = get_supabase()
     if not client: return False
     payload = {
-        "session_id": session_id,
-        "tenant_id": tenant_id or state_data.get("tenant_id"),
+        "session_id": str(session_id),
         "state_data": state_data
     }
     try:
         client.table("crypto_agent_states").upsert(payload).execute()
         return True
     except Exception as e:
-        if "tenant_id" in payload:
-            payload.pop("tenant_id", None)
-            try:
-                client.table("crypto_agent_states").upsert(payload).execute()
-                return True
-            except Exception:
-                pass
         print(f"⚠️ [DB State Kayıt Uyarısı]: {e}")
         return False
 
@@ -206,7 +195,7 @@ def load_graph_state(session_id: str) -> Optional[Dict[str, Any]]:
     client = get_supabase()
     if not client: return None
     try:
-        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", str(session_id)).execute()
         if res.data and len(res.data) > 0:
             return res.data[0]["state_data"]
         return None
@@ -214,15 +203,155 @@ def load_graph_state(session_id: str) -> Optional[Dict[str, Any]]:
         print(f"❌ [DB State Yükleme Hatası]: {e}")
         return None
 
+# -----------------------------------------
+# ATOMİK POZİSYON LEDGER & COOLDOWN YÖNETİMİ (SUPABASE POSTGRESQL)
+# -----------------------------------------
+
+def save_position_to_db(
+    tenant_id: str,
+    exchange_id: str,
+    symbol: str,
+    base_asset: str,
+    quote_asset: str,
+    amount: float,
+    buy_price: float,
+    stop_loss_price: Optional[float] = None,
+    take_profit_price: Optional[float] = None,
+    is_simulated: bool = False
+) -> bool:
+    """Açılan pozisyonu Supabase crypto_agent_states üzerinde atomik ledger olarak günceller."""
+    client = get_supabase()
+    if not client: return False
+    session_id = f"pos_{str(tenant_id)}_{str(exchange_id).lower()}"
+    try:
+        # Mevcut pozisyonları oku
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        current_data = (res.data[0]["state_data"] if res.data and len(res.data) > 0 else {}) or {}
+        
+        base_upper = str(base_asset).upper()
+        current_data[base_upper] = {
+            "symbol": str(symbol).upper(),
+            "base_asset": base_upper,
+            "quote_asset": str(quote_asset).upper(),
+            "amount": float(amount),
+            "buy_price": float(buy_price),
+            "stop_loss_price": float(stop_loss_price) if stop_loss_price else None,
+            "take_profit_price": float(take_profit_price) if take_profit_price else None,
+            "is_simulated": bool(is_simulated),
+            "time": time.time()
+        }
+        
+        client.table("crypto_agent_states").upsert({
+            "session_id": session_id,
+            "state_data": current_data
+        }).execute()
+        print(f"✅ [Supabase DB Ledger]: {symbol} pozisyonu veritabanına kaydedildi ({amount} adet @ {buy_price})")
+        return True
+    except Exception as e:
+        print(f"⚠️ [Supabase DB Pozisyon Kayıt Uyarısı]: {e}")
+        return False
+
+def get_active_positions_from_db(
+    tenant_id: Optional[str] = None,
+    exchange_id: Optional[str] = None,
+    is_simulated: bool = False
+) -> Dict[str, Dict[str, Any]]:
+    """Supabase'den tenant ve borsa bazlı açık pozisyonları çeker."""
+    client = get_supabase()
+    if not client: return {}
+    session_id = f"pos_{str(tenant_id)}_{str(exchange_id or 'binancetr').lower()}"
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        if res.data and len(res.data) > 0:
+            raw_pos = res.data[0].get("state_data") or {}
+            # İstenen simülasyon filtresine göre filtrele
+            filtered = {}
+            for k, v in raw_pos.items():
+                if isinstance(v, dict):
+                    if v.get("is_simulated", False) == is_simulated:
+                        filtered[k] = v
+            return filtered
+        return {}
+    except Exception as e:
+        print(f"⚠️ [Supabase DB Pozisyon Okuma Uyarısı]: {e}")
+        return {}
+
+def remove_position_from_db(tenant_id: str, exchange_id: str, symbol: str) -> bool:
+    """Kapanan pozisyonu Supabase ledger'ından siler."""
+    client = get_supabase()
+    if not client: return False
+    session_id = f"pos_{str(tenant_id)}_{str(exchange_id).lower()}"
+    base_upper = symbol.split("/")[0].split("_")[0].upper()
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        if res.data and len(res.data) > 0:
+            current_data = res.data[0].get("state_data") or {}
+            if base_upper in current_data:
+                current_data.pop(base_upper, None)
+                client.table("crypto_agent_states").upsert({
+                    "session_id": session_id,
+                    "state_data": current_data
+                }).execute()
+                print(f"🗑️ [Supabase DB Ledger]: {symbol} pozisyonu veritabanından başarıyla silindi.")
+        return True
+    except Exception as e:
+        print(f"⚠️ [Supabase DB Pozisyon Silme Uyarısı]: {e}")
+        return False
+
+def set_cooldown_in_db(tenant_id: str, symbol: str, base_asset: str, duration_seconds: int = 3600, reason: str = "TRADE_EXIT") -> bool:
+    """Satılan coin için Supabase üzerinde atomik soğuma süresi başlatır."""
+    client = get_supabase()
+    if not client: return False
+    session_id = f"cooldowns_{str(tenant_id)}"
+    base_upper = str(base_asset).upper()
+    until_ts = time.time() + duration_seconds
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        current_data = (res.data[0]["state_data"] if res.data and len(res.data) > 0 else {}) or {}
+        current_data[base_upper] = {
+            "symbol": str(symbol).upper(),
+            "until_ts": until_ts,
+            "reason": str(reason)
+        }
+        client.table("crypto_agent_states").upsert({
+            "session_id": session_id,
+            "state_data": current_data
+        }).execute()
+        print(f"⏳ [Supabase DB Cooldown]: {base_upper} için {duration_seconds//60} dk soğuma süresi veritabanına işlendi.")
+        return True
+    except Exception as e:
+        print(f"⚠️ [Supabase DB Cooldown Kayıt Uyarısı]: {e}")
+        return False
+
+def get_active_cooldowns_from_db(tenant_id: str) -> List[str]:
+    """Supabase'den halen aktif olan soğuma altındaki coin listesini çeker."""
+    client = get_supabase()
+    if not client: return []
+    session_id = f"cooldowns_{str(tenant_id)}"
+    now_ts = time.time()
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        if res.data and len(res.data) > 0:
+            cds = res.data[0].get("state_data") or {}
+            active_list = []
+            for coin, info in cds.items():
+                if isinstance(info, dict) and float(info.get("until_ts", 0)) > now_ts:
+                    active_list.append(coin.upper())
+            return active_list
+        return []
+    except Exception as e:
+        print(f"⚠️ [Supabase DB Cooldown Okuma Uyarısı]: {e}")
+        return []
+
 if __name__ == "__main__":
     print("🚀 Multi-Tenant db.py Modülü Test Ediliyor...")
     client = get_supabase()
     if client:
         print("✅ Supabase istemcisi başarıyla bağlandı!")
-        # Mevcut kullanıcıyı otomatik tenant olarak kaydet
         register_user_tenant(
             tenant_name="Ana Kullanıcı (S)",
             telegram_chat_id=8739367825,
             exchange_api_key=os.environ.get("EXCHANGE_API_KEY", ""),
             exchange_secret_key=os.environ.get("EXCHANGE_SECRET_KEY", "")
         )
+

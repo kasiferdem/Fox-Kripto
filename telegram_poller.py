@@ -788,8 +788,10 @@ def handle_update(update: dict):
             ticker = fetch_ticker_price(target_symbol)
             curr_price = float(ticker.get("last_price", 0.0))
             
+            from exchange import get_live_usd_try_rate
+            live_fx = get_live_usd_try_rate()
             if amt_type == "FIAT_TRY":
-                amount_usd = amt_val / 34.80
+                amount_usd = amt_val / live_fx
                 amount_display = f"₺{amt_val:,.2f} TL"
             elif amt_type == "FIAT_USD":
                 amount_usd = amt_val
@@ -797,7 +799,7 @@ def handle_update(update: dict):
             elif amt_type == "COIN_QTY":
                 if curr_price > 0:
                     tot_fiat = amt_val * curr_price
-                    amount_usd = (tot_fiat / 34.80) if is_tr_user else tot_fiat
+                    amount_usd = (tot_fiat / live_fx) if is_tr_user else tot_fiat
                     amount_display = f"{amt_val} {coin} (~₺{tot_fiat:,.2f} TL)" if is_tr_user else f"{amt_val} {coin} (~${tot_fiat:,.2f} USD)"
                 else:
                     amount_usd = 10.0
@@ -854,6 +856,28 @@ def handle_update(update: dict):
                 order_id = trade_res.get("order_id", "LIVE_EXEC")
                 exec_p = trade_res.get("executed_price") or curr_price
                 price_str = f"₺{exec_p:,.2f} TL" if is_tr_user else f"${exec_p:,.4f}"
+                
+                # Supabase DB Ledger Güncellemesi
+                try:
+                    from db import save_position_to_db, remove_position_from_db, set_cooldown_in_db
+                    t_id = str(tenant.get("id") or tenant.get("telegram_chat_id") or "default_tenant")
+                    exch_id = "binancetr" if is_tr_user else "binance"
+                    if action == "BUY":
+                        coin_amt = float(trade_res.get("amount") or (amount_usd / exec_p if exec_p > 0 else 0))
+                        save_position_to_db(
+                            tenant_id=t_id,
+                            exchange_id=exch_id,
+                            symbol=target_symbol,
+                            base_asset=coin,
+                            quote_asset=quote_curr,
+                            amount=coin_amt,
+                            buy_price=exec_p
+                        )
+                    else: # SELL
+                        remove_position_from_db(tenant_id=t_id, exchange_id=exch_id, symbol=target_symbol)
+                        set_cooldown_in_db(tenant_id=t_id, symbol=target_symbol, base_asset=coin, duration_seconds=3600)
+                except Exception as db_err:
+                    print(f"⚠️ [Manuel İşlem DB Uyarısı]: {db_err}")
                 
                 if is_en_pref:
                     success_card = (

@@ -1,10 +1,23 @@
-import os, sys, time, requests, hmac, hashlib
+import os, sys, time, requests, hmac, hashlib, math
+from decimal import Decimal, ROUND_DOWN
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
 import ccxt
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
+
+def get_live_usd_try_rate() -> float:
+    """Canlı USDT/TRY kurunu Binance API üzerinden okur."""
+    try:
+        r = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=USDTTRY", timeout=3)
+        if r.status_code == 200:
+            p = float(r.json().get("price", 0.0))
+            if p > 10.0:
+                return p
+    except Exception:
+        pass
+    return 47.80
 
 class BinanceTRClient:
     """Binance TR (www.binance.tr) Özel REST API İstemcisi"""
@@ -722,14 +735,15 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                 "holdings_details": holdings_details
             }
         except Exception as e:
-            print(f"⚠️ CCXT Multi-Tenant Bakiye Uyarısı: {e}")
+            print(f"⚠️ CCXT Multi-Tenant Bakiye Hatası: {e}")
             return {
                 "exchange": "binance",
-                "is_paper_trading": True,
-                "free_usdt": 1000.0,
+                "is_paper_trading": False,
+                "free_usdt": 0.0,
                 "used_usdt": 0.0,
-                "total_usdt": 1000.0,
-                "crypto_holdings": {"BTC": 0.0},
+                "total_usdt": 0.0,
+                "total_try": 0.0,
+                "crypto_holdings": {},
                 "api_error": str(e)
             }
 
@@ -831,8 +845,9 @@ def execute_spot_trade(
                 clean_sym = symbol.replace("/", "_").upper()
                 ticker = fetch_ticker_price(symbol)
                 price = float(ticker.get("last_price") or 1.0)
-                amount_val = (amount_usd * 47.80) if side.lower() == "buy" else (amount_usd / price if price > 0 else 0)
-                res = client_tr.create_order(symbol=clean_sym, type="market", side=side.lower(), amount=amount_val)
+                live_fx = get_live_usd_try_rate()
+                amount_val = (amount_usd * live_fx) if side.lower() == "buy" else (amount_usd / price if price > 0 else 0)
+                res = client_tr.create_order(symbol=clean_sym, type="market", side=side.lower(), amount=amount_val, amount_usd=amount_usd)
                 print(f"✅ [CANLI BINANCE TR OTOMATİK EMİR İNFAZ EDİLDİ]: Order ID #{res.get('id')}")
                 return {
                     "status": "success",
