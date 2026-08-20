@@ -154,6 +154,20 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             if amt > 0.0001 and val >= 1.0:
                 current_assets.append(str(k).upper())
 
+    # 🛡️ 1. DEVRE KESİCİ & POZİSYON SINIRI KONTROLÜ (Circuit Breaker)
+    from circuit_breaker import check_circuit_breaker
+    cb_check = check_circuit_breaker(tenant_id=tenant_id, open_positions_count=len(current_assets), max_concurrent_positions=3)
+    if not cb_check.get("allowed", True):
+        print(f"   🛑 [Devre Kesici Engeli]: {cb_check.get('reason')}")
+        return {"trade_proposal": None, "human_approval": "Rejected"}
+
+    # 🌐 2. PİYASA REJİMİ KONTROLÜ (BTC EMA200 Ayı Rejimi Koruması)
+    from market_regime import check_market_regime
+    regime = check_market_regime()
+    if not regime.get("is_bullish", True):
+        print(f"   ⚠️ [Piyasa Rejimi Uyarısı]: {regime.get('reason')}. Yeni altcoin alımları donduruldu (Sermaye Koruma).")
+        return {"trade_proposal": None, "human_approval": "Rejected"}
+
     from surge_detector import get_active_trading_symbols
     active_syms = get_active_trading_symbols()
 
@@ -273,6 +287,15 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         if real_entry_price <= 0:
             continue
             
+        # 🎯 ATR(14) Tabanlı Dinamik Stop-Loss ve R:R >= 1:2 Take-Profit
+        from atr_calculator import calculate_atr_sl_tp
+        tp_price, sl_price, dynamic_tp_pct, dynamic_sl_pct = calculate_atr_sl_tp(
+            symbol=fresh_coin,
+            entry_price=real_entry_price,
+            user_tp_override=user_tp,
+            user_sl_override=user_sl
+        )
+            
         reentry_tag = " (2. Kademe Heyet Onaylı Giriş)" if is_recently_sold else ""
         selected_proposal = {
             "should_trade": True,
@@ -281,10 +304,11 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             "amount_usd": safe_budget_usd,
             "entry_price": real_entry_price,
             "sentiment_score": ai_conviction_score,
-            "take_profit_price": round(real_entry_price * (1.0 + (user_tp / 100.0)), 6),
-            "stop_loss_price": round(real_entry_price * (1.0 - (user_sl / 100.0)), 6),
-            "stop_loss_percent": user_sl,
-            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10{reentry_tag} -> Tahta Oranı: {orderbook_ratio:.2f} | Bütçe: Serbest kasanın %{enforced_max_pct:.1f}'i (${safe_budget_usd:.2f} USD) tahsis edildi."
+            "take_profit_price": tp_price,
+            "stop_loss_price": sl_price,
+            "take_profit_percent": dynamic_tp_pct,
+            "stop_loss_percent": dynamic_sl_pct,
+            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10{reentry_tag} -> Tahta Oranı: {orderbook_ratio:.2f} | ATR TP: +%{dynamic_tp_pct:.1f} (${tp_price}) | ATR SL: -%{dynamic_sl_pct:.1f} (${sl_price}) (R:R 1:2) | Bütçe: Serbest kasanın %{enforced_max_pct:.1f}'i (${safe_budget_usd:.2f} USD) tahsis edildi."
         }
         break
         
