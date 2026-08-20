@@ -38,7 +38,100 @@ def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
             detail="Hatalı Kullanıcı Adı veya Şifre",
             headers={"WWW-Authenticate": "Basic realm='FoxKripto Admin'"},
         )
-    return credentials.username
+def resolve_exchange_error_details(err_str: str) -> dict:
+    """
+    Borsa hata kodlarını (3203, -2010, -1013, -2015 vb.) analiz edip
+    insan tarafından anlaşılır Türkçe açıklama ve çözüm aksiyonu üretir.
+    """
+    import re
+    err_lower = str(err_str).lower()
+    code_match = re.search(r'\(?(-?\d{3,5})\)?', str(err_str))
+    code_str = code_match.group(1) if code_match else "UNKNOWN"
+    
+    error_dict = {
+        "3203": {
+            "title": "Miktar / Adım Hatası (LOT_SIZE)",
+            "reason": "Borsa bu coin için küsuratlı adet kabul etmiyor.",
+            "action": "Bot otomatik tam sayıya çevirerek (2. kademe) işlemi tamamlıyor."
+        },
+        "-1013": {
+            "title": "Adım / Filtre Hatası (LOT_SIZE / MIN_NOTIONAL)",
+            "reason": "Emir tutarı borsa asgari işlem sınırının ($10 / ₺200) altında veya adım büyüklüğü uyuşmadı.",
+            "action": "Bütçe ve adım büyüklüğü otomatik düzeltilerek yeniden deneniyor."
+        },
+        "-2010": {
+            "title": "Yetersiz Serbest Bakiye (INSUFFICIENT_BALANCE)",
+            "reason": "Cüzdanda bu işlemi gerçekleştirecek serbest nakit (USDT / TRY) bulunmuyor.",
+            "action": "Mevcut açık pozisyonlardan kâr satışı bekleniyor."
+        },
+        "-2015": {
+            "title": "API Yetki / IP Kısıtlaması (INVALID_API_PERMISSIONS)",
+            "reason": "API anahtarında Spot Alım-Satım izni kapalı veya IP whitelist tanımlı değil.",
+            "action": "Lütfen Binance API ayarlarından 'Enable Spot Trading' iznini kontrol edin."
+        },
+        "-1021": {
+            "title": "Zaman Aşımı / Sunucu Saati (TIMESTAMP_AHEAD)",
+            "reason": "Borsa sunucusu ile zaman senkronizasyonu gecikti.",
+            "action": "Sistem saat farkını otomatik güncelleyip emri yeniliyor."
+        },
+        "-1121": {
+            "title": "Geçersiz İşlem Çifti (INVALID_SYMBOL)",
+            "reason": "Coin borsada spot işleme kapalı veya çift adı değişti.",
+            "action": "Listeden çıkarılıp bir sonraki balina adayına geçildi."
+        },
+        "-1003": {
+            "title": "İstek Limiti Aşıldı (TOO_MANY_REQUESTS)",
+            "reason": "Borsa API hız sınırı aşıldı.",
+            "action": "Bot 10 saniye soğuma süresine geçti, ardından devam edecek."
+        }
+    }
+    
+    resolved = error_dict.get(code_str)
+    if not resolved:
+        if "insufficient balance" in err_lower or "yetersiz" in err_lower:
+            resolved = error_dict["-2010"]
+            code_str = "-2010"
+        elif "lot_size" in err_lower or "quantity" in err_lower:
+            resolved = error_dict["3203"]
+            code_str = "3203"
+        elif "permission" in err_lower or "api-key" in err_lower or "ip" in err_lower:
+            resolved = error_dict["-2015"]
+            code_str = "-2015"
+        else:
+            resolved = {
+                "title": "Borsa İletişim Uyarısı",
+                "reason": str(err_str)[:120],
+                "action": "Sistem otomatik olarak sonraki döngüde işlemi yenileyecektir."
+            }
+            
+    return {
+        "code": code_str,
+        "title": resolved["title"],
+        "reason": resolved["reason"],
+        "action": resolved["action"],
+        "raw": str(err_str)
+    }
+
+def handle_autonomous_error_alert(tenant_name, sym_target, action_name, exch_name, raw_error, chat_id):
+    """Borsa hatalarını kodlarıyla birlikte detaylı ve anlaşılır şekilde Telegram'a iletir."""
+    global last_error_alerts
+    current_time = time.time()
+    err_key = f"{sym_target}_{action_name}"
+    if current_time - last_error_alerts.get(err_key, 0) > 300: # 5 dk spam filtresi
+        last_error_alerts[err_key] = current_time
+        err_info = resolve_exchange_error_details(raw_error)
+        from telegram_poller import send_message
+        warning_msg = (
+            f"🚨 *7/24 OTONOM BORSA İŞLEM UYARISI*\n\n"
+            f"👤 Kullanıcı: {tenant_name}\n"
+            f"🪙 Hedef Balina / Coin: `{sym_target}`\n"
+            f"⚡ Yapılmak İstenen İşlem: *{action_name}*\n"
+            f"🏢 Borsa: {exch_name}\n\n"
+            f"🛑 *Borsa Hata Kodu:* `{err_info['code']} - {err_info['title']}`\n"
+            f"❌ *Net Sebep:* {err_info['reason']}\n\n"
+            f"💡 *Otomatik Aksiyon:* {err_info['action']}"
+        )
+        send_message(chat_id, warning_msg)
 
 def run_autonomous_trading_loop():
     """
@@ -111,31 +204,12 @@ def run_autonomous_trading_loop():
                         is_exec_success = status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]
                         
                         # 🚨 GERÇEK BORSA HATALARINI TELEGRAM İLE KULLANICIYA BİLDİR:
-                        # (Yalnızca gerçek bir işlem teklifi varsa ve borsa emri reddettiyse bildir, normal HOLD durumlarında sus!)
                         if not is_exec_success and proposal and proposal.get("should_trade") and exec_res.get("error"):
-                            err_msg = str(exec_res.get("error"))
                             sym_target = proposal.get("symbol", "COIN")
                             action_name = "ALIM (BUY)" if proposal.get("direction") == "BUY" else "SATIM (SELL)"
-                            
                             is_try_sym = sym_target.upper().endswith("TRY") or sym_target.upper().endswith("_TRY")
                             exch_name = "BINANCE.TR 🇹🇷" if is_try_sym else "BINANCE GLOBAL 🌍"
-                            
-                            current_time = time.time()
-                            err_key = f"{sym_target}_{action_name}"
-                            if current_time - last_error_alerts.get(err_key, 0) > 300: # 5 dk spam filtresi
-                                last_error_alerts[err_key] = current_time
-                                from telegram_poller import send_message
-                                warning_msg = (
-                                    f"⚠️ *7/24 OTONOM BORSA İŞLEM UYARISI*\n\n"
-                                    f"👤 Kullanıcı: {tenant_name}\n"
-                                    f"🪙 Hedef Balina / Coin: `{sym_target}`\n"
-                                    f"⚡ Yapılmak İstenen İşlem: *{action_name}*\n"
-                                    f"🏢 Borsa: {exch_name}\n\n"
-                                    f"❌ *Borsa Reddi / Hata Sebebi:*\n"
-                                    f"`{err_msg}`\n\n"
-                                    f"💡 *Gereken Aksiyon:* Bot bu işlemi yakaladı ancak borsa emri reddetti. Lütfen borsa hesabınızdaki Spot işlem iznini, bakiye veya IP tanımlarını kontrol edin."
-                                )
-                                send_message(chat_id, warning_msg)
+                            handle_autonomous_error_alert(tenant_name, sym_target, action_name, exch_name, exec_res.get("error"), chat_id)
                             continue
                         
                         symbol = exec_res.get("symbol") or (proposal.get("symbol") if proposal else "BTC/USDT")
