@@ -685,11 +685,11 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                         except Exception:
                             pass
 
+            usdt_try_price = get_live_usd_try_rate()
             estimated_total_usd = free_usdt
-            estimated_total_try = free_usdt * 47.80
+            estimated_total_try = free_usdt * usdt_try_price
             holdings_details = {}
             price_map = get_all_prices_map()
-            usdt_try_price = price_map.get("USDTTRY", 47.80) or 47.80
             
             for asset, amount in crypto_holdings.items():
                 if amount > 0:

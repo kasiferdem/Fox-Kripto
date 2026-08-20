@@ -1,4 +1,4 @@
-import os, sys, time, json
+import os, sys, time, json, requests
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
 from typing import Dict, Any, Optional, List
 from langgraph.graph import StateGraph, END
@@ -160,21 +160,24 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
 
     # DOĞRUDAN VE KESİNTİSİZ ERKEN BALİNA VE HACİM PATLAMASI TARAYICI
     dynamic_candidates = []
+    seen_symbols = set()
     try:
         early_surges = detect_early_volume_breakouts(quote=pair_quote)
         for es in early_surges:
-            sym_c = es.get("symbol", "")
-            if sym_c and sym_c not in dynamic_candidates:
-                dynamic_candidates.append(sym_c)
+            sym_c = es.get("symbol", "") if isinstance(es, dict) else str(es)
+            if sym_c and sym_c not in seen_symbols:
+                seen_symbols.add(sym_c)
+                dynamic_candidates.append(es)
     except Exception:
         pass
         
     try:
         top_g = fetch_top_volume_gainers(limit=15)
         for tg in top_g:
-            sym_c = tg.get("symbol", "")
-            if sym_c and sym_c not in dynamic_candidates:
-                dynamic_candidates.append(sym_c)
+            sym_c = tg.get("symbol", "") if isinstance(tg, dict) else str(tg)
+            if sym_c and sym_c not in seen_symbols:
+                seen_symbols.add(sym_c)
+                dynamic_candidates.append(tg)
     except Exception:
         pass
     
