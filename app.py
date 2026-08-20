@@ -297,12 +297,15 @@ def run_autonomous_trading_loop():
                                     if abs(net_profit_fiat) < 0.01:
                                         net_profit_fiat = tot_sell_try * (net_pct / 100.0)
                                         
-                                    if exit_try < 0.01:
+                                    if exit_try < 0.0001:
                                         entry_str = f"₺{entry_try:.8f}"
                                         exit_str = f"₺{exit_try:.8f}"
                                     elif exit_try < 1.0:
                                         entry_str = f"₺{entry_try:.4f}"
                                         exit_str = f"₺{exit_try:.4f}"
+                                    elif exit_try < 10.0:
+                                        entry_str = f"₺{entry_try:.3f}"
+                                        exit_str = f"₺{exit_try:.3f}"
                                     else:
                                         entry_str = f"₺{entry_try:,.2f}"
                                         exit_str = f"₺{exit_try:,.2f}"
@@ -339,9 +342,15 @@ def run_autonomous_trading_loop():
                                     if abs(net_profit_fiat) < 0.01:
                                         net_profit_fiat = tot_sell_usd * (net_pct / 100.0)
                                         
-                                    if exit_usd < 0.01:
+                                    if exit_usd < 0.0001:
                                         entry_str = f"${entry_usd:.8f}"
                                         exit_str = f"${exit_usd:.8f}"
+                                    elif exit_usd < 1.0:
+                                        entry_str = f"${entry_usd:.4f}"
+                                        exit_str = f"${exit_usd:.4f}"
+                                    elif exit_usd < 10.0:
+                                        entry_str = f"${entry_usd:.3f}"
+                                        exit_str = f"${exit_usd:.3f}"
                                     else:
                                         entry_str = f"${entry_usd:,.2f}"
                                         exit_str = f"${exit_usd:,.2f}"
