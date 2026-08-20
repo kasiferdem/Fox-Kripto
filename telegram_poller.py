@@ -166,6 +166,40 @@ def handle_update(update: dict):
             send_message(chat_id, f"👋 Merhaba / Hello *{first_name}*!\nFox-Kripto Otonom Ajan Sistemine Hoş Geldiniz / Welcome to Fox-Crypto AI Agent System!\n\nBinance hesabınızı bağlamak için `bagla` yazabilirsiniz.")
         return
 
+    # 🎛️ TEST MODU / CANLI MOD TEK TUŞ GEÇİŞİ (Mode Switcher)
+    from db import set_tenant_trading_mode, get_tenant_trading_mode
+    if text_clean in ["test", "test modu", "test_modu", "/test", "/paper", "paper", "sanal", "sanal mod", "/sanal"]:
+        set_tenant_trading_mode(chat_id, is_paper=True)
+        send_message(
+            chat_id,
+            f"🧪 *SİSTEM SANAL TEST (PAPER TRADING) MODUNA ALINDI!* ✅\n\n"
+            f"💰 *Sanal Kasa:* $100.00 USDT (Monopoly Parası)\n"
+            f"🛡️ *Borsa Riski:* 0 TL / 0 USD (Gerçek hesabınıza dokunulmaz)\n"
+            f"📈 *Çalışma:* Binance canlı tahtasından anlık fiyatlarla sanal al-sat yapılır.\n\n"
+            f"_(İstediğiniz zaman `/canli` yazarak gerçek borsa hesabınıza geçebilirsiniz.)_"
+        )
+        return
+
+    if text_clean in ["canli", "canlı", "canli mod", "canlı mod", "/canli", "/live", "live", "/canlı"]:
+        set_tenant_trading_mode(chat_id, is_paper=False)
+        send_message(
+            chat_id,
+            f"🚀 *SİSTEM GERÇEK CANLI BORSA MODUNA ALINDI!* ⚠️\n\n"
+            f"🏦 *Borsa:* Binance TR & Binance Global\n"
+            f"🛡️ *Emniyet:* ATR(14) Dinamik Stop ve Fiziksel Borsa Stop Emri devrede.\n"
+            f"📈 *Çalışma:* Onaylanan işlemler gerçek borsa hesabınızla açılacaktır.\n\n"
+            f"_(Test ortamına dönmek için istediğiniz an `/test` yazabilirsiniz.)_"
+        )
+        return
+
+    if text_clean in ["mod", "mode", "/mod", "durum mod", "hangi moddayım", "hangi moddayim"]:
+        current_is_paper = get_tenant_trading_mode(chat_id)
+        if current_is_paper:
+            send_message(chat_id, "🧪 *ŞU ANKİ ÇALIŞMA MODUNUZ:* `SANAL TEST (Paper Trading - $100)`\nBorsa Riski: $0.00. Gerçek canlıya geçmek için `/canli` yazabilirsiniz.")
+        else:
+            send_message(chat_id, "🚀 *ŞU ANKİ ÇALIŞMA MODUNUZ:* `GERÇEK CANLI (Live Binance)`\nİşlemler gerçek cüzdanınızla yapılıyor. Teste geçmek için `/test` yazabilirsiniz.")
+        return
+
     tenant = get_tenant_by_chat_id(chat_id)
     user_lang = str(tenant.get("preferred_language", "tr") if tenant else "tr").lower()
 

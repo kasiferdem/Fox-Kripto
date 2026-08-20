@@ -57,6 +57,38 @@ def register_user_tenant(
         print(f"❌ [Multi-Tenant Kayıt Hatası]: {e}")
         return None
 
+def set_tenant_trading_mode(telegram_chat_id: int, is_paper: bool) -> bool:
+    """Kullanıcının çalışma modunu SANAL TEST (Paper) veya GERÇEK CANLI (Live) olarak ayarlar."""
+    client = get_supabase()
+    if not client: return False
+    session_id = f"trading_mode_{str(telegram_chat_id)}"
+    try:
+        payload = {
+            "session_id": session_id,
+            "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            "state_data": {"is_paper_trading": bool(is_paper)}
+        }
+        client.table("crypto_agent_states").upsert(payload).execute()
+        mode_str = "SANAL TEST (Paper - $100)" if is_paper else "GERÇEK CANLI (Live)"
+        print(f"🎛️ [Çalışma Modu Değişti]: Chat ID {telegram_chat_id} -> {mode_str}")
+        return True
+    except Exception as e:
+        print(f"⚠️ [Trading Mode Güncelleme Hatası]: {e}")
+        return False
+
+def get_tenant_trading_mode(telegram_chat_id: int) -> bool:
+    """Kullanıcının şu anda SANAL TEST modunda olup olmadığını döner."""
+    client = get_supabase()
+    if not client: return False
+    session_id = f"trading_mode_{str(telegram_chat_id)}"
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        if res.data and len(res.data) > 0:
+            return bool(res.data[0].get("state_data", {}).get("is_paper_trading", False))
+    except Exception:
+        pass
+    return False
+
 def get_tenant_by_chat_id(telegram_chat_id: int) -> Optional[Dict[str, Any]]:
     """Telegram Chat ID'sine göre ilgili kullanıcının borsa ve bütçe ayarlarını getirir."""
     client = get_supabase()
@@ -66,6 +98,8 @@ def get_tenant_by_chat_id(telegram_chat_id: int) -> Optional[Dict[str, Any]]:
         if res.data and len(res.data) > 0:
             t = dict(res.data[0])
             api_k = str(t.get("exchange_api_key", ""))
+            is_paper = get_tenant_trading_mode(telegram_chat_id)
+            t["is_paper_trading"] = is_paper
             if api_k.startswith("{"):
                 try:
                     import json
@@ -94,6 +128,8 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
         for t in raw_tenants:
             exch_id = str(t.get("exchange_id", "")).lower()
             api_k = str(t.get("exchange_api_key", ""))
+            c_id = t.get("telegram_chat_id")
+            is_paper = get_tenant_trading_mode(c_id) if c_id else False
             
             # JSON formatında çift veya tekil borsa ve risk ayarları kontrolü
             if api_k.startswith("{"):
@@ -107,6 +143,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
                         if "binancetr" in keys_dict:
                             t_tr = dict(t)
                             t_tr["exchange_id"] = "binancetr"
+                            t_tr["is_paper_trading"] = is_paper
                             t_tr["take_profit_percent"] = tp_val
                             t_tr["preferred_language"] = lang_val
                             t_tr["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance TR)"
@@ -116,6 +153,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
                         if "binance" in keys_dict:
                             t_gl = dict(t)
                             t_gl["exchange_id"] = "binance"
+                            t_gl["is_paper_trading"] = is_paper
                             t_gl["take_profit_percent"] = tp_val
                             t_gl["preferred_language"] = lang_val
                             t_gl["tenant_name"] = f"{t.get('tenant_name', 'Kullanıcı').split('(')[0].strip()} (Binance Global)"
@@ -126,6 +164,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
                     else:
                         # Tekil borsa JSON kaydı (Örn: Moonwalker)
                         t_single = dict(t)
+                        t_single["is_paper_trading"] = is_paper
                         t_single["take_profit_percent"] = tp_val
                         t_single["preferred_language"] = lang_val
                         t_single["exchange_api_key"] = keys_dict.get("api_key") or api_k
@@ -136,6 +175,7 @@ def get_all_active_tenants() -> List[Dict[str, Any]]:
                     pass
             
             t_def = dict(t)
+            t_def["is_paper_trading"] = is_paper
             t_def["take_profit_percent"] = float(t.get("take_profit_percent") or 1.5)
             t_def["preferred_language"] = str(t.get("preferred_language") or "tr").lower()
             unpacked.append(t_def)
