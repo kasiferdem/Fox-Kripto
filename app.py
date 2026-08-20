@@ -27,6 +27,7 @@ security = HTTPBasic()
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "foxkripto2026")
+last_error_alerts = {}
 
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
     correct_username = secrets.compare_digest(credentials.username, ADMIN_USERNAME)
@@ -44,6 +45,7 @@ def run_autonomous_trading_loop():
     7/24 Otonom Yapay Zeka Alım-Satım ve Piyasa Analiz Döngüsü.
     Sistemdeki tüm aktif kullanıcılar (Tenants) için 5 saniyede bir piyasayı tarar.
     """
+    global last_error_alerts
     print("🤖 [Yapay Zeka Otonom Ajan]: 7/24 Tam Otonom Alım-Satım Döngüsü Aktif!")
     import time
     time.sleep(10)

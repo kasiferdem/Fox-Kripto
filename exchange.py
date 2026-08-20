@@ -138,7 +138,23 @@ class BinanceTRClient:
             }
             
             base_coin = clean_symbol.split("_")[0].upper()
-            num_decimals = decimals_map.get(base_coin, 0 if ("MUBARAK" in base_coin or "HEMI" in base_coin or "HEI" in base_coin) else (2 if qty_to_sell >= 1.0 else 3))
+            num_decimals = decimals_map.get(base_coin)
+            if num_decimals is None:
+                try:
+                    r_tr_info = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={base_coin}USDT", timeout=2)
+                    if r_tr_info.status_code == 200:
+                        for s_item in r_tr_info.json().get("symbols", []):
+                            for f_item in s_item.get("filters", []):
+                                if f_item.get("filterType") == "LOT_SIZE":
+                                    step_v = float(f_item.get("stepSize", 1.0))
+                                    if step_v >= 1.0:
+                                        num_decimals = 0
+                                    else:
+                                        num_decimals = len(str(step_v).split(".")[1].rstrip("0"))
+                except Exception:
+                    pass
+            if num_decimals is None:
+                num_decimals = 0 if qty_to_sell >= 10.0 else (1 if qty_to_sell >= 1.0 else 2)
             
             if num_decimals == 0:
                 params["quantity"] = f"{int(qty_to_sell)}"
