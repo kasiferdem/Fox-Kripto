@@ -423,6 +423,14 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
                     remove_position_from_db(tenant_id=tenant_id, exchange_id=exch_name, symbol=proposal["symbol"])
                     # Satılan coin için 60 dakika soğuma başlat
                     set_cooldown_in_db(tenant_id=tenant_id, symbol=proposal["symbol"], base_asset=base_sym, duration_seconds=3600)
+            else:
+                # Satış emri bakiye yetersizliği (-2010) veya borsa mikro bakiye engeli (-1013 MIN_NOTIONAL) yüzünden başarısız olduysa,
+                # bu coin gerçek borsada zaten satılmış veya sıfırlanmıştır. DB ledger'dan temizle ki sonsuz döngüye girmesin!
+                if proposal["direction"].upper() not in ["BUY", "ALIM"]:
+                    err_msg = str(result.get("error", "")).upper()
+                    if "-1013" in err_msg or "MIN_NOTIONAL" in err_msg or "-2010" in err_msg or "INSUFFICIENT" in err_msg:
+                        print(f"🧹 [Otomatik Temizleme]: {proposal['symbol']} borsada bulunamadığı veya mikro bakiye olduğu için veritabanı pozisyon listesinden düşürüldü.")
+                        remove_position_from_db(tenant_id=tenant_id, exchange_id=exch_name, symbol=proposal["symbol"])
         except Exception as pe:
             print(f"⚠️ [DB Ledger Güncelleme Uyarısı]: {pe}")
             
