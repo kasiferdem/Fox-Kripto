@@ -583,8 +583,14 @@ def list_trade_logs():
             tid = str(l.get("tenant_id") or "")
             t_info = tenant_map.get(tid, {})
             det = l.get("execution_details") or {}
-            l["tenant_name"] = t_info.get("tenant_name") or det.get("tenant_name") or "S (Çift Borsa TR+Global)"
-            l["exchange_label"] = "Binance TR 🇹🇷" if (t_info.get("exchange_id") == "binancetr" or str(l.get("symbol")).endswith("TRY")) else "Binance Global 🌍"
+            
+            is_paper_order = str(l.get("order_id") or "").startswith("PAPER_") or bool(det.get("raw_order", {}).get("info", {}).get("is_paper"))
+            if is_paper_order:
+                l["tenant_name"] = "🧪 Sanal Test (Paper Sandbox)"
+                l["exchange_label"] = "Sanal Sandbox 🧪"
+            else:
+                l["tenant_name"] = t_info.get("tenant_name") or det.get("tenant_name") or "S (Çift Borsa TR+Global)"
+                l["exchange_label"] = "Binance TR 🇹🇷" if (t_info.get("exchange_id") == "binancetr" or str(l.get("symbol")).endswith("TRY")) else "Binance Global 🌍"
             
             if l.get("symbol") in ["AUTO/USDT", "AUTO"]:
                 l["symbol"] = "DİNAMİK FIRSAT COIN"
