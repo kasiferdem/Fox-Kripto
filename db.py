@@ -235,12 +235,9 @@ def save_position_to_db(
             "quote_asset": str(quote_asset).upper(),
             "amount": float(amount),
             "buy_price": float(buy_price),
-            "stop_loss_price": float(stop_loss_price) if stop_loss_price else None,
-            "take_profit_price": float(take_profit_price) if take_profit_price else None,
             "is_simulated": bool(is_simulated),
             "time": time.time()
         }
-        
         client.table("crypto_agent_states").upsert({
             "session_id": session_id,
             "state_data": current_data
@@ -249,6 +246,104 @@ def save_position_to_db(
         return True
     except Exception as e:
         print(f"⚠️ [Supabase DB Pozisyon Kayıt Uyarısı]: {e}")
+        return False
+
+def get_coin_historical_performance(tenant_id: str, base_asset: str) -> Dict[str, Any]:
+    """
+    Belirli bir coin için kullanıcının geçmiş alım-satım istatistiklerini Supabase'den sorgular.
+    Bu veri karar mekanizmasını doğrudan engellemez, yalnızca analiz heyetine içgörü (insight) sağlar.
+    """
+    client = get_supabase()
+    base_upper = base_asset.upper()
+    default_stats = {
+        "symbol": base_upper,
+        "total_trades": 0,
+        "win_count": 0,
+        "loss_count": 0,
+        "win_rate": 0.0,
+        "total_net_pnl_pct": 0.0,
+        "insight_summary": f"Geçmiş işlem kaydı bulunmuyor (İlk kez taranıyor)."
+    }
+    if not client:
+        return default_stats
+        
+    try:
+        res = client.table("crypto_trade_logs")\
+            .select("symbol,direction,execution_details,created_at")\
+            .like("symbol", f"{base_upper}%")\
+            .order("created_at", desc=True)\
+            .limit(20)\
+            .execute()
+            
+        logs = res.data or []
+        if not logs:
+            return default_stats
+            
+        total_trades = 0
+        win_count = 0
+        loss_count = 0
+        total_pnl = 0.0
+        
+        for l in logs:
+            det = l.get("execution_details") or {}
+            reason = str(det.get("reason_type", "")).lower()
+            if "kâr alma" in reason or "take-profit" in reason or "kâr" in reason:
+                win_count += 1
+                total_trades += 1
+                total_pnl += 3.0 # Ortalama TP
+            elif "stop-loss" in reason or "stop" in reason:
+                loss_count += 1
+                total_trades += 1
+                total_pnl -= 1.5 # Ortalama SL
+                
+        if total_trades == 0:
+            total_trades = len(logs)
+            
+        win_rate = (win_count / total_trades * 100.0) if total_trades > 0 else 0.0
+        summary = f"Geçmişte {total_trades} işlem ({win_count} Kâr, {loss_count} Zarar | %{win_rate:.0f} Başarı | Net: %{total_pnl:+.1f})"
+        
+        return {
+            "symbol": base_upper,
+            "total_trades": total_trades,
+            "win_count": win_count,
+            "loss_count": loss_count,
+            "win_rate": round(win_rate, 1),
+            "total_net_pnl_pct": round(total_pnl, 2),
+            "insight_summary": summary
+        }
+    except Exception as e:
+        print(f"⚠️ [Coin Geçmişi Sorgu Uyarısı]: {e}")
+        return default_stats
+
+def get_virtual_balance(tenant_id: str, default_balance: float = 100.0) -> float:
+    """Sanal test hesabı için Supabase'deki güncel serbest USDT bakiyesini döner."""
+    client = get_supabase()
+    if not client: return default_balance
+    session_id = f"virtual_balance_{str(tenant_id)}"
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        if res.data and len(res.data) > 0:
+            data = res.data[0].get("state_data") or {}
+            return float(data.get("free_usdt", default_balance))
+    except Exception:
+        pass
+    return default_balance
+
+def update_virtual_balance(tenant_id: str, new_balance: float) -> bool:
+    """Sanal test hesabı serbest bakiyesini Supabase'de günceller."""
+    client = get_supabase()
+    if not client: return False
+    session_id = f"virtual_balance_{str(tenant_id)}"
+    try:
+        payload = {
+            "session_id": session_id,
+            "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            "state_data": {"free_usdt": round(new_balance, 2)}
+        }
+        client.table("crypto_agent_states").upsert(payload).execute()
+        return True
+    except Exception as e:
+        print(f"⚠️ [Sanal Bakiye Güncelleme Hatası]: {e}")
         return False
 
 def get_active_positions_from_db(

@@ -297,6 +297,11 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         )
             
         reentry_tag = " (2. Kademe Heyet Onaylı Giriş)" if is_recently_sold else ""
+        from db import get_coin_historical_performance
+        tenant_id = tenant_config.get("id") or str(tenant_config.get("telegram_chat_id", ""))
+        coin_perf = get_coin_historical_performance(tenant_id, c_base)
+        perf_insight = coin_perf.get("insight_summary", "Geçmiş veri yok.")
+        
         selected_proposal = {
             "should_trade": True,
             "symbol": fresh_coin,
@@ -308,7 +313,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             "stop_loss_price": sl_price,
             "take_profit_percent": dynamic_tp_pct,
             "stop_loss_percent": dynamic_sl_pct,
-            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10{reentry_tag} -> Tahta Oranı: {orderbook_ratio:.2f} | ATR TP: +%{dynamic_tp_pct:.1f} (${tp_price}) | ATR SL: -%{dynamic_sl_pct:.1f} (${sl_price}) (R:R 1:2) | Bütçe: Serbest kasanın %{enforced_max_pct:.1f}'i (${safe_budget_usd:.2f} USD) tahsis edildi."
+            "coin_historical_insight": perf_insight,
+            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10{reentry_tag} -> Tahta Oranı: {orderbook_ratio:.2f} | ATR TP: +%{dynamic_tp_pct:.1f} (${tp_price}) | ATR SL: -%{dynamic_sl_pct:.1f} (${sl_price}) (R:R 1:2) | Bütçe: Serbest kasanın %{enforced_max_pct:.1f}'i (${safe_budget_usd:.2f} USD) tahsis edildi. | 📊 [Geçmiş Hafıza]: {perf_insight}"
         }
         break
         

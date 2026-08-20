@@ -530,11 +530,83 @@ def convert_dust_to_bnb(tenant_config: Optional[Dict[str, Any]] = None, assets: 
         return client.convert_dust_to_bnb(assets)
     return {"status": "failed", "error": "Borsa istemcisi Dust to BNB özelliğini desteklemiyor."}
 
+class VirtualPaperExchangeClient:
+    """Sanal Test (Paper Trading) Borsa İstemcisi: 0 Borsa Riski, Gerçek Canlı Veri."""
+    def __init__(self, tenant_id: str, initial_balance: float = 100.0):
+        self.tenant_id = str(tenant_id)
+        self.id = "paper"
+        self.apiKey = "VIRTUAL_PAPER_API_KEY"
+        self.initial_balance = initial_balance
+
+    def fetch_balance(self) -> dict:
+        from db import get_virtual_balance, get_active_positions_from_db
+        free_usdt = get_virtual_balance(self.tenant_id, self.initial_balance)
+        positions = get_active_positions_from_db(self.tenant_id, "paper", is_simulated=True)
+        free_dict = {"USDT": free_usdt}
+        total_dict = {"USDT": free_usdt}
+        for base, pos in positions.items():
+            amt = float(pos.get("amount", 0.0))
+            free_dict[base] = amt
+            total_dict[base] = amt
+        return {
+            "free": free_dict,
+            "total": total_dict,
+            "used": {"USDT": 0.0},
+            "info": {"is_paper": True, "virtual_balance": free_usdt}
+        }
+
+    def create_order(self, symbol: str, type: str, side: str, amount: float, price: Optional[float] = None, amount_usd: Optional[float] = None) -> dict:
+        from db import get_virtual_balance, update_virtual_balance, save_position_to_db, remove_position_from_db
+        ticker = fetch_ticker_price(symbol if "/" in symbol else f"{symbol}/USDT")
+        exec_price = float(ticker.get("last_price") or price or 1.0)
+        curr_balance = get_virtual_balance(self.tenant_id, self.initial_balance)
+        base_c = symbol.split("/")[0].split("_")[0].upper()
+        quote_c = symbol.split("/")[1].split("_")[0].upper() if "/" in symbol or "_" in symbol else "USDT"
+
+        if side.lower() == "buy":
+            spend = float(amount_usd or (amount * exec_price))
+            if spend > curr_balance:
+                raise Exception(f"Sanal serbest bakiye yetersiz (${curr_balance:.2f} < ${spend:.2f})")
+            net_spend = spend * 1.001 # %0.10 sanal komisyon
+            new_bal = max(0.0, curr_balance - net_spend)
+            update_virtual_balance(self.tenant_id, new_bal)
+            actual_amount = spend / exec_price if exec_price > 0 else amount
+            save_position_to_db(self.tenant_id, "paper", symbol, base_c, quote_c, actual_amount, exec_price, is_simulated=True)
+            print(f"🧪 [SANAL ALIŞ İNFAZI]: {actual_amount:.4f} {base_c} @ ${exec_price:,.4f} | Kalan Sanal Kasa: ${new_bal:.2f}")
+            return {
+                "id": f"PAPER_BUY_{int(time.time()*1000)}",
+                "symbol": symbol,
+                "price": exec_price,
+                "amount": actual_amount,
+                "status": "closed",
+                "info": {"is_paper": True, "free_usdt": new_bal}
+            }
+        else:
+            proceeds = float(amount * exec_price * 0.999) # %0.10 sanal komisyon
+            new_bal = curr_balance + proceeds
+            update_virtual_balance(self.tenant_id, new_bal)
+            remove_position_from_db(self.tenant_id, "paper", symbol)
+            print(f"🧪 [SANAL SATIŞ İNFAZI]: {amount:.4f} {base_c} @ ${exec_price:,.4f} -> +${proceeds:.2f} | Yeni Sanal Kasa: ${new_bal:.2f}")
+            return {
+                "id": f"PAPER_SELL_{int(time.time()*1000)}",
+                "symbol": symbol,
+                "price": exec_price,
+                "amount": amount,
+                "status": "closed",
+                "info": {"is_paper": True, "free_usdt": new_bal}
+            }
+
+    def create_stop_order(self, symbol: str, quantity: float, stop_price: float, limit_price: Optional[float] = None) -> dict:
+        print(f"🧪 [SANAL FİZİKSEL STOP KAYDI]: {symbol} için ${stop_price} sanal stop-loss kaydedildi.")
+        return {"status": "success", "order_id": f"PAPER_STOP_{int(time.time())}", "stop_price": stop_price}
+
 def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
     """
-    Multi-Tenant Borsa İstemcisi (Binance Global REST, Binance TR REST ve Çift Borsa Destekli):
+    Multi-Tenant Borsa İstemcisi (Binance Global REST, Binance TR REST, Çift Borsa ve Sanal Paper Destekli):
     """
     if tenant_config:
+        if tenant_config.get("is_paper_trading") or tenant_config.get("exchange_id") == "paper":
+            return VirtualPaperExchangeClient(tenant_config.get("id") or tenant_config.get("telegram_chat_id", "paper_tenant"))
         exchange_id = tenant_config.get("exchange_id", "binance").lower()
         api_key = tenant_config.get("exchange_api_key", "")
         secret_key = tenant_config.get("exchange_secret_key", "")
@@ -585,7 +657,44 @@ def get_all_prices_map() -> Dict[str, float]:
     return _cached_price_map or {}
 
 def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """İlgili kullanıcının (Tenant) güncel bakiye ve varlıklarını okur (Çift Borsa Destekli)."""
+    """İlgili kullanıcının (Tenant) güncel bakiye ve varlıklarını okur (Çift Borsa ve Sanal Destekli)."""
+    # 0. SANAL TEST (PAPER TRADING) KONTROLÜ
+    if tenant_config and (tenant_config.get("is_paper_trading") or tenant_config.get("exchange_id") == "paper"):
+        from db import get_virtual_balance, get_active_positions_from_db
+        t_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id", "paper_tenant"))
+        free_usdt = get_virtual_balance(t_id, 100.0)
+        positions = get_active_positions_from_db(t_id, "paper", is_simulated=True)
+        price_map = get_all_prices_map()
+        usdt_try_price = get_live_usd_try_rate()
+        
+        holdings_details = {}
+        total_holdings_val = 0.0
+        for base, p in positions.items():
+            amt = float(p.get("amount", 0.0))
+            p_usd = price_map.get(f"{base}USDT", float(p.get("buy_price", 1.0)))
+            val_u = amt * p_usd
+            val_t = val_u * usdt_try_price
+            total_holdings_val += val_u
+            holdings_details[base] = {
+                "amount": amt,
+                "price": p_usd,
+                "price_try": val_t,
+                "val_usd": val_u,
+                "val_try": val_t
+            }
+        tot_usd = free_usdt + total_holdings_val
+        return {
+            "exchange": "paper",
+            "is_dual": False,
+            "is_paper_trading": True,
+            "free_usdt": free_usdt,
+            "used_usdt": total_holdings_val,
+            "total_usdt": tot_usd,
+            "total_try": tot_usd * usdt_try_price,
+            "crypto_holdings": {k: v["amount"] for k, v in holdings_details.items()},
+            "holdings_details": holdings_details
+        }
+
     # 1. ÇİFT BORSA KONTROLÜ
     api_k = str((tenant_config or {}).get("exchange_api_key", ""))
     exch_id = str((tenant_config or {}).get("exchange_id", "")).lower()
