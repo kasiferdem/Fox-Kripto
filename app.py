@@ -738,50 +738,10 @@ def debug_binance_account():
     except Exception as ee:
         res_dict["simple_earn_flexible_err"] = str(ee)
 
-    try:
-@app_api.get("/api/tenants", dependencies=[Depends(authenticate_admin)])
-def list_tenants():
-    """Tüm kullanıcıları (Tenants) listeler (Tam Güvenli & Maskelenmiş)."""
-    tenants = get_all_active_tenants()
-    sanitized = []
-    for t in tenants:
-        safe_t = dict(t)
-        safe_t.pop("exchange_secret_key", None)
-        raw_k = safe_t.pop("exchange_api_key", "")
-        safe_t["exchange_api_key_configured"] = bool(raw_k)
-        safe_t["exchange_api_key_masked"] = "***CONFIGURED***" if raw_k else "NOT_CONFIGURED"
-        sanitized.append(safe_t)
-    return {"status": "success", "count": len(sanitized), "tenants": sanitized}
-
-@app_api.post("/api/tenants", dependencies=[Depends(authenticate_admin)])
-def create_tenant(req: TenantCreateRequest):
-    """Yeni kullanıcı (Tenant) ekler veya günceller."""
-    import json
-    kd = {
-        "api_key": req.exchange_api_key,
-        "secret_key": req.exchange_secret_key,
-        "take_profit_percent": req.take_profit_percent,
-        "preferred_language": req.preferred_language
-    }
-    res = register_user_tenant(
-        tenant_name=req.tenant_name,
-        telegram_chat_id=req.telegram_chat_id,
-        exchange_api_key=json.dumps(kd),
-        exchange_secret_key=req.exchange_secret_key,
-        exchange_id=req.exchange_id,
-        max_budget_percent=req.max_budget_percent
-    )
-    if res:
-        safe_res = dict(res)
-        safe_res.pop("exchange_secret_key", None)
-        safe_res.pop("exchange_api_key", None)
-        return {"status": "success", "message": f"Kullanıcı '{req.tenant_name}' eklendi.", "tenant": safe_res}
-    raise HTTPException(status_code=400, detail="Kullanıcı kaydedilemedi.")
+    return res_dict
 
 @app_api.post("/api/tenants/{tenant_id}/settings", dependencies=[Depends(authenticate_admin)])
 def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
-    """Kullanıcının kâr alma, stop-loss, bütçe ve dil tercihlerini günceller."""
-    client = get_supabase()
     if not client:
         raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
     try:
