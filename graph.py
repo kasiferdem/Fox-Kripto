@@ -175,6 +175,18 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     except Exception:
         pass
     
+    # 🛑 TESTEREYE VE PEŞ PEŞE AYNI COİNİ ALMAYA KARŞI SOĞUMA KİLİDİ (Anti-Chop Cooldown):
+    cooldown_file = os.path.join(os.path.dirname(__file__), "trade_cooldowns.json")
+    # 🛑 3. KURAL İÇİN SOĞUMA / GEÇMİŞ ÇIKIŞ HAFIZASI:
+    cooldown_file = os.path.join(os.path.dirname(__file__), "trade_cooldowns.json")
+    recent_sold_coins = {}
+    if os.path.exists(cooldown_file):
+        try:
+            with open(cooldown_file, "r", encoding="utf-8") as cf:
+                recent_sold_coins = json.load(cf)
+        except Exception:
+            pass
+
     fresh_coin = None
     selected_proposal = None
     
@@ -187,35 +199,69 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         if active_syms and target_pair_clean not in active_syms:
             continue
             
-        # 🧠 1. ANALİZ BOTU DERİN DEĞERLENDİRMESİ
         best_candidate_meta = c if isinstance(c, dict) else {}
         base_score = float(best_candidate_meta.get("momentum_score", 7.0))
-        
-        # Derinlik (Orderbook) Analizi ile Skoru Hassaslaştır
-        orderbook_boost = 0.0
+        price_change_5m = float(best_candidate_meta.get("price_change_5m", 2.0))
+        vol_spike = float(best_candidate_meta.get("volume_spike_ratio", 2.0))
+
+        # -------------------------------------------------------------
+        # 1. KURAL: DİP GİRİŞ KONTROLÜ (Pre-Pump Ground-Floor Filter)
+        # -------------------------------------------------------------
+        # Eğer bir balina en baştan alınmadıysa (%1-%8 bandı dışında tepe yapmışsa),
+        # tepe noktada girmek KESİNLİKLE ENGELLENİR.
+        cand_24h_change = float(best_candidate_meta.get("price_change_24h", 0.0))
+        if cand_24h_change > 8.5 and price_change_5m > 6.0:
+            print(f"   🛑 [1. Kural Reddi]: {c_base} zaten %+8.5 üzeri primli ve tepe noktasında. FOMO girişi engellendi.")
+            continue
+
+        # -------------------------------------------------------------
+        # 2. KURAL: DOYUM NOKTASI VE DERİNLİK ANALİZİ (Saturation Engine)
+        # -------------------------------------------------------------
+        # Tahtadaki anlık alış/satış derinliği ve doyum seviyesi incelenir.
+        orderbook_ratio = 1.0
         try:
-            depth_res = requests.get(f"https://api.binance.com/api/v3/depth?symbol={target_pair_clean}&limit=5", timeout=2).json()
+            depth_res = requests.get(f"https://api.binance.com/api/v3/depth?symbol={target_pair_clean}&limit=10", timeout=2).json()
             bids_vol = sum(float(b[1]) for b in depth_res.get("bids", []))
             asks_vol = sum(float(a[1]) for a in depth_res.get("asks", []))
-            if asks_vol > 0 and (bids_vol / asks_vol) >= 1.3:
-                orderbook_boost = 1.0
-            elif asks_vol > 0 and (bids_vol / asks_vol) <= 0.7:
-                orderbook_boost = -1.0
+            if asks_vol > 0:
+                orderbook_ratio = bids_vol / asks_vol
         except Exception:
-            pass
-            
+            orderbook_ratio = 1.0
+
+        # Satış baskısı alışın 1.3 katından fazlaysa: Doyum noktasına ulaşılmıştır!
+        if orderbook_ratio < 0.75:
+            print(f"   🛑 [2. Kural Reddi]: {c_base} tahtasında doyum ve satış baskısı tespit edildi (Alış/Satış Oranı: {orderbook_ratio:.2f}). Alım iptal.")
+            continue
+
+        orderbook_boost = 1.0 if orderbook_ratio >= 1.3 else (0.0 if orderbook_ratio >= 0.9 else -1.0)
         ai_conviction_score = min(10.0, max(1.0, round(base_score + orderbook_boost, 1)))
-        if ai_conviction_score < 5.5:
-            # Skor zayıf, bir sonraki adaya geç
+
+        # -------------------------------------------------------------
+        # 3. KURAL: HEYET ONAYLI DİNAMİK YENİDEN GİRİŞ (Committee Consensus)
+        # -------------------------------------------------------------
+        # Statik kilit yerine: Eğer bu coin son 60 dk içinde satıldıysa,
+        # sadece ve sadece ANALİZ HEYETİ oybirliğiyle onaylarsa (Skor >= 8.5 ve Güçlü Alıcı Baskısı) 2. kez alınır!
+        is_recently_sold = False
+        last_exit_time = float(recent_sold_coins.get(c_base, 0))
+        if (time.time() - last_exit_time) < 3600: # Son 60 dakika içinde satılmış
+            is_recently_sold = True
+            committee_approved = (ai_conviction_score >= 8.5) and (vol_spike >= 3.0) and (orderbook_ratio >= 1.4)
+            if not committee_approved:
+                print(f"   ⏳ [3. Kural - Heyet Reddi]: {c_base} yakın zamanda satılmıştı. Heyet ikinci giriş için yeterli yeni ivme görmedi (Skor: {ai_conviction_score}, Hacim İvmesi: {vol_spike}x, Tahta Oranı: {orderbook_ratio:.2f}).")
+                continue
+            else:
+                print(f"   🔥 [3. Kural - HEYET ONAYI VERİLDİ]: {c_base} için güçlü yeni balina dalgası tespit edildi. 2. Giriş Onaylandı!")
+
+        if ai_conviction_score < 6.0:
             continue
             
-        # 🤖 2. STRATEJİ BOTU DİNAMİK BÜTÇE TAHSİSİ
+        # 🤖 STRATEJİ BOTU DİNAMİK BÜTÇE TAHSİSİ
         if ai_conviction_score >= 8.5:
             allocation_ratio = 0.40
-            conviction_label = "Zirve Balina İvmesi (Yüksek Güven)"
+            conviction_label = "Zirve Balina İvmesi (Heyet Tam Onaylı)"
         elif ai_conviction_score >= 7.0:
             allocation_ratio = 0.30
-            conviction_label = "Güçlü Balina Kırılımı (Güçlü Güven)"
+            conviction_label = "Güçlü Balina Kırılımı (Yüksek Güven)"
         else:
             allocation_ratio = 0.20
             conviction_label = "Standart Balina Hareketi (Orta Güven)"
@@ -234,6 +280,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         if real_entry_price <= 0:
             continue
             
+        reentry_tag = " (2. Kademe Heyet Onaylı Giriş)" if is_recently_sold else ""
         selected_proposal = {
             "should_trade": True,
             "symbol": fresh_coin,
@@ -244,7 +291,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             "entry_price": real_entry_price,
             "take_profit_price": round(real_entry_price * (1 + (user_tp / 100.0)), 6 if real_entry_price < 1 else 2),
             "stop_loss_price": round(real_entry_price * (1 - (user_sl / 100.0)), 6 if real_entry_price < 1 else 2),
-            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10 ({conviction_label}) -> Strateji Kararı: Serbest kasanın %{allocation_ratio*100:.0f}'i (${safe_budget_usd} USD) tahsis edildi."
+            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10 ({conviction_label}{reentry_tag}) -> Tahta Oranı: {orderbook_ratio:.2f} | Strateji Kararı: Serbest kasanın %{allocation_ratio*100:.0f}'i (${safe_budget_usd} USD) tahsis edildi."
         }
         break
         
