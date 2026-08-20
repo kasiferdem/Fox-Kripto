@@ -201,7 +201,7 @@ def run_autonomous_trading_loop():
                         
                     if exec_res and chat_id:
                         status_str = str(exec_res.get("status", "")).upper()
-                        is_exec_success = status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]
+                        is_exec_success = status_str in ["SUCCESS", "EXECUTED"]
                         
                         # 🚨 GERÇEK BORSA HATALARINI TELEGRAM İLE KULLANICIYA BİLDİR:
                         if not is_exec_success and proposal and proposal.get("should_trade") and exec_res.get("error"):
@@ -212,18 +212,22 @@ def run_autonomous_trading_loop():
                             handle_autonomous_error_alert(tenant_name, sym_target, action_name, exch_name, exec_res.get("error"), chat_id)
                             continue
                         
-                        symbol = exec_res.get("symbol") or (proposal.get("symbol") if proposal else "BTC/USDT")
-                        if not symbol or "AUTO" in symbol.upper():
-                            symbol = "BTC/USDT"
+                        # 🛑 YALNIZCA VE YALNIZCA GERÇEK BİR İŞLEM TEKLİFİ VARSA VE BAŞARIYLA İNFAZ EDİLDİYSE BİLDİRİM GÖNDER!
+                        if not is_exec_success or not proposal or not proposal.get("should_trade"):
+                            continue
+                        
+                        symbol = exec_res.get("symbol") or proposal.get("symbol")
+                        if not symbol:
+                            continue
                         is_en_user = str(tenant.get("preferred_language", "tr")).lower() == "en"
-                        is_tr_tenant = bool(tenant and tenant.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
+                        is_tr_tenant = bool(tenant and tenant.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"]) or symbol.upper().endswith("TRY") or symbol.upper().endswith("_TRY")
                         wallet_label = "TL" if is_tr_tenant else "USDT"
                         quote_sym = "TRY" if is_tr_tenant else "USDT"
                         base_sym = symbol.split("/")[0].split("_")[0].upper()
                         symbol = f"{base_sym}/{quote_sym}"
                         
-                        is_stop_loss = bool(proposal.get("is_stop_loss", False)) if proposal else False
-                        raw_action = str(proposal.get("direction", "BUY")).upper() if proposal else "BUY"
+                        is_stop_loss = bool(proposal.get("is_stop_loss", False))
+                        raw_action = str(proposal.get("direction", "BUY")).upper()
                         action_type = raw_action
                         is_take_profit = (raw_action not in ["BUY", "ALIM"]) and (not is_stop_loss)
                         is_executed = is_exec_success
