@@ -284,18 +284,44 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         if ai_conviction_score < 6.0:
             continue
             
-        # 🤖 STRATEJİ BOTU DİNAMİK BÜTÇE TAHSİSİ (Sermaye Koruma & max_budget_percent)
-        user_max_budget = float(tenant_config.get("max_budget_percent") or 10.0)
-        enforced_max_pct = min(100.0, max(1.0, user_max_budget))
+        # 🧠 AKILLI DİNAMİK YATIRIM VE POZİSYON BOYUTLANDIRMA MOTORU (Smart Dynamic Sizing)
+        # Katı %10 yerine kasanın büyüklüğüne, kalan boş slota ve AI sinyal gücüne göre akıllı tahsisat:
+        remaining_slots = max(1, 3 - len(current_assets))
         
-        safe_budget_usd = round(free_cash_usd * (enforced_max_pct / 100.0) * 0.98, 2)
+        # 1. Kasa Ölçeğine Göre Taban Slot Yüzdesi
+        if free_cash_usd <= 50.0:
+            # Küçük Kasa (< ₺2.400): Kasa parçalanmaz, 2 güçlü slota bölünür (%50)
+            base_slot_pct = 50.0
+        elif free_cash_usd <= 200.0:
+            # Orta Kasa (₺2.400 - ₺9.500): 3 dengeli slota bölünür (%33.3)
+            base_slot_pct = 33.3
+        else:
+            # Büyük Kasa (> $200): Slot başına %25 - %30
+            base_slot_pct = round(100.0 / remaining_slots, 1)
+
+        # 2. Yapay Zeka Sinyal Gücü Çarpanı (Conviction Multiplier)
+        if ai_conviction_score >= 8.5 or vol_spike >= 10.0:
+            conviction_mult = 1.0   # Zirve Sinyal: Tam Slot (%100)
+        elif ai_conviction_score >= 7.0:
+            conviction_mult = 0.85  # Güçlü Sinyal: Slotun %85'i
+        else:
+            conviction_mult = 0.70  # Standart Sinyal: Slotun %70'i
+
+        dynamic_budget_pct = round(base_slot_pct * conviction_mult, 1)
+        
+        # Kullanıcı manuel özel bütçe girmişse ve %10 default değilse kullanıcının limitine saygı duy
+        custom_user_budget = float(tenant_config.get("max_budget_percent") or 0.0)
+        if custom_user_budget > 10.0:
+            dynamic_budget_pct = min(100.0, custom_user_budget)
+            
+        safe_budget_usd = round(free_cash_usd * (dynamic_budget_pct / 100.0) * 0.98, 2)
         min_order_usd = 5.0 if pair_quote == "TRY" else 10.0
         
         if safe_budget_usd < min_order_usd:
             if free_cash_usd >= min_order_usd:
                 safe_budget_usd = round(min_order_usd, 2)
             else:
-                print(f"   ⏳ [Asgari Bütçe Sınırı]: {c_base} için serbest bakiye (${free_cash_usd:.2f}) asgari emir tutarının (${min_order_usd:.2f}) altında.")
+                print(f"   ⏳ [Bütçe Yetersiz]: Serbest bakiye (${free_cash_usd:.2f}) asgari emir tutarının (${min_order_usd:.2f}) altında.")
                 continue
             
         fresh_coin = f"{c_base}/{pair_quote}"
@@ -331,7 +357,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             "take_profit_percent": dynamic_tp_pct,
             "stop_loss_percent": dynamic_sl_pct,
             "coin_historical_insight": perf_insight,
-            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10{reentry_tag} -> Tahta Oranı: {orderbook_ratio:.2f} | ATR TP: +%{dynamic_tp_pct:.1f} (${tp_price}) | ATR SL: -%{dynamic_sl_pct:.1f} (${sl_price}) (R:R 1:2) | Bütçe: Serbest kasanın %{enforced_max_pct:.1f}'i (${safe_budget_usd:.2f} USD) tahsis edildi. | 📊 [Geçmiş Hafıza]: {perf_insight}"
+            "risk_justification": f"Yapay Zeka Analiz Skoru: {ai_conviction_score}/10{reentry_tag} -> Tahta Oranı: {orderbook_ratio:.2f} | ATR TP: +%{dynamic_tp_pct:.1f} (${tp_price}) | ATR SL: -%{dynamic_sl_pct:.1f} (${sl_price}) (R:R 1:2) | Bütçe: Serbest kasanın %{dynamic_budget_pct:.1f}'i (${safe_budget_usd:.2f} USD) tahsis edildi. | 📊 [Geçmiş Hafıza]: {perf_insight}"
         }
         break
         
