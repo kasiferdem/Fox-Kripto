@@ -162,6 +162,16 @@ class BinanceTRClient:
         else: # SELL
             asset_coin = clean_symbol.split("_")[0].upper()
             qty_to_sell = 0.0
+            # 🛡️ KİLİTLİ BAKİYE KORUMASI: Açık stop/limit emirleri iptal ederek bakiyeyi serbest bırak
+            try:
+                c_params = {"symbol": clean_symbol}
+                c_query = self._sign(c_params)
+                c_url = f"{self.base_url}/open/v1/orders?{c_query}"
+                headers_c = {"X-MBX-APIKEY": self.apiKey}
+                requests.delete(c_url, headers=headers_c, timeout=5)
+            except Exception:
+                pass
+
             try:
                 bal = self.fetch_balance()
                 free_coin_amount = float(bal.get("free", {}).get(asset_coin, 0.0))
@@ -370,6 +380,18 @@ class BinanceGlobalRESTClient:
             except Exception:
                 params = {"symbol": clean_symbol, "side": "BUY", "type": "MARKET", "quoteOrderQty": f"{spend_usd:.2f}"}
         else:
+            # 🛡️ KİLİTLİ BAKİYE KORUMASI: Eğer açık fiziksel Stop-Loss veya Limit emir varsa önce onu iptal et (kilitli bakiyeyi serbest bırak)!
+            try:
+                c_params = {"symbol": clean_symbol}
+                c_query = self._sign(c_params)
+                c_url = f"{self.base_url}/api/v3/openOrders?{c_query}"
+                headers_c = {"X-MBX-APIKEY": self.apiKey}
+                r_c = requests.delete(c_url, headers=headers_c, timeout=5)
+                if r_c.status_code == 200:
+                    print(f"🔓 [Binance Global Kilit Çözüldü]: {clean_symbol} açık stop emirleri iptal edilerek bakiye serbest bırakıldı.")
+            except Exception as e_c:
+                print(f"⚠️ [Binance Global Açık Emir İptal Hatası]: {e_c}")
+
             try:
                 bal = self.fetch_balance()
                 free_c = float(bal.get("free", {}).get(base_c, 0.0))
