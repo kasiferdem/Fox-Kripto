@@ -31,6 +31,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     tenant_config = state.get("tenant_config") or {}
     user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
     user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
+    is_tr_user = bool(tenant_config and str(tenant_config.get("exchange_id", "")).lower() in ["binancetr", "binance.tr", "trbinance"])
     
     # 🇹🇷 VE 🌍 HER İKİ BORSAYI DA AYRI AYRI VE TAM BAĞIMSIZ DENETLE:
     exchange_silos = []
@@ -44,7 +45,6 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         
     if not exchange_silos:
         # Tekil Borsa Fallback
-        is_tr_user = bool(tenant_config and tenant_config.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
         pair_q = "TRY" if is_tr_user else "USDT"
         pos_f = "active_positions_tr.json" if is_tr_user else "active_positions_global.json"
         h = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}

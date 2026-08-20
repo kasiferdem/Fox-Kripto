@@ -55,6 +55,15 @@ class BinanceTRClient:
         side_code = 0 if side.lower() == "buy" else 1
         type_code = 2 if type.lower() == "market" else 1
 
+        decimals_map = {
+            "BTC": 6, "ETH": 4, "SOL": 3, "BNB": 3, "AVAX": 2, "USDT": 0,
+            "EDEN": 1, "SUI": 1, "RENDER": 1, "NEAR": 1, "XRP": 1, "DOGE": 1,
+            "ADA": 1, "PEPE": 0, "SHIB": 0, "BONK": 0, "FLOKI": 0, "BOME": 0,
+            "GPS": 0, "ACE": 1, "ALPINE": 2, "OPN": 1, "LA": 1, "RED": 1,
+            "ACM": 2, "UTK": 0, "JOE": 1, "HEMI": 0, "HEI": 0, "GNO": 3,
+            "PROM": 2, "MUBARAK": 0, "ZRO": 2, "TREE": 0, "BIO": 0, "ORDI": 2
+        }
+
         params = {
             "symbol": clean_symbol,
             "side": side_code,
