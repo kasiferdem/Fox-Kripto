@@ -172,6 +172,22 @@ class BinanceTRClient:
 
         res = requests.post(url, headers=headers, timeout=10)
         data = res.json()
+        
+        # 🛡️ 2 KADEMELİ İNFAZ DENEMESİ: Eğer 3203 miktar hatası gelirse, otomatik tam sayı (int) olarak 2. kez dene!
+        if data.get("code") in [3203, -1013] and side_code == 1:
+            try:
+                curr_q = float(params.get("quantity", 0))
+                int_q = int(curr_q)
+                if int_q > 0 and str(int_q) != str(params.get("quantity")):
+                    print(f"⚠️ [Binance TR 2. Kademe]: {params.get('quantity')} reddedildi, tam sayı ({int_q}) ile 2. deneme yapılıyor...")
+                    params["quantity"] = str(int_q)
+                    query_str = self._sign(params)
+                    url = f"{self.base_url}/open/v1/orders?{query_str}"
+                    res = requests.post(url, headers=headers, timeout=10)
+                    data = res.json()
+            except Exception as e_retry:
+                print(f"⚠️ [Binance TR Retry Hatası]: {e_retry}")
+
         if data.get("code") == 0:
             order_data = data.get("data", {})
             return {
@@ -198,21 +214,21 @@ class BinanceGlobalRESTClient:
         params['timestamp'] = int(time.time() * 1000)
         query = '&'.join([f'{k}={v}' for k, v in sorted(params.items())])
         sig = hmac.new(self.secret.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
-        return f'{query}&signature={sig}'
+        return f"{query}&signature={sig}"
 
     def fetch_balance(self) -> dict:
-        query_str = self._sign({})
+        params = {}
+        query_str = self._sign(params)
         url = f"{self.base_url}/api/v3/account?{query_str}"
         headers = {"X-MBX-APIKEY": self.apiKey}
         res = requests.get(url, headers=headers, timeout=10)
         data = res.json()
         if "balances" in data:
-            free_dict = {}
-            tot_dict = {}
+            tot_dict, free_dict = {}, {}
             for b in data["balances"]:
-                coin = b.get("asset")
-                free_v = float(b.get("free", 0.0))
-                locked_v = float(b.get("locked", 0.0))
+                coin = b["asset"].upper()
+                free_v = float(b["free"])
+                locked_v = float(b["locked"])
                 tot = free_v + locked_v
                 if tot > 0:
                     tot_dict[coin] = tot
@@ -225,7 +241,6 @@ class BinanceGlobalRESTClient:
         base_c = symbol.split("/")[0].split("_")[0].upper()
         
         if side.upper() == "BUY":
-            # Binance Global Market Alımında 'quoteOrderQty' kullanarak LOT_SIZE hassasiyet hatasını %100 sıfırla!
             spend_usd = max(10.0, float(amount_usd or 10.0))
             params = {
                 "symbol": clean_symbol,
@@ -234,7 +249,6 @@ class BinanceGlobalRESTClient:
                 "quoteOrderQty": f"{spend_usd:.2f}"
             }
         else:
-            # Satışta serbest miktarı gönder
             try:
                 bal = self.fetch_balance()
                 free_c = float(bal.get("free", {}).get(base_c, 0.0))
@@ -248,23 +262,26 @@ class BinanceGlobalRESTClient:
                 "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0, "PLUME": 0,
                 "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2,
                 "OPN": 1, "LA": 1, "TUT": 0, "RED": 1, "MUBARAK": 0,
-                "HEMI": 0, "GNO": 3, "PROM": 2, "ZRO": 2
+                "HEMI": 0, "GNO": 3, "PROM": 2, "ZRO": 2, "HEI": 0
             }
-            dec = step_map.get(base_c, 0 if "PLUME" in base_c or "HEMI" in base_c else (1 if amount >= 10.0 else (2 if amount >= 1.0 else 4)))
-            try:
-                clean_target = clean_symbol.upper()
-                r_info = requests.get("https://api.binance.com/api/v3/exchangeInfo", params={"symbol": clean_target}, timeout=2)
-                if r_info.status_code == 200:
-                    for s_item in r_info.json().get("symbols", []):
-                        for f_item in s_item.get("filters", []):
-                            if f_item.get("filterType") == "LOT_SIZE":
-                                step_v = float(f_item.get("stepSize", 1.0))
-                                if step_v >= 1.0:
-                                    dec = 0
-                                else:
-                                    dec = len(str(step_v).split(".")[1].rstrip("0"))
-            except Exception:
-                pass
+            dec = step_map.get(base_c)
+            if dec is None:
+                try:
+                    clean_target = clean_symbol.upper()
+                    r_info = requests.get("https://api.binance.com/api/v3/exchangeInfo", params={"symbol": clean_target}, timeout=2)
+                    if r_info.status_code == 200:
+                        for s_item in r_info.json().get("symbols", []):
+                            for f_item in s_item.get("filters", []):
+                                if f_item.get("filterType") == "LOT_SIZE":
+                                    step_v = float(f_item.get("stepSize", 1.0))
+                                    if step_v >= 1.0:
+                                        dec = 0
+                                    else:
+                                        dec = len(str(step_v).split(".")[1].rstrip("0"))
+                except Exception:
+                    pass
+            if dec is None:
+                dec = 0 if amount >= 10.0 else (1 if amount >= 1.0 else 2)
                 
             import math
             mult = 10 ** dec
@@ -283,6 +300,22 @@ class BinanceGlobalRESTClient:
         headers = {"X-MBX-APIKEY": self.apiKey}
         res = requests.post(url, headers=headers, timeout=10)
         data = res.json()
+        
+        # 🛡️ 2 KADEMELİ İNFAZ DENEMESİ: Eğer -1013/-2010 miktar hatası gelirse, otomatik tam sayı (int) olarak 2. kez dene!
+        if ("code" in data and data.get("code") in [-1013, -2010, 3203]) and side.upper() == "SELL":
+            try:
+                curr_q = float(params.get("quantity", 0))
+                int_q = int(curr_q)
+                if int_q > 0 and str(int_q) != str(params.get("quantity")):
+                    print(f"⚠️ [Binance Global 2. Kademe]: {params.get('quantity')} reddedildi, tam sayı ({int_q}) ile 2. deneme yapılıyor...")
+                    params["quantity"] = str(int_q)
+                    query_str = self._sign(params)
+                    url = f"{self.base_url}/api/v3/order?{query_str}"
+                    res = requests.post(url, headers=headers, timeout=10)
+                    data = res.json()
+            except Exception as e_retry:
+                print(f"⚠️ [Binance Global Retry Hatası]: {e_retry}")
+
         if "orderId" in data:
             exec_p = 0.0
             fills = data.get("fills", [])

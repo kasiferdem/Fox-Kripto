@@ -577,13 +577,24 @@ def handle_update(update: dict):
         elif re.search(r'\b(sat|sat\w*|sell)\b', user_text, re.IGNORECASE):
             fast_action = "SELL"
             
-        known_coins = ["SOL", "BTC", "ETH", "AVAX", "PEPE", "BNB", "SHIB", "BONK", "DOGE", "RENDER", "SUI", "NEAR", "XRP", "FLM", "CLV", "WAVES", "UTK", "GPS", "PORTAL", "ACE", "TUT"]
-        matched_coin = None
-        if fast_action:
-            for c in known_coins:
-                if re.search(r'\b' + c + r'\b', user_text, re.IGNORECASE):
-                    matched_coin = c
-                    break
+        # Esnek ve Dinamik Al-Sat Emir Yakalayıcı (Örn: 'HEI SAT', 'MUBARAK SAT', 'TREE SAT', 'SOL AL', 'BTC SAT')
+        match_sell = re.search(r'^\s*([A-Za-z0-9]{2,10})\s+(?:SAT|SELL)\s*$', user_text, re.IGNORECASE) or re.search(r'^\s*(?:SAT|SELL)\s+([A-Za-z0-9]{2,10})\s*$', user_text, re.IGNORECASE)
+        match_buy = re.search(r'^\s*([A-Za-z0-9]{2,10})\s+(?:AL|BUY)\s*$', user_text, re.IGNORECASE) or re.search(r'^\s*(?:AL|BUY)\s+([A-Za-z0-9]{2,10})\s*$', user_text, re.IGNORECASE)
+        
+        if match_sell:
+            fast_action = "SELL"
+            matched_coin = match_sell.group(1).upper()
+        elif match_buy:
+            fast_action = "BUY"
+            matched_coin = match_buy.group(1).upper()
+        else:
+            known_coins = ["SOL", "BTC", "ETH", "AVAX", "PEPE", "BNB", "SHIB", "BONK", "DOGE", "RENDER", "SUI", "NEAR", "XRP", "FLM", "CLV", "WAVES", "UTK", "GPS", "PORTAL", "ACE", "TUT", "HEI", "HEMI", "MUBARAK", "TREE", "RED", "GALA", "ZRO", "SIGN", "PROM"]
+            matched_coin = None
+            if fast_action:
+                for c in known_coins:
+                    if re.search(r'\b' + c + r'\b', user_text, re.IGNORECASE):
+                        matched_coin = c
+                        break
                     
         if fast_action and matched_coin:
             amt_usd = re.search(r'(\d+(?:[\.,]\d+)?)\s*(?:\$|usd|dolar|usdt)', user_text, re.IGNORECASE) or re.search(r'(?:\$)\s*(\d+(?:[\.,]\d+)?)', user_text, re.IGNORECASE)
