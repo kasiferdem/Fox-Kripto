@@ -71,8 +71,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                 coin_amount = details.get("amount", 0.0) if isinstance(details, dict) else float(details or 0.0)
                 val_fiat = details.get("val_try" if is_tr_silo else "val_usd", 0.0) if isinstance(details, dict) else 0.0
                 
-                # Minimum $1 / 40 TL altı tozları atla
-                min_thresh = 40.0 if is_tr_silo else 1.0
+                # Asgari borsa işlem limitinin altındaki tozları satışa sokma ($5.00 USD / ₺10.00 TL)
+                min_thresh = 10.0 if is_tr_silo else 5.0
                 if coin_amount > 0.0001 and val_fiat >= min_thresh:
                     target_symbol = f"{asset_upper}/{pair_quote}"
                     ticker = fetch_ticker_price(target_symbol)
@@ -135,6 +135,9 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
                     else:
                         print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} (Birim: {pair_quote}, Net: %{net_profit_pct:+.2f} | SL Fiyatı: ${pos_sl_price:,.4f}, TP: ${pos_tp_price:,.4f}).")
+                elif asset_upper in saved_positions:
+                    # Kalan bakiye borsa asgari işlem sınırının ($5 / ₺10) altında kalmış mikro toz ise DB'den temizle
+                    remove_position_from_db(tenant_id=tenant_id, exchange_id=exch_name, symbol=f"{asset_upper}/{pair_quote}")
 
     # Serbest nakit kontrolü (Çift Borsa ve Tekil Borsa Tam Uyumlu)
     live_fx = get_live_usd_try_rate()
