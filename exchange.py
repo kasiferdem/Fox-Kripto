@@ -218,13 +218,40 @@ class BinanceTRClient:
             return {
                 "id": str(order_data.get("orderId") or order_data.get("id") or int(time.time())),
                 "symbol": symbol,
-                "price": float(order_data.get("executedPrice") or price or 0.0),
+                "price": float(order_data.get("price") or (price if price else 0.0)),
                 "amount": amount,
-                "status": "closed" if type_code == 2 else "open",
-                "info": data
+                "status": "closed",
+                "info": order_data
             }
         else:
-            raise Exception(f"Binance TR Order Execution Error ({data.get('code')}): {data.get('msg')}")
+            raise Exception(f"Binance TR Error ({data.get('code')}): {data.get('msg')}")
+
+    def create_stop_order(self, symbol: str, quantity: float, stop_price: float, limit_price: Optional[float] = None) -> dict:
+        """Binance TR üzerinde fiziksel Stop-Loss emri kurar."""
+        clean_symbol = symbol.replace("/", "_").upper()
+        l_price = limit_price if limit_price else round(stop_price * 0.995, 6 if stop_price < 1 else 2)
+        params = {
+            "symbol": clean_symbol,
+            "side": 1, # SELL
+            "type": 2, # STOP LIMIT
+            "quantity": f"{quantity:.4f}" if quantity < 1 else f"{int(quantity)}",
+            "price": f"{l_price:.4f}" if l_price < 1 else f"{l_price:.2f}",
+            "stopPrice": f"{stop_price:.4f}" if stop_price < 1 else f"{stop_price:.2f}"
+        }
+        query_str = self._sign(params)
+        url = f"{self.base_url}/open/v1/orders?{query_str}"
+        headers = {"X-MBX-APIKEY": self.apiKey}
+        try:
+            res = requests.post(url, headers=headers, timeout=10)
+            data = res.json()
+            if data.get("code") == 0:
+                ord_id = data.get("data", {}).get("orderId")
+                print(f"🛡️ [Binance TR Fiziksel Stop Kuruldu]: #{ord_id} - Stop: ₺{stop_price}")
+                return {"status": "success", "order_id": str(ord_id), "stop_price": stop_price, "info": data}
+            else:
+                return {"status": "failed", "error": data.get("msg")}
+        except Exception as e:
+            return {"status": "failed", "error": str(e)}
 
 class BinanceGlobalRESTClient:
     """Binance Global (api.binance.com) Doğrudan REST API İstemcisi"""
@@ -395,7 +422,11 @@ class BinanceGlobalRESTClient:
             exec_p = 0.0
             fills = data.get("fills", [])
             if fills:
-                exec_p = float(fills[0].get("price", 0.0))
+                total_fill_qty = sum(float(f.get("qty", 0.0)) for f in fills)
+                if total_fill_qty > 0:
+                    exec_p = sum(float(f.get("price", 0.0)) * float(f.get("qty", 0.0)) for f in fills) / total_fill_qty
+                else:
+                    exec_p = float(fills[0].get("price", 0.0))
             return {
                 "id": str(data["orderId"]),
                 "symbol": symbol,
@@ -406,6 +437,33 @@ class BinanceGlobalRESTClient:
             }
         else:
             raise Exception(f"Binance Global Error ({data.get('code')}): {data.get('msg')}")
+
+    def create_stop_order(self, symbol: str, quantity: float, stop_price: float, limit_price: Optional[float] = None) -> dict:
+        """Binance Global üzerinde fiziksel STOP_LOSS_LIMIT emri kurar."""
+        clean_symbol = symbol.replace("/", "").replace("_", "").upper()
+        l_price = limit_price if limit_price else round(stop_price * 0.995, 6 if stop_price < 1 else 2)
+        params = {
+            "symbol": clean_symbol,
+            "side": "SELL",
+            "type": "STOP_LOSS_LIMIT",
+            "timeInForce": "GTC",
+            "quantity": f"{quantity:.4f}" if quantity < 1 else f"{int(quantity)}",
+            "price": f"{l_price:.4f}" if l_price < 1 else f"{l_price:.2f}",
+            "stopPrice": f"{stop_price:.4f}" if stop_price < 1 else f"{stop_price:.2f}"
+        }
+        query_str = self._sign(params)
+        url = f"{self.base_url}/api/v3/order?{query_str}"
+        headers = {"X-MBX-APIKEY": self.apiKey}
+        try:
+            res = requests.post(url, headers=headers, timeout=10)
+            data = res.json()
+            if "orderId" in data:
+                print(f"🛡️ [Binance Global Fiziksel Stop Kuruldu]: #{data['orderId']} - Stop: ${stop_price}")
+                return {"status": "success", "order_id": str(data["orderId"]), "stop_price": stop_price, "info": data}
+            else:
+                return {"status": "failed", "error": data.get("msg")}
+        except Exception as e:
+            return {"status": "failed", "error": str(e)}
 
     def convert_dust_to_bnb(self, assets: Optional[list] = None) -> dict:
         """
@@ -811,6 +869,15 @@ def execute_spot_trade(
                 amount_coin = (amount_usd * live_fx) / price_try if price_try > 0 else 0
                 res = client_tr.create_order(symbol=clean_sym, type="market", side=side.lower(), amount=amount_coin, amount_usd=amount_usd)
                 print(f"✅ [CANLI BINANCE TR OTOMATİK EMİR İNFAZ EDİLDİ]: Order ID #{res.get('id')}")
+                
+                # 🛡️ FİZİKSEL STOP-LOSS: Alım başarılı olduysa borsaya canlı Stop-Loss emri ilet
+                physical_stop = None
+                if side.lower() == "buy" and stop_loss_price and stop_loss_price > 0:
+                    try:
+                        physical_stop = client_tr.create_stop_order(symbol=clean_sym, quantity=amount_coin, stop_price=stop_loss_price)
+                    except Exception as e_st:
+                        print(f"⚠️ [Binance TR Fiziksel Stop Hatası]: {e_st}")
+                        
                 return {
                     "status": "success",
                     "order_id": str(res.get("id")),
@@ -820,6 +887,7 @@ def execute_spot_trade(
                     "amount_coin": amount_coin,
                     "executed_price": res.get("price") or price_try,
                     "stop_loss_price": stop_loss_price,
+                    "physical_stop": physical_stop,
                     "raw_order": res
                 }
         except Exception as e:
@@ -851,6 +919,15 @@ def execute_spot_trade(
                 amount_usd=amount_usd
             )
             print(f"✅ [CANLI MULTI-TENANT EMİR İNFAZ EDİLDİ]: Order ID #{order.get('id')}")
+            
+            # 🛡️ FİZİKSEL STOP-LOSS: Alım başarılı olduysa borsaya canlı Stop-Loss emri ilet
+            physical_stop = None
+            if side.lower() == "buy" and stop_loss_price and stop_loss_price > 0 and hasattr(exchange, "create_stop_order"):
+                try:
+                    physical_stop = exchange.create_stop_order(symbol=symbol, quantity=quantity, stop_price=stop_loss_price)
+                except Exception as e_st:
+                    print(f"⚠️ [Binance Global Fiziksel Stop Hatası]: {e_st}")
+                    
             return {
                 "status": "success",
                 "order_id": str(order.get('id')),
@@ -860,6 +937,7 @@ def execute_spot_trade(
                 "amount_coin": quantity,
                 "executed_price": order.get('price') or price,
                 "stop_loss_price": stop_loss_price,
+                "physical_stop": physical_stop,
                 "raw_order": order
             }
         except Exception as e:

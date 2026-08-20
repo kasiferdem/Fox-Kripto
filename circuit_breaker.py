@@ -29,7 +29,6 @@ def check_circuit_breaker(
         two_hours_ago = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() - 7200))
         res = client.table("crypto_trade_logs")\
             .select("direction,status,execution_details,created_at")\
-            .eq("tenant_id", tenant_id)\
             .gte("created_at", two_hours_ago)\
             .order("created_at", desc=True)\
             .limit(5)\
