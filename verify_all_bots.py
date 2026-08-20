@@ -123,33 +123,42 @@ except Exception as e:
 print("\n[BOT 7/7] LangGraph Otonom Karar ve 3 Altın Kural Motoru (graph.py)...")
 try:
     from graph import create_crypto_graph
-    from db import get_all_active_tenants
     app_graph = create_crypto_graph()
-    tenants = get_all_active_tenants()
-    user_tenant = next((t for t in tenants if t.get("telegram_chat_id") == 8739367825), None)
-    if user_tenant:
-        init_state = {
-            "messages": [],
-            "current_stage": "STARTED",
-            "news_data": None,
-            "portfolio_state": None,
-            "sentiment_score": None,
-            "trade_proposal": None,
-            "human_approval": "Approved",
-            "execution_result": None,
-            "tenant_config": user_tenant
-        }
-        res_graph = app_graph.invoke(init_state)
-        decision = res_graph.get("trade_proposal")
-        dec_str = f"{decision.get('direction')} {decision.get('symbol')}" if decision else "HOLD / SCAN (Risk Koruması)"
-        print(f"  ✅ Otonom LangGraph İnfazı: BAŞARILI -> Karar: {dec_str}")
+    mock_paper_tenant = {
+        "id": "verify_test_sandbox",
+        "tenant_name": "Test Mock Tenant",
+        "telegram_chat_id": 9999999999,
+        "is_paper_trading": True,
+        "exchange_id": "binance",
+        "take_profit_percent": 3.0,
+        "stop_loss_percent": 1.5,
+        "max_budget_percent": 10.0,
+        "preferred_language": "tr"
+    }
+    init_state = {
+        "messages": [],
+        "current_stage": "STARTED",
+        "news_data": None,
+        "portfolio_state": None,
+        "sentiment_score": None,
+        "trade_proposal": None,
+        "human_approval": "Pending",
+        "execution_result": None,
+        "tenant_config": mock_paper_tenant
+    }
+    res_graph = app_graph.invoke(init_state)
+    assert res_graph is not None, "LangGraph çıktısı None döndü!"
+    assert "trade_proposal" in res_graph or "execution_result" in res_graph, "LangGraph state eksik!"
+    decision = res_graph.get("trade_proposal")
+    dec_str = f"{decision.get('direction')} {decision.get('symbol')}" if decision else "HOLD / SCAN (Risk Koruması)"
+    print(f"  ✅ LangGraph Güvenli Sandbox İnfazı: BAŞARILI -> Karar: {dec_str}")
     results["graph_engine"] = "PASS"
 except Exception as e:
     print(f"  ❌ Hata: {e}")
     results["graph_engine"] = f"FAIL: {e}"
 
 print("\n" + "=" * 65)
-print("📊 BÜTÜN BOTLARIN NİHAİ TEST SONUÇLARI 📊")
+print("📊 BİLEŞEN DOĞRULAMA TEST SONUÇLARI 📊")
 print("=" * 65)
 all_pass = all(v == "PASS" for v in results.values())
 for bot_name, status in results.items():
@@ -157,7 +166,7 @@ for bot_name, status in results.items():
     print(f"{icon} {bot_name:<20}: {status}")
 
 if all_pass:
-    print("\n🎉 TEBRİKLER! TÜM BOTLAR EKSİKSİZ, DOĞRU VE %100 HATASIZ ÇALIŞIYOR! 🎉")
+    print("\n✅ TÜM BİLEŞEN VE GÜVENLİK TESTLERİ BAŞARIYLA TAMAMLANDI.")
 else:
-    print("\n⚠️ Bazı botlarda kontroller başarısız oldu.")
+    print("\n⚠️ Bazı bileşenlerde testler başarısız oldu.")
 print("=" * 65)

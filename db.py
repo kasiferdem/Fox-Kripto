@@ -275,6 +275,8 @@ def save_position_to_db(
             "quote_asset": str(quote_asset).upper(),
             "amount": float(amount),
             "buy_price": float(buy_price),
+            "stop_loss_price": float(stop_loss_price) if stop_loss_price else None,
+            "take_profit_price": float(take_profit_price) if take_profit_price else None,
             "is_simulated": bool(is_simulated),
             "time": time.time()
         }
@@ -282,7 +284,7 @@ def save_position_to_db(
             "session_id": session_id,
             "state_data": current_data
         }).execute()
-        print(f"✅ [Supabase DB Ledger]: {symbol} pozisyonu veritabanına kaydedildi ({amount} adet @ {buy_price})")
+        print(f"✅ [Supabase DB Ledger]: {symbol} pozisyonu veritabanına kaydedildi ({amount} adet @ {buy_price} | SL: {stop_loss_price}, TP: {take_profit_price})")
         return True
     except Exception as e:
         print(f"⚠️ [Supabase DB Pozisyon Kayıt Uyarısı]: {e}")
@@ -312,7 +314,7 @@ def get_coin_historical_performance(tenant_id: str, base_asset: str) -> Dict[str
             .select("symbol,direction,execution_details,created_at")\
             .like("symbol", f"{base_upper}%")\
             .order("created_at", desc=True)\
-            .limit(20)\
+            .limit(30)\
             .execute()
             
         logs = res.data or []
@@ -326,15 +328,19 @@ def get_coin_historical_performance(tenant_id: str, base_asset: str) -> Dict[str
         
         for l in logs:
             det = l.get("execution_details") or {}
+            log_tid = str(l.get("tenant_id") or det.get("tenant_id") or "")
+            if tenant_id and log_tid and log_tid != str(tenant_id):
+                continue
             reason = str(det.get("reason_type", "")).lower()
-            if "kâr alma" in reason or "take-profit" in reason or "kâr" in reason:
+            pnl = float(det.get("net_profit_pct") or 0.0)
+            if "kâr alma" in reason or "take-profit" in reason or "kâr" in reason or pnl > 0:
                 win_count += 1
                 total_trades += 1
-                total_pnl += 3.0 # Ortalama TP
-            elif "stop-loss" in reason or "stop" in reason:
+                total_pnl += (pnl if pnl != 0 else 3.0)
+            elif "stop-loss" in reason or "stop" in reason or pnl < 0:
                 loss_count += 1
                 total_trades += 1
-                total_pnl -= 1.5 # Ortalama SL
+                total_pnl += (pnl if pnl != 0 else -1.5)
                 
         if total_trades == 0:
             total_trades = len(logs)

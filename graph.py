@@ -81,9 +81,13 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         continue
                         
                     recorded_buy_p = 0.0
+                    pos_sl_price = 0.0
+                    pos_tp_price = 0.0
                     entry_info = saved_positions.get(asset_upper)
                     if isinstance(entry_info, dict):
                         recorded_buy_p = float(entry_info.get("buy_price", 0.0))
+                        pos_sl_price = float(entry_info.get("stop_loss_price") or 0.0)
+                        pos_tp_price = float(entry_info.get("take_profit_price") or 0.0)
                         
                     if recorded_buy_p <= 0.0:
                         print(f"   ⚠️ [Bilinmeyen Maliyet]: {asset_upper} için DB'de kayıtlı alış fiyatı bulunamadı. Hatalı stop tetiklememek için pozisyon bekletiliyor.")
@@ -94,30 +98,43 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     # Komisyon hem kârda hem zararda düşülür (Gerçek Net P&L)
                     net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT
                     
-                    # KÂR ALMA / STOP-LOSS TETİKLENME DENETİMİ
-                    if net_profit_pct >= user_tp or net_profit_pct <= -user_sl:
-                        is_stop_loss = (net_profit_pct <= -user_sl)
-                        reason_type = f"Stop-Loss (%{net_profit_pct:.2f} Net)" if is_stop_loss else f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
+                    # DİNAMİK ATR STOP-LOSS VE TAKE-PROFIT TETİKLENME DENETİMİ
+                    is_stop_loss = False
+                    is_take_profit = False
+                    
+                    if pos_sl_price > 0 and curr_p <= pos_sl_price:
+                        is_stop_loss = True
+                    elif pos_tp_price > 0 and curr_p >= pos_tp_price:
+                        is_take_profit = True
+                    elif net_profit_pct <= -user_sl:
+                        is_stop_loss = True
+                    elif net_profit_pct >= user_tp:
+                        is_take_profit = True
+                        
+                    if is_stop_loss or is_take_profit:
+                        reason_type_str = "stop-loss" if is_stop_loss else "take-profit"
+                        reason_desc = f"Stop-Loss (%{net_profit_pct:.2f} Net)" if is_stop_loss else f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
                         
                         sell_proposal = {
                             "should_trade": True,
                             "symbol": target_symbol,
                             "direction": "SELL",
                             "is_stop_loss": is_stop_loss,
+                            "reason_type": reason_type_str,
                             "amount_usd": round(val_fiat / live_fx if is_tr_silo else val_fiat, 2),
                             "amount_coin": coin_amount,
                             "entry_price": recorded_buy_p,
                             "net_profit_pct": round(net_profit_pct, 2),
                             "gross_change_pct": round(gross_change_pct, 2),
                             "stop_loss_percent": user_sl,
-                            "stop_loss_price": round(recorded_buy_p * (1 - (user_sl/100.0)), 8 if recorded_buy_p < 1 else 2),
-                            "take_profit_price": curr_p,
-                            "risk_justification": f"Otomatik Kâr/Zarar Kapatma: {asset_upper}/{pair_quote} {reason_type}"
+                            "stop_loss_price": pos_sl_price or round(recorded_buy_p * (1 - (user_sl/100.0)), 8 if recorded_buy_p < 1 else 2),
+                            "take_profit_price": pos_tp_price or curr_p,
+                            "risk_justification": f"Otomatik Kâr/Zarar Kapatma: {asset_upper}/{pair_quote} ({reason_desc})"
                         }
                         print(f"   [Seçilen İşlem Teklifi]: SATIM ({sell_proposal['symbol']}) - Kâr/Zarar: %{sell_proposal['net_profit_pct']}% | Alış: ${sell_proposal['entry_price']} -> Güncel: ${curr_p}")
                         return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
                     else:
-                        print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} (Birim: {pair_quote}, Net: %{net_profit_pct:+.2f}). Hedefe henüz ulaşmadı.")
+                        print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} (Birim: {pair_quote}, Net: %{net_profit_pct:+.2f} | SL Fiyatı: ${pos_sl_price:,.4f}, TP: ${pos_tp_price:,.4f}).")
 
     # Serbest nakit kontrolü (Çift Borsa ve Tekil Borsa Tam Uyumlu)
     live_fx = get_live_usd_try_rate()
@@ -383,15 +400,24 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
         except Exception as pe:
             print(f"⚠️ [DB Ledger Güncelleme Uyarısı]: {pe}")
             
+        log_details = {
+            **(result if isinstance(result, dict) else {}),
+            "reason_type": proposal.get("reason_type", "momentum_entry" if proposal.get("direction") == "BUY" else "exit"),
+            "net_profit_pct": proposal.get("net_profit_pct", 0.0),
+            "gross_change_pct": proposal.get("gross_change_pct", 0.0),
+            "stop_loss_price": proposal.get("stop_loss_price"),
+            "take_profit_price": proposal.get("take_profit_price")
+        }
         log_payload = {
             **proposal,
             "sentiment_score": state.get("sentiment_score"),
             "human_approval": approval,
             "status": result.get("status", "EXECUTED"),
             "order_id": result.get("order_id"),
-            "execution_details": result
+            "execution_details": log_details
         }
-        log_trade_decision(log_payload)
+        t_id = str((tenant_config or {}).get("id") or (tenant_config or {}).get("telegram_chat_id") or "default_tenant")
+        log_trade_decision(log_payload, tenant_id=t_id)
         save_graph_state("session_langgraph_hitl", state)
         return {"execution_result": result}
     else:

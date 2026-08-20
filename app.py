@@ -26,7 +26,7 @@ app_api = FastAPI(title="Fox-Kripto Multi-Tenant Autonomous Trading & Management
 security = HTTPBasic()
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "foxkripto2026")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or secrets.token_urlsafe(24)
 last_error_alerts = {}
 
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
@@ -451,298 +451,50 @@ def get_my_egress_ip():
     except Exception as e:
         return {"error": str(e)}
 
-@app_api.get("/api/admin/test-moonwalker-balance")
-def test_moonwalker_balance():
-    """DigitalOcean sunucusundan (104.248.135.128) Moonwalker'ın canlı Binance Global bakiyesini okur."""
-    from db import get_tenant_by_chat_id
-    from exchange import BinanceGlobalRESTClient, fetch_portfolio_balance
-    tenant = get_tenant_by_chat_id(757146559)
-    if not tenant:
-        return {"error": "Tenant Moonwalker not found"}
-    return fetch_portfolio_balance(tenant)
+@app_api.get("/api/tenants", dependencies=[Depends(authenticate_admin)])
+def list_tenants():
+    """Tüm kullanıcıları (Tenants) listeler (Tam Güvenli & Maskelenmiş)."""
+    tenants = get_all_active_tenants()
+    sanitized = []
+    for t in tenants:
+        safe_t = dict(t)
+        safe_t.pop("exchange_secret_key", None)
+        raw_k = safe_t.pop("exchange_api_key", "")
+        safe_t["exchange_api_key_configured"] = bool(raw_k)
+        safe_t["exchange_api_key_masked"] = "***CONFIGURED***" if raw_k else "NOT_CONFIGURED"
+        sanitized.append(safe_t)
+    return {"status": "success", "count": len(sanitized), "tenants": sanitized}
 
-@app_api.get("/api/admin/buy-tut-whale")
-def buy_tut_whale(amount_usd: float = 15.0):
-    """DigitalOcean sunucusundan TUT/USDT balina alımı yapar."""
-    from db import get_tenant_by_chat_id
-    from exchange import execute_spot_trade
-    tenant = get_tenant_by_chat_id(8739367825)
-    if not tenant:
-        return {"error": "Tenant not found"}
-    return execute_spot_trade(symbol="TUT/USDT", side="BUY", amount_usd=amount_usd, tenant_config=tenant)
-
-@app_api.get("/api/admin/buy-spot")
-def buy_spot_universal(symbol: str = "GPS/USDT", amount_usd: float = 15.0):
-    """DigitalOcean sunucusundan herhangi bir sembol icin aninda spot alis yapar."""
-    from db import get_tenant_by_chat_id
-    from exchange import execute_spot_trade
-    tenant = get_tenant_by_chat_id(8739367825)
-    if not tenant:
-        return {"error": "Tenant not found"}
-    return execute_spot_trade(symbol=symbol, side="BUY", amount_usd=amount_usd, tenant_config=tenant)
-
-@app_api.get("/api/admin/sell-spot")
-def sell_spot_universal(symbol: str = "GPS/USDT", amount_usd: float = 15.0):
-    """DigitalOcean sunucusundan herhangi bir sembol icin aninda spot satis yapar."""
-    from db import get_tenant_by_chat_id
-    from exchange import execute_spot_trade
-    tenant = get_tenant_by_chat_id(8739367825)
-    if not tenant:
-        return {"error": "Tenant not found"}
-    return execute_spot_trade(symbol=symbol, side="SELL", amount_usd=amount_usd, tenant_config=tenant)
-
-@app_api.get("/api/admin/sell-ace-now")
-def sell_ace_now():
-    """Binance Global'de eldeki tum ACE'yi derhal piyasa fiyatindan USDT'ye satar."""
-    from db import get_tenant_by_chat_id
-    from exchange import execute_spot_trade
-    tenant = get_tenant_by_chat_id(8739367825)
-    if not tenant:
-        return {"error": "Tenant not found"}
-    return execute_spot_trade(symbol="ACE/USDT", side="SELL", amount_usd=100.0, tenant_config=tenant)
-
-@app_api.get("/api/admin/buy-ace-whale")
-def buy_ace_whale(amount_usd: float = 15.0):
-    """DigitalOcean sunucusundan (104.248.135.128) ACE/USDT balina alımı yapar."""
-    from db import get_tenant_by_chat_id
-    from exchange import execute_spot_trade
-    tenant = get_tenant_by_chat_id(8739367825)
-    if not tenant:
-        return {"error": "Tenant not found"}
-    return execute_spot_trade(symbol="ACE/USDT", side="BUY", amount_usd=amount_usd, tenant_config=tenant)
-
-@app_api.get("/api/admin/sell-gps-and-buy-ace")
-def sell_gps_and_buy_ace():
-    """DigitalOcean sunucusundan (104.248.135.128) GPS'i kârla satıp ACE satın alır."""
-    from db import get_tenant_by_chat_id
-    from exchange import execute_spot_trade
-    tenant = get_tenant_by_chat_id(8739367825)
-    if not tenant:
-        return {"error": "Tenant not found"}
-    
-    # 1. GPS Sat (Kârı Al)
-    res_sell = execute_spot_trade(symbol="GPS/USDT", side="SELL", amount_usd=10.50, tenant_config=tenant)
-    
-    # 2. ACE Al ($10 USD)
-    res_buy = execute_spot_trade(symbol="ACE/USDT", side="BUY", amount_usd=10.0, tenant_config=tenant)
-    
-    return {
-        "sell_gps": res_sell,
-        "buy_ace": res_buy
+@app_api.post("/api/tenants", dependencies=[Depends(authenticate_admin)])
+def create_tenant(req: TenantCreateRequest):
+    """Yeni kullanıcı (Tenant) ekler veya günceller."""
+    import json
+    kd = {
+        "api_key": req.exchange_api_key,
+        "secret_key": req.exchange_secret_key,
+        "take_profit_percent": req.take_profit_percent,
+        "preferred_language": req.preferred_language
     }
-
-@app_api.get("/api/admin/convert-dust")
-def admin_convert_dust(chat_id: int = 8739367825):
-    """Kullanıcının Binance Global hesabındaki tüm küçük toz bakiyeleri (Dust) BNB'ye dönüştürür."""
-    from db import get_tenant_by_chat_id
-    from exchange import convert_dust_to_bnb
-    tenant = get_tenant_by_chat_id(chat_id)
-    if not tenant:
-        return {"error": "Tenant not found"}
-    return convert_dust_to_bnb(tenant)
-
-@app_api.get("/api/admin/convert-bnb-to-usdt")
-def admin_convert_bnb_to_usdt(chat_id: int = 8739367825):
-    """DigitalOcean sunucusundan (104.248.135.128) 0.095 BNB satıp USDT nakde çevirir."""
-    from db import get_tenant_by_chat_id
-    from exchange import execute_spot_trade
-    tenant = get_tenant_by_chat_id(chat_id)
-    if not tenant:
-        return {"error": "Tenant not found"}
-    return execute_spot_trade(symbol="BNB/USDT", side="SELL", amount_usd=55.0, tenant_config=tenant)
-
-@app_api.get("/api/admin/liquidate-all-to-cash")
-def admin_liquidate_all_to_cash(chat_id: int = 8739367825):
-    """Kullanıcının TÜM açık pozisyonlarını piyasa fiyatından satarak %100 saf nakde (TRY ve USDT) çeker."""
-    from db import get_tenant_by_chat_id
-    from exchange import BinanceTRClient, BinanceGlobalRESTClient, fetch_portfolio_balance
-    import json
-    
-    tenant = get_tenant_by_chat_id(chat_id)
-    if not tenant:
-        return {"error": "Tenant not found"}
-        
-    results = {"binance_tr": {}, "binance_global": {}, "final_balances": {}}
-    raw_k = str(tenant.get("exchange_api_key", ""))
-    
-    if raw_k.startswith("{"):
-        kd = json.loads(raw_k)
-        
-        # 1. Binance TR Tasfiyesi
-        if "binancetr" in kd:
-            try:
-                cl_tr = BinanceTRClient(kd["binancetr"]["api_key"], kd["binancetr"]["secret_key"])
-                bal_tr = cl_tr.fetch_balance()
-                for c, amt in bal_tr.get("free", {}).items():
-                    c_up = str(c).upper()
-                    if c_up not in ["TRY", "USDT", "FDUSD", "BUSD", "USDC"] and float(amt or 0) > 0.001:
-                        try:
-                            r = cl_tr.create_order(symbol=f"{c_up}_TRY", type="market", side="sell", amount=0)
-                            results["binance_tr"][c_up] = {"status": "SOLD", "result": r}
-                        except Exception as te:
-                            results["binance_tr"][c_up] = {"status": "FAIL", "error": str(te)}
-            except Exception as e:
-                results["binance_tr_error"] = str(e)
-                
-        # 2. Binance Global Tasfiyesi
-        if "binance" in kd:
-            try:
-                cl_gl = BinanceGlobalRESTClient(kd["binance"]["api_key"], kd["binance"]["secret_key"])
-                bal_gl = cl_gl.fetch_balance()
-                for c, amt in bal_gl.get("free", {}).items():
-                    c_up = str(c).upper()
-                    if c_up not in ["TRY", "USDT", "FDUSD", "BUSD", "USDC"] and float(amt or 0) > 0.0001:
-                        try:
-                            r = cl_gl.create_order(symbol=f"{c_up}/USDT", type="market", side="sell", amount=float(amt))
-                            results["binance_global"][c_up] = {"status": "SOLD", "result": r}
-                        except Exception as ge:
-                            results["binance_global"][c_up] = {"status": "FAIL", "error": str(ge)}
-            except Exception as e:
-                results["binance_global_error"] = str(e)
-                
-    # Pozisyon dosyalarını sıfırla
-    import os
-    for pf_name in ["active_positions_tr.json", "active_positions_global.json"]:
-        pf_p = os.path.join(os.path.dirname(__file__), pf_name)
-        try:
-            with open(pf_p, "w", encoding="utf-8") as f:
-                json.dump({}, f)
-        except Exception:
-            pass
-
-    bal_after = fetch_portfolio_balance(tenant)
-    results["final_balances"] = bal_after
-    return results
-
-@app_api.get("/api/admin/test-spot-buy-user")
-def test_spot_buy_user():
-    """DigitalOcean sunucusundan doğrudan $10 GPS/USDT alımını canlı test eder ve sonucu döner."""
-    from db import get_tenant_by_chat_id
-    from exchange import execute_spot_trade
-    tenant = get_tenant_by_chat_id(8739367825)
-    if not tenant:
-        return {"error": "Tenant not found"}
-    return execute_spot_trade(symbol="GPS/USDT", side="BUY", amount_usd=10.0, tenant_config=tenant)
-
-@app_api.api_route("/api/admin/demo-swap-moonwalker", methods=["GET", "POST"])
-def demo_swap_moonwalker():
-    """DigitalOcean sunucusundan (IP: 104.248.135.128) Moonwalker için 0.01 BNB satıp SOL alır."""
-    import time
-    from db import get_tenant_by_chat_id
-    from exchange import get_exchange_for_tenant
-    
-    tenant = get_tenant_by_chat_id(757146559)
-    if not tenant:
-        return {"error": "Tenant 757146559 not found"}
-        
-    ex = get_exchange_for_tenant(tenant)
-    results = {}
-    
-    # 1. 0.01 BNB Sat
-    try:
-        sell_order = ex.create_order(symbol="BNB/USDT", type="market", side="sell", amount=0.01)
-        results["sell_bnb"] = {
-            "status": "success",
-            "order_id": sell_order.get("id"),
-            "price": sell_order.get("price"),
-            "cost": sell_order.get("cost"),
-            "filled": sell_order.get("filled")
-        }
-    except Exception as se:
-        results["sell_bnb"] = {"status": "error", "error": str(se)}
-        return results
-
-    time.sleep(2)
-
-    # 2. SOL Al
-    try:
-        sol_ticker = ex.fetch_ticker("SOL/USDT")
-        sol_p = float(sol_ticker.get("last", 150.0))
-        sol_qty = round(5.5 / sol_p, 2)
-        buy_order = ex.create_order(symbol="SOL/USDT", type="market", side="buy", amount=sol_qty)
-        results["buy_sol"] = {
-            "status": "success",
-            "order_id": buy_order.get("id"),
-            "price": buy_order.get("price"),
-            "cost": buy_order.get("cost"),
-            "filled": buy_order.get("filled")
-        }
-    except Exception as be:
-        results["buy_sol"] = {"status": "error", "error": str(be)}
-
-    return results
-
-@app_api.get("/api/debug-binance")
-def debug_binance_account():
-    """DigitalOcean sunucusundan tüm Binance cüzdanlarını (Spot + Earn + Funding) kontrol eder."""
-    import requests, hmac, hashlib, time
-    from db import get_tenant_by_chat_id
-    tenant = get_tenant_by_chat_id(8739367825)
-    if not tenant:
-        return {"error": "Tenant 8739367825 not found in Supabase"}
-    
-    import json
-    api_k_raw = tenant.get("exchange_api_key", "")
-    sec_k_raw = tenant.get("exchange_secret_key", "")
-    if isinstance(api_k_raw, str) and api_k_raw.startswith("{"):
-        kd = json.loads(api_k_raw)
-        api_key = kd.get("binance", {}).get("api_key", "")
-        secret_key = kd.get("binance", {}).get("secret_key", "")
-    else:
-        api_key = api_k_raw
-        secret_key = sec_k_raw
-
-    ts = int(time.time() * 1000)
-    query = f"timestamp={ts}"
-    sig = hmac.new(secret_key.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
-    headers = {"X-MBX-APIKEY": api_key}
-    
-    res_dict = {}
-    
-    # 1. Spot Account
-    try:
-        r_spot = requests.get(f"https://api.binance.com/api/v3/account?{query}&signature={sig}", headers=headers, timeout=10)
-        s_data = r_spot.json()
-        s_bals = s_data.get("balances", [])
-        spot_non_zero = [b for b in s_bals if float(b.get("free", 0)) > 0 or float(b.get("locked", 0)) > 0]
-        res_dict["spot_balances_non_zero"] = spot_non_zero
-    except Exception as se:
-        res_dict["spot_exception"] = str(se)
-
-    # 2. All Capital Config (Spot + Earn + Funding)
-    try:
-        r_all = requests.get(f"https://api.binance.com/sapi/v1/capital/config/getall?{query}&signature={sig}", headers=headers, timeout=10)
-        data_all = r_all.json()
-        if isinstance(data_all, list):
-            non_zero_capital = []
-            for item in data_all:
-                coin = item.get("coin")
-                free = float(item.get("free", 0.0))
-                locked = float(item.get("locked", 0.0))
-                freeze = float(item.get("freeze", 0.0))
-                withdrawing = float(item.get("withdrawing", 0.0))
-                ipoing = float(item.get("ipoing", 0.0))
-                tot = free + locked + freeze + withdrawing + ipoing
-                if tot > 0:
-                    non_zero_capital.append({"coin": coin, "free": free, "locked": locked, "freeze": freeze, "total": tot})
-            res_dict["all_wallets_non_zero"] = non_zero_capital
-        else:
-            res_dict["all_wallets_error"] = data_all
-    except Exception as e:
-        res_dict["all_wallets_exception"] = str(e)
-
-    # 3. Simple Earn Flexible / Locked Positions
-    try:
-        r_earn_flex = requests.get(f"https://api.binance.com/sapi/v1/simple-earn/flexible/position?{query}&signature={sig}", headers=headers, timeout=10)
-        res_dict["simple_earn_flexible"] = r_earn_flex.json()
-    except Exception as ee:
-        res_dict["simple_earn_flexible_err"] = str(ee)
-
-    return res_dict
+    res = register_user_tenant(
+        tenant_name=req.tenant_name,
+        telegram_chat_id=req.telegram_chat_id,
+        exchange_api_key=json.dumps(kd),
+        exchange_secret_key=req.exchange_secret_key,
+        exchange_id=req.exchange_id,
+        max_budget_percent=req.max_budget_percent
+    )
+    if res:
+        safe_res = dict(res)
+        safe_res.pop("exchange_secret_key", None)
+        safe_res.pop("exchange_api_key", None)
+        return {"status": "success", "message": f"Kullanıcı '{req.tenant_name}' eklendi.", "tenant": safe_res}
+    raise HTTPException(status_code=400, detail="Kullanıcı kaydedilemedi.")
 
 @app_api.post("/api/tenants/{tenant_id}/settings", dependencies=[Depends(authenticate_admin)])
 def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
+    client = get_supabase()
     if not client:
+        raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
         raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
     try:
         curr = client.table("user_tenants").select("*").eq("id", tenant_id).execute()
@@ -782,7 +534,7 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
         print(f"❌ [Settings Update Error]: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@app_api.delete("/api/tenants/{tenant_id}")
+@app_api.delete("/api/tenants/{tenant_id}", dependencies=[Depends(authenticate_admin)])
 def delete_tenant(tenant_id: str):
     """Kullanıcıyı pasife alır / siler."""
     client = get_supabase()
@@ -794,7 +546,7 @@ def delete_tenant(tenant_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app_api.get("/api/trade-logs")
+@app_api.get("/api/trade-logs", dependencies=[Depends(authenticate_admin)])
 def list_trade_logs():
     """Canlı Supabase işlem kararlarını ve loglarını kullanıcı isimleriyle listeler."""
     client = get_supabase()
@@ -840,7 +592,7 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
 # -----------------------------------------
 # WEB DASHBOARD (HTML / JAVASCRIPT ARAYÜZÜ)
 # -----------------------------------------
-@app_api.get("/dashboard", response_class=HTMLResponse)
+@app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 def get_dashboard_html():
     html_content = """
     <!DOCTYPE html>

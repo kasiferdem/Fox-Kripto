@@ -9,9 +9,7 @@ def _get_api_key():
     raw_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
     if raw_key and not raw_key.startswith("your_"):
         return raw_key
-    # Base64 b64encoded active key fallback
-    encoded = "c2stb3ItdjEtMTNkYTdmMWFkZDUxZWJiNjQ4MmYwNjkzZjA5NjcwZjdmOTFjNWZiNmVmZDMwYWJjZGZmN2Y2ZGJjZTA3ODQ0OQ=="
-    return base64.b64decode(encoded).decode("utf-8")
+    raise ValueError("CRITICAL: OPENROUTER_API_KEY is not configured in environment variables.")
 
 # -----------------------------------------
 # OPENROUTER / OPENAI GPT-4O ÇAĞRI YARDIMCISI

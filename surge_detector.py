@@ -111,22 +111,30 @@ def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 1
             return []
             
         tickers = r.json()
-        target_tickers = [
-            t for t in tickers 
-            if t["symbol"].endswith(quote_upper) 
-            and (not active_syms or t["symbol"] in active_syms)
-            and not any(t["symbol"].startswith(x) for x in ["USDC", "FDUSD", "EUR", "BUSD", "TUSD", "UP", "DOWN"])
-            and float(t.get("quoteVolume", 0)) > (100000.0 if quote_upper == "USDT" else 2000000.0)
-            and float(t.get("lastPrice", 0)) > 0
-            # 🛑 TEPEDEN ALMAYI ENGELLE (FOMO FİLTRESİ): Zaten %10'un üzerinde fırlamış coinleri alma!
-            # Yalnızca henüz dipte / koşunun başında olan (%-3.0 ile %+8.0 arası) taze kırılımları tara!
-            and -3.0 <= float(t.get("priceChangePercent", 0)) <= 8.5
-        ]
+        target_tickers = []
+        for t in tickers:
+            sym = t.get("symbol", "")
+            if not sym.endswith(quote_upper):
+                continue
+            if active_syms and sym not in active_syms:
+                continue
+            base_part = sym[:-len(quote_upper)]
+            if any(sym.startswith(x) for x in ["USDC", "FDUSD", "EUR", "BUSD", "TUSD"]):
+                continue
+            if any(base_part.endswith(x) for x in ["UP", "DOWN", "BULL", "BEAR"]):
+                continue
+            vol = float(t.get("quoteVolume", 0))
+            last_p = float(t.get("lastPrice", 0))
+            chg = float(t.get("priceChangePercent", 0))
+            if vol > (50000.0 if quote_upper == "USDT" else 1000000.0) and last_p > 0 and (-3.0 <= chg <= 8.5):
+                target_tickers.append(t)
         
         # Hacmi en dinamik adayları seç ve 5dk kırılım ivmesini paralel test et
-        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:50]
+        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:100]
         
-        min_vol = min_volume_usd if quote_upper == "USDT" else (min_volume_usd * 47.8)
+        from exchange import get_live_usd_try_rate
+        live_fx = get_live_usd_try_rate() or 38.5
+        min_vol = min_volume_usd if quote_upper == "USDT" else (min_volume_usd * live_fx)
         with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
             futures = [executor.submit(_evaluate_candidate, c, min_vol, max_recent_gain) for c in candidates]
             for f in concurrent.futures.as_completed(futures):

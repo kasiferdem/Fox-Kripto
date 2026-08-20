@@ -86,6 +86,9 @@ def handle_update(update: dict):
             }
 
         if action == "Approved" and proposal:
+            if not tenant:
+                send_message(chat_id, "❌ YETKİSİZ İŞLEM: Bu Telegram kullanıcısı için kayıtlı bir tenant bulunamadı.")
+                return
             send_message(chat_id, f"✅ İŞLEM ONAYLANDI! Borsaya emir iletiliyor...\n{proposal['symbol']} - ${proposal['amount_usd']} USD")
             result = execute_spot_trade(
                 symbol=proposal["symbol"],
@@ -109,12 +112,20 @@ def handle_update(update: dict):
     message = update.get("message")
     if not message: return
     
+    from_id = message.get("from", {}).get("id") or message.get("chat", {}).get("id")
     chat_id = message["chat"]["id"]
     raw_text = (message.get("text") or "").strip()
     first_name = message["chat"].get("first_name", "Kullanıcı")
     text_clean = raw_text.lower().lstrip("/").strip()
 
-    print(f"📩 [Telegram Gelen Mesaj]: Chat ID={chat_id}, Text='{raw_text}' (Clean='{text_clean}')")
+    # 🛡️ P0-3 GÜVENLİK KONTROLÜ: Yalnızca yetkili yönetici veya kayıtlı tenant'ların mesajları işlenir
+    admin_chat_id = int(os.environ.get("TELEGRAM_CHAT_ID", "8739367825"))
+    tenant = get_tenant_by_chat_id(from_id) or get_tenant_by_chat_id(chat_id)
+    if from_id != admin_chat_id and not tenant:
+        print(f"🛑 [Yetkisiz Telegram Mesajı Reddedildi]: from_id={from_id}, chat_id={chat_id}")
+        return
+
+    print(f"📩 [Telegram Gelen Mesaj]: From ID={from_id}, Chat ID={chat_id}, Text='{raw_text}' (Clean='{text_clean}')")
 
     # Dil Değiştirme Komutları (Language Switcher)
     if text_clean in ["dil en", "lang en", "english", "ingilizce", "dil ingilizce", "/lang en", "/en"]:

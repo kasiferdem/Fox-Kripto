@@ -962,11 +962,14 @@ def execute_spot_trade(
     if live_fx <= 0:
         return {"status": "FAILED", "error": "Canlı USD/TRY kuru alınamadı (Fail-Closed)."}
 
-    # TRY Çiftlerini Doğrudan Binance TR İstemcisine Yönlendir
+    is_paper = bool((tenant_config or {}).get("is_paper_trading"))
+    is_testnet = os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true"
+
+    # TRY Çiftlerini Doğrudan Binance TR İstemcisine Yönlendir (Eğer canlı modda ise)
     is_try_pair = symbol.endswith("/TRY") or symbol.endswith("_TRY")
     api_k = str((tenant_config or {}).get("exchange_api_key", ""))
     
-    if is_try_pair and api_k.startswith("{"):
+    if is_try_pair and api_k.startswith("{") and not is_paper and not is_testnet:
         import json
         try:
             kd = json.loads(api_k)
@@ -974,21 +977,26 @@ def execute_spot_trade(
                 client_tr = BinanceTRClient(kd["binancetr"].get("api_key"), kd["binancetr"].get("secret_key"))
                 clean_sym = symbol.replace("/", "_").upper()
                 ticker = fetch_ticker_price(symbol)
-                price_try = float(ticker.get("last_price") or 1.0)
-                amount_coin = (amount_usd * live_fx) / price_try if price_try > 0 else 0
+                price_try = float(ticker.get("last_price") or 0.0)
+                if price_try <= 0:
+                    return {"status": "FAILED", "error": f"{symbol} anlık borsa fiyatı okunamadı (Fail-Closed)."}
+                    
+                amount_coin = (amount_usd * live_fx) / price_try
                 res = client_tr.create_order(symbol=clean_sym, type="market", side=side.lower(), amount=amount_coin, amount_usd=amount_usd)
                 print(f"✅ [CANLI BINANCE TR OTOMATİK EMİR İNFAZ EDİLDİ]: Order ID #{res.get('id')}")
                 
                 # 🛡️ FİZİKSEL STOP-LOSS: Alım başarılı olduysa borsaya canlı Stop-Loss emri ilet
                 physical_stop = None
+                trade_status = "success"
                 if side.lower() == "buy" and stop_loss_price and stop_loss_price > 0:
                     try:
                         physical_stop = client_tr.create_stop_order(symbol=clean_sym, quantity=amount_coin, stop_price=stop_loss_price)
                     except Exception as e_st:
                         print(f"⚠️ [Binance TR Fiziksel Stop Hatası]: {e_st}")
+                        trade_status = "UNPROTECTED_POSITION"
                         
                 return {
-                    "status": "success",
+                    "status": trade_status,
                     "order_id": str(res.get("id")),
                     "symbol": symbol,
                     "side": side,
@@ -1005,7 +1013,10 @@ def execute_spot_trade(
 
     exchange = get_exchange_for_tenant(tenant_config)
     ticker = fetch_ticker_price(symbol if "/" in symbol else f"{symbol}/USDT")
-    price = float(ticker.get("last_price") or 64000.0)
+    price = float(ticker.get("last_price") or 0.0)
+    if price <= 0:
+        return {"status": "FAILED", "error": f"{symbol} anlık fiyatı okunamadı (Fail-Closed)."}
+        
     quantity = amount_usd / price if price > 0 else 0
     
     if side.lower() == "sell" and exchange and hasattr(exchange, "fetch_balance"):
@@ -1018,7 +1029,7 @@ def execute_spot_trade(
         except Exception:
             pass
 
-    if exchange and getattr(exchange, "apiKey", None) and not os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true":
+    if exchange and getattr(exchange, "apiKey", None) and not is_testnet:
         try:
             order = exchange.create_order(
                 symbol=symbol,
@@ -1031,14 +1042,16 @@ def execute_spot_trade(
             
             # 🛡️ FİZİKSEL STOP-LOSS: Alım başarılı olduysa borsaya canlı Stop-Loss emri ilet
             physical_stop = None
+            trade_status = "success"
             if side.lower() == "buy" and stop_loss_price and stop_loss_price > 0 and hasattr(exchange, "create_stop_order"):
                 try:
                     physical_stop = exchange.create_stop_order(symbol=symbol, quantity=quantity, stop_price=stop_loss_price)
                 except Exception as e_st:
                     print(f"⚠️ [Binance Global Fiziksel Stop Hatası]: {e_st}")
+                    trade_status = "UNPROTECTED_POSITION"
                     
             return {
-                "status": "success",
+                "status": trade_status,
                 "order_id": str(order.get('id')),
                 "symbol": symbol,
                 "side": side,

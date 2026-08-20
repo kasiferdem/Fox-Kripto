@@ -15,16 +15,17 @@ def check_market_regime() -> Dict[str, Any]:
     """
     BTC/USDT 1 Saatlik Mum Verileri Üzerinden Piyasa Rejimini Denetler.
     BTC EMA(200) altında ise veya sert düşüş trendindeyse piyasa 'BEARISH' kabul edilir.
+    Hata durumlarında sermaye koruma amacıyla Fail-Closed (is_bullish=False) döner.
     """
     try:
-        url = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=210"
+        url = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=450"
         r = requests.get(url, timeout=4)
         if r.status_code != 200:
-            return {"is_bullish": True, "status": "UNKNOWN", "reason": "BTC kline API geçici olarak yanıt vermedi"}
+            return {"is_bullish": False, "status": "API_UNAVAILABLE", "reason": "BTC kline API geçici olarak yanıt vermedi (Sermaye Koruma / Fail-Closed)."}
             
         data = r.json()
         if len(data) < 200:
-            return {"is_bullish": True, "status": "UNKNOWN", "reason": "Yetersiz BTC mum verisi"}
+            return {"is_bullish": False, "status": "INSUFFICIENT_DATA", "reason": "Yetersiz BTC mum verisi (Sermaye Koruma)."}
             
         # Kapanmış mumların kapanış fiyatları
         close_prices = [float(k[4]) for k in data[:-1]]
@@ -36,8 +37,8 @@ def check_market_regime() -> Dict[str, Any]:
         # 1. EMA200 Kontrolü: Fiyat EMA200'ün %1.5'ten fazla altındaysa piyasa net ayı modundadır
         is_below_ema200 = current_btc_price < (ema200 * 0.985)
         
-        # 2. Son 4 saatlik BTC sert düşüş kontrolü
-        recent_4h_change = ((close_prices[-1] - close_prices[-4]) / close_prices[-4]) * 100.0 if len(close_prices) >= 4 else 0.0
+        # 2. Son 4 saatlik BTC sert düşüş kontrolü (4 mum aralığı)
+        recent_4h_change = ((close_prices[-1] - close_prices[-5]) / close_prices[-5]) * 100.0 if len(close_prices) >= 5 else 0.0
         is_dumping = recent_4h_change < -3.0
         
         if is_below_ema200 or is_dumping:
@@ -62,4 +63,4 @@ def check_market_regime() -> Dict[str, Any]:
             "reason": "Piyasa rejimi altcoin momentum alımları için uygun."
         }
     except Exception as e:
-        return {"is_bullish": True, "status": "FAIL_OPEN_WARN", "reason": f"Piyasa rejimi sorgu hatası: {e}"}
+        return {"is_bullish": False, "status": "FAIL_CLOSED_ERROR", "reason": f"Piyasa rejimi sorgu hatası: {e} (Sermaye Koruma Devrede)"}
