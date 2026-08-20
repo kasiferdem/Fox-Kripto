@@ -285,17 +285,17 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             continue
             
         # 🤖 STRATEJİ BOTU DİNAMİK BÜTÇE TAHSİSİ (Sermaye Koruma & max_budget_percent)
-        # Asla serbest kasanın %10'undan fazlası tek coine tahsis edilmez!
         user_max_budget = float(tenant_config.get("max_budget_percent") or 10.0)
-        enforced_max_pct = min(10.0, max(1.0, user_max_budget))
+        enforced_max_pct = min(100.0, max(1.0, user_max_budget))
         
         safe_budget_usd = round(free_cash_usd * (enforced_max_pct / 100.0) * 0.98, 2)
         min_order_usd = 5.0 if pair_quote == "TRY" else 10.0
         
         if safe_budget_usd < min_order_usd:
-            if free_cash_usd >= min_order_usd and (free_cash_usd * 0.98 <= min_order_usd * 1.5):
+            if free_cash_usd >= min_order_usd:
                 safe_budget_usd = round(min_order_usd, 2)
             else:
+                print(f"   ⏳ [Asgari Bütçe Sınırı]: {c_base} için serbest bakiye (${free_cash_usd:.2f}) asgari emir tutarının (${min_order_usd:.2f}) altında.")
                 continue
             
         fresh_coin = f"{c_base}/{pair_quote}"
