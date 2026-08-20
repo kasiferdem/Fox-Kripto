@@ -154,6 +154,18 @@ def run_autonomous_trading_loop():
                     from exchange import fetch_portfolio_balance
                     live_bal = fetch_portfolio_balance(tenant)
                     
+                    # ⚠️ Borsa API ve İzin Hatası Bildirimi (5 dk spam korumalı)
+                    if live_bal.get("api_error") and not tenant.get("is_paper_trading") and chat_id:
+                        exch_label = "BINANCE GLOBAL 🌍" if tenant.get("exchange_id") == "binance" else "BINANCE TR 🇹🇷"
+                        handle_autonomous_error_alert(
+                            tenant_name=tenant_name,
+                            sym_target="CÜZDAN & API BAĞLANTISI",
+                            action_name="CANLI BAKİYE VE İZİN KONTROLÜ",
+                            exch_name=exch_label,
+                            raw_error=live_bal.get("api_error"),
+                            chat_id=chat_id
+                        )
+                    
                     graph = create_crypto_graph()
                     initial_state = {
                         "tenant_id": tenant.get("id"),
