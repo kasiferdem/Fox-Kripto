@@ -61,10 +61,10 @@ except Exception as e:
 print("\n[BOT 4/7] Devre Kesici ve Pozisyon Sınırı (circuit_breaker.py)...")
 try:
     from circuit_breaker import check_circuit_breaker
-    cb_ok = check_circuit_breaker(tenant_id="test_tenant", open_positions_count=1, max_concurrent_positions=3)
-    cb_block = check_circuit_breaker(tenant_id="test_tenant", open_positions_count=3, max_concurrent_positions=3)
-    print(f"  ✅ 1 Pozisyonda İzin: {cb_ok.get('allowed')} ({cb_ok.get('reason')})")
-    print(f"  ✅ 3 Pozisyonda Engel: {not cb_block.get('allowed')} ({cb_block.get('reason')})")
+    cb_ok = check_circuit_breaker(tenant_id="test_tenant", open_positions_count=3, max_concurrent_positions=8)
+    cb_block = check_circuit_breaker(tenant_id="test_tenant", open_positions_count=8, max_concurrent_positions=8)
+    print(f"  ✅ 3 Pozisyonda İzin (Genişletilmiş Kapasite): {cb_ok.get('allowed')} ({cb_ok.get('reason')})")
+    print(f"  ✅ 8 Pozisyonda Engel: {not cb_block.get('allowed')} ({cb_block.get('reason')})")
     assert cb_ok.get("allowed") == True and cb_block.get("allowed") == False
     results["circuit_breaker"] = "PASS"
 except Exception as e:

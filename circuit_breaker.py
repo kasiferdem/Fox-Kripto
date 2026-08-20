@@ -5,7 +5,7 @@ from db import get_supabase
 def check_circuit_breaker(
     tenant_id: str,
     open_positions_count: int,
-    max_concurrent_positions: int = 3,
+    max_concurrent_positions: int = 8,
     max_daily_loss_percent: float = 3.0
 ) -> Dict[str, Any]:
     """

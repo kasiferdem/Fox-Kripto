@@ -174,9 +174,9 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             if amt > 0.0001 and val >= 1.0:
                 current_assets.append(str(k).upper())
 
-    # 🛡️ 1. DEVRE KESİCİ & POZİSYON SINIRI KONTROLÜ (Circuit Breaker)
+    # 🛡️ 1. DEVRE KESİCİ & POZİSYON SINIRI KONTROLÜ (Circuit Breaker: Maksimum 8 Pozisyon)
     from circuit_breaker import check_circuit_breaker
-    cb_check = check_circuit_breaker(tenant_id=tenant_id, open_positions_count=len(current_assets), max_concurrent_positions=3)
+    cb_check = check_circuit_breaker(tenant_id=tenant_id, open_positions_count=len(current_assets), max_concurrent_positions=8)
     if not cb_check.get("allowed", True):
         print(f"   🛑 [Devre Kesici Engeli]: {cb_check.get('reason')}")
         return {"trade_proposal": None, "human_approval": "Rejected"}
