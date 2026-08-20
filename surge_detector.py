@@ -115,10 +115,13 @@ def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 1
             and not any(t["symbol"].startswith(x) for x in ["USDC", "FDUSD", "EUR", "BUSD", "TUSD", "UP", "DOWN"])
             and float(t.get("quoteVolume", 0)) > (100000.0 if quote_upper == "USDT" else 2000000.0)
             and float(t.get("lastPrice", 0)) > 0
+            # 🛑 TEPEDEN ALMAYI ENGELLE (FOMO FİLTRESİ): Zaten %10'un üzerinde fırlamış coinleri alma!
+            # Yalnızca henüz dipte / koşunun başında olan (%-3.0 ile %+8.0 arası) taze kırılımları tara!
+            and -3.0 <= float(t.get("priceChangePercent", 0)) <= 8.5
         ]
         
-        # Hacmi en dinamik ilk 40 adayı seç ve 5dk kırılım ivmesini paralel test et
-        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:40]
+        # Hacmi en dinamik adayları seç ve 5dk kırılım ivmesini paralel test et
+        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:50]
         
         min_vol = min_volume_usd if quote_upper == "USDT" else (min_volume_usd * 47.8)
         with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
