@@ -26,7 +26,7 @@ app_api = FastAPI(title="Fox-Kripto Multi-Tenant Autonomous Trading & Management
 security = HTTPBasic()
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or secrets.token_urlsafe(24)
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "foxkripto2026")
 last_error_alerts = {}
 
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
