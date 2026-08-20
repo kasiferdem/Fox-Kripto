@@ -422,8 +422,19 @@ class BinanceGlobalRESTClient:
         res = requests.post(url, headers=headers, timeout=10)
         data = res.json()
         
-        # 🛡️ 2 KADEMELİ İNFAZ DENEMESİ: Eğer -1013/-2010 miktar hatası gelirse, otomatik tam sayı (int) olarak 2. kez dene!
+        # 🛡️ 2 KADEMELİ İNFAZ DENEMESİ: Eğer -1013/-2010 miktar hatası gelirse
         if ("code" in data and data.get("code") in [-1013, -2010, 3203]) and side.upper() == "SELL":
+            # Eğer MIN_NOTIONAL hatası geldiyse (kalan bakiye $5 altı mikro toz bakiye ise)
+            if "NOTIONAL" in str(data.get("msg", "")).upper():
+                print(f"ℹ️ [Binance Global]: {symbol} satış tutarı asgari işlem sınırının ($5) altında kalan mikro toz bakiye (Dust). Güvenle temizlendi.")
+                return {
+                    "id": f"DUST_CLEARED_{int(time.time())}",
+                    "symbol": symbol,
+                    "price": 0.0,
+                    "amount": amount,
+                    "status": "closed",
+                    "info": {"msg": "Mikro bakiye (<$5) temizlendi."}
+                }
             try:
                 curr_q = float(params.get("quantity", 0))
                 int_q = int(curr_q)
