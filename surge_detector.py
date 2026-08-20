@@ -140,6 +140,32 @@ def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 1
     breakouts = sorted(breakouts, key=lambda x: x["volume_spike_ratio"], reverse=True)
     return breakouts[:6]
 
+def fetch_top_volume_gainers(limit: int = 15) -> List[Dict[str, Any]]:
+    """Binance 24s hacimli ve primli çiftleri çeker."""
+    try:
+        r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=4)
+        if r.status_code == 200:
+            tickers = r.json()
+            valid = []
+            for t in tickers:
+                sym = t.get("symbol", "")
+                if sym.endswith("USDT") and not any(sym.startswith(x) for x in ["USDC", "FDUSD", "EUR", "BUSD", "TUSD", "UP", "DOWN"]):
+                    chg = float(t.get("priceChangePercent", 0.0))
+                    vol = float(t.get("quoteVolume", 0.0))
+                    if vol > 500000.0 and -3.0 <= chg <= 8.5:
+                        valid.append({
+                            "symbol": f"{sym[:-4]}/USDT",
+                            "last_price": float(t.get("lastPrice", 1.0)),
+                            "price_change_24h": chg,
+                            "volume": vol,
+                            "momentum_score": min(9.0, 6.0 + (chg / 2.0))
+                        })
+            valid.sort(key=lambda x: x["price_change_24h"], reverse=True)
+            return valid[:limit]
+    except Exception:
+        pass
+    return []
+
 if __name__ == "__main__":
     t0 = time.time()
     results = detect_early_volume_breakouts()
