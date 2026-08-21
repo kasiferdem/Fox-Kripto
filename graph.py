@@ -330,18 +330,14 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         ai_conviction_score = min(10.0, max(1.0, round(base_score + orderbook_boost, 1)))
 
         # -------------------------------------------------------------
-        # 3. KURAL: HEYET ONAYLI DİNAMİK YENİDEN GİRİŞ (Committee Consensus)
+        # 3. KURAL: KÂR VE ZARAR SONRASI ZORUNLU DİNLENME SOĞUMASI (Strict Cooldown Filter)
         # -------------------------------------------------------------
-        # Statik kilit yerine: Eğer bu coin son 60 dk içinde satıldıysa,
-        # sadece ve sadece ANALİZ HEYETİ oybirliğiyle onaylarsa (Skor >= 8.5 ve Güçlü Alıcı Baskısı) 2. kez alınır!
+        # Kârlı veya zararlı çıkış fark etmeksizin, aynı coinin tepe fitilinden (bull trap)
+        # tekrar alınmasını önlemek için 30 dakika boyunca kesin dinlenme uygulanır!
         is_recently_sold = (c_base in active_db_cooldowns)
         if is_recently_sold:
-            committee_approved = (ai_conviction_score >= 8.5) and (vol_spike >= 3.0) and (orderbook_ratio >= 1.4)
-            if not committee_approved:
-                print(f"   ⏳ [3. Kural - Heyet Reddi]: {c_base} yakın zamanda satılmıştı. Heyet ikinci giriş için yeterli yeni ivme görmedi (Skor: {ai_conviction_score}, Hacim İvmesi: {vol_spike}x, Tahta Oranı: {orderbook_ratio:.2f}).")
-                continue
-            else:
-                print(f"   🔥 [3. Kural - HEYET ONAYI VERİLDİ]: {c_base} için güçlü yeni balina dalgası tespit edildi. 2. Giriş Onaylandı!")
+            print(f"   ⏳ [3. Kural - Soğuma Kilidi Aktif]: {c_base} yakın zamanda satıldığı için zorunlu 30 dk dinlenme modunda. Tepe tuzağı (Bull Trap) ve intikam alımını önlemek için işlem engellendi.")
+            continue
 
         if ai_conviction_score < 6.0:
             continue
