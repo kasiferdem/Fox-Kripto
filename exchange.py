@@ -287,6 +287,9 @@ class BinanceTRClient:
 
 class BinanceGlobalRESTClient:
     """Binance Global (api.binance.com) Doğrudan REST API İstemcisi"""
+    _time_offset = 0
+    _last_time_sync = 0
+
     def __init__(self, api_key: str, secret_key: str):
         self.id = "binance"
         self.apiKey = api_key
@@ -300,9 +303,28 @@ class BinanceGlobalRESTClient:
             "https://api4.binance.com"
         ]
 
+    @classmethod
+    def _sync_time(cls):
+        """Binance sunucusu ile milisaniye bazında zaman farkını senkronize eder."""
+        now = time.time()
+        if now - cls._last_time_sync > 300 or cls._last_time_sync == 0:
+            for endpoint in ["https://api.binance.com", "https://api1.binance.com", "https://api2.binance.com"]:
+                try:
+                    r = requests.get(f"{endpoint}/api/v3/time", timeout=2)
+                    if r.status_code == 200:
+                        server_time = int(r.json().get("serverTime", 0))
+                        local_time = int(time.time() * 1000)
+                        if server_time > 0:
+                            cls._time_offset = server_time - local_time
+                            cls._last_time_sync = now
+                            break
+                except Exception:
+                    pass
+
     def _sign(self, params: dict) -> str:
+        self._sync_time()
         params['recvWindow'] = 60000
-        params['timestamp'] = int(time.time() * 1000)
+        params['timestamp'] = int(time.time() * 1000) + BinanceGlobalRESTClient._time_offset
         query = '&'.join([f'{k}={v}' for k, v in sorted(params.items())])
         sig = hmac.new(self.secret.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
         return f"{query}&signature={sig}"
