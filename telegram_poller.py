@@ -211,22 +211,33 @@ def handle_update(update: dict):
             send_message(chat_id, "🚀 *ŞU ANKİ ÇALIŞMA MODUNUZ:* `GERÇEK CANLI (Live Binance)`\nİşlemler gerçek cüzdanınızla yapılıyor. Teste geçmek için `/test` yazabilirsiniz.")
         return
 
-    if text_clean in ["surum", "sürüm", "version", "/surum", "/sürüm", "/version", "deploy", "/deploy", "health", "/health", "saglik", "sağlık"]:
+    if text_clean in ["surum", "sürüm", "version", "/surum", "/sürüm", "/version", "deploy", "/deploy", "health", "/health", "saglik", "sağlık", "ip", "/ip"]:
+        import requests
         from market_regime import check_market_regime
         from circuit_breaker import get_adaptive_max_slots
+        
+        server_ip = "Bilinmiyor"
+        try:
+            r_ip = requests.get("https://api.ipify.org", timeout=2)
+            if r_ip.status_code == 200:
+                server_ip = r_ip.text.strip()
+        except Exception:
+            pass
+
         regime = check_market_regime()
         reg_status = "🟢 BOĞA / NÖTR (Alıma Açık)" if regime.get("is_bullish") else f"🔴 AYI / FIRTINA ({regime.get('reason')})"
         
         msg_v = (
             f"ℹ️ *FOX-KRİPTO SİSTEM & VERSİYON BİLGİSİ*\n\n"
             f"🏷️ *Sürüm:* `v2.5.0-PROD`\n"
+            f"🌐 *Sunucu Dış IP:* `{server_ip}`\n"
             f"🚀 *Son Deploy:* `Canlı ve Güncel`\n"
             f"🛡️ *Piyasa Rejim Durumu:* {reg_status}\n"
             f"📊 *BTC 15m/1h Fırtına Kalkanı:* `AKTİF`\n"
             f"🎛️ *Dinamik Slot Yönetimi:* `Kasa < $300 (3 Slot) | > $1000 (7 Slot)`\n"
             f"⚡ *Borsa Hatları:* `Binance TR & Binance Global (5 Yedek Hat)`\n"
             f"🤖 *Yönetim Komitesi:* `Claude (Risk) • Codex (Kod) • Antigravity (Mimari)`\n\n"
-            f"_(Sistem 7/24 kesintisiz piyasayı taramaktadır.)_"
+            f"💡 _(Eğer Binance Global -2015 verirse yukarıdaki Sunucu Dış IP'sini Binance API Ayarlarındaki IP Whitelist'e ekleyiniz.)_"
         )
         send_message(chat_id, msg_v)
         return
