@@ -176,7 +176,10 @@ class BinanceTRClient:
                 bal = self.fetch_balance()
                 free_coin_amount = float(bal.get("free", {}).get(asset_coin, 0.0))
                 if free_coin_amount > 0.0:
-                    qty_to_sell = free_coin_amount
+                    if amount > 0 and amount < free_coin_amount:
+                        qty_to_sell = amount
+                    else:
+                        qty_to_sell = free_coin_amount
             except Exception:
                 pass
             if qty_to_sell <= 0.0:
@@ -396,7 +399,10 @@ class BinanceGlobalRESTClient:
                 bal = self.fetch_balance()
                 free_c = float(bal.get("free", {}).get(base_c, 0.0))
                 if free_c > 0:
-                    amount = free_c
+                    if amount > 0 and amount < free_c:
+                        amount = amount
+                    else:
+                        amount = free_c
             except Exception:
                 pass
                 
