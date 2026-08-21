@@ -37,7 +37,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     tenant_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id") or "default_tenant")
     user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
     user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
-    is_tr_user = bool(tenant_config and str(tenant_config.get("exchange_id", "")).lower() in ["binancetr", "binance.tr", "trbinance"])
+    exch_id = str(tenant_config.get("exchange_id", "")).lower()
+    is_tr_user = bool(exch_id in ["binancetr", "binance.tr", "trbinance"])
     live_fx = get_live_usd_try_rate()
     
     # -------------------------------------------------------------
@@ -352,18 +353,21 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             continue
             
         # 🧠 AKILLI DİNAMİK YATIRIM VE POZİSYON BOYUTLANDIRMA MOTORU (Smart Dynamic Sizing)
-        # Katı %10 yerine kasanın büyüklüğüne, kalan boş slota ve AI sinyal gücüne göre akıllı tahsisat:
-        remaining_slots = max(1, 3 - len(current_assets))
+        cand_quote = "TRY" if (c_sym.upper().endswith("TRY") or c_sym.upper().endswith("_TRY")) else "USDT"
+        is_cand_tr = (cand_quote == "TRY")
+        cand_free_usd = (free_try / live_fx) if is_cand_tr else free_usdt
+        
+        remaining_slots = max(1, 5 - len(current_assets))
         
         # 1. Kasa Ölçeğine Göre Taban Slot Yüzdesi
-        if free_cash_usd <= 50.0:
+        if cand_free_usd <= 50.0:
             # Küçük Kasa (< ₺2.400): Kasa parçalanmaz, 2 güçlü slota bölünür (%50)
             base_slot_pct = 50.0
-        elif free_cash_usd <= 200.0:
+        elif cand_free_usd <= 200.0:
             # Orta Kasa (₺2.400 - ₺9.500): 3 dengeli slota bölünür (%33.3)
             base_slot_pct = 33.3
         else:
-            # Büyük Kasa (> $200): Slot başına %25 - %30
+            # Büyük Kasa (> $200): Slot başına %20 - %25
             base_slot_pct = round(100.0 / remaining_slots, 1)
 
         # 2. Yapay Zeka Sinyal Gücü Çarpanı (Conviction Multiplier)
@@ -376,18 +380,12 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
 
         dynamic_budget_pct = round(base_slot_pct * conviction_mult, 1)
         
-        # Kullanıcı manuel özel bütçe girmişse ve %10 default değilse kullanıcının limitine saygı duy
+        # Kullanıcı manuel özel bütçe girmişse kullanıcının limitine saygı duy (%20)
         custom_user_budget = float(tenant_config.get("max_budget_percent") or 0.0)
         if custom_user_budget > 10.0:
             dynamic_budget_pct = min(100.0, custom_user_budget)
             
-        cand_quote = "TRY" if (c_sym.upper().endswith("TRY") or c_sym.upper().endswith("_TRY")) else "USDT"
-        is_cand_tr = (cand_quote == "TRY")
-        cand_free_usd = (free_try / live_fx) if is_cand_tr else free_usdt
-        
-        # Kullanıcı manuel özel bütçe girmişse kullanıcının limitine saygı duy (%20)
-        custom_user_budget = float(tenant_config.get("max_budget_percent") or 20.0)
-        safe_budget_usd = round(cand_free_usd * (custom_user_budget / 100.0) * 0.98, 2)
+        safe_budget_usd = round(cand_free_usd * (dynamic_budget_pct / 100.0) * 0.98, 2)
         min_order_usd = 3.0 if is_cand_tr else 10.0
         
         if safe_budget_usd < min_order_usd:
