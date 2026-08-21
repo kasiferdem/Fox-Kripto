@@ -245,9 +245,11 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             if amt > 0.0001 and (val >= 2.0 or val_tl >= 90.0):
                 current_assets.append(str(k).upper())
 
-    # 🛡️ 1. DEVRE KESİCİ & POZİSYON SINIRI KONTROLÜ (Circuit Breaker: Maksimum 8 Pozisyon)
-    from circuit_breaker import check_circuit_breaker
-    cb_check = check_circuit_breaker(tenant_id=tenant_id, open_positions_count=len(current_assets), max_concurrent_positions=8)
+    # 🛡️ 1. DEVRE KESİCİ & DİNAMİK POZİSYON SINIRI KONTROLÜ (Adaptive Slot Management)
+    from circuit_breaker import check_circuit_breaker, get_adaptive_max_slots
+    tot_val_usd = float(portfolio_state.get("total_usdt", 0.0))
+    adaptive_max_slots = get_adaptive_max_slots(tot_val_usd)
+    cb_check = check_circuit_breaker(tenant_id=tenant_id, open_positions_count=len(current_assets), max_concurrent_positions=adaptive_max_slots)
     if not cb_check.get("allowed", True):
         print(f"   🛑 [Devre Kesici Engeli]: {cb_check.get('reason')}")
         return {"trade_proposal": None, "human_approval": "Rejected"}

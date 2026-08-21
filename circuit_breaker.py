@@ -2,15 +2,29 @@ import time
 from typing import Dict, Any, Optional
 from db import get_supabase
 
+def get_adaptive_max_slots(total_portfolio_usd: float) -> int:
+    """
+    Kasa büyüklüğüne göre dinamik ve matematiksel olarak en optimal slot sayısını hesaplar:
+    • Kasa < $300 (₺10.000 altı)    : Maksimum 3 Slot ($25 - $100 / pozisyon) -> Sermaye bölünmez, kâr hissedilir.
+    • $300 - $1.000 (₺10.000 - ₺35.000): Maksimum 5 Slot ($60 - $200 / pozisyon) -> Dengeli çeşitlilik.
+    • Kasa >= $1.000 (₺35.000 üzeri) : Maksimum 7 Slot ($150 - $350 / pozisyon) -> Kurumsal portföy dağılımı.
+    """
+    if total_portfolio_usd < 300.0:
+        return 3
+    elif total_portfolio_usd < 1000.0:
+        return 5
+    else:
+        return 7
+
 def check_circuit_breaker(
     tenant_id: str,
     open_positions_count: int,
-    max_concurrent_positions: int = 8,
+    max_concurrent_positions: int = 3,
     max_daily_loss_percent: float = 3.0
 ) -> Dict[str, Any]:
     """
     Devre Kesici (Circuit Breaker) ve Portföy Risk Limiti Denetimi:
-    1. Maksimum Eşzamanlı Pozisyon Sayısı (Varsayılan: 3)
+    1. Dinamik Eşzamanlı Pozisyon Sayısı (Küçük kasada 3, büyük kasada 5-7 slot)
     2. Ardışık Stop Kilidi (Son 2 saatte 3 ardışık zarar varsa 1 saat kilit)
     3. Günlük Maksimum Zarar Sınırı (%3.0 kümülatif kayıp)
     Tüm kontroller tenant_id bazında kesin yalıtımla çalışır.
@@ -19,7 +33,7 @@ def check_circuit_breaker(
     if open_positions_count >= max_concurrent_positions:
         return {
             "allowed": False,
-            "reason": f"Maksimum açık pozisyon sınırına ({max_concurrent_positions}) ulaşıldı. Kasa güvenliği için yeni pozisyon açılmaz."
+            "reason": f"Maksimum açık pozisyon sınırına ({open_positions_count}/{max_concurrent_positions} slot) ulaşıldı. Kasa güvenliği ve kâr yoğunluğu için yeni pozisyon açılmaz."
         }
         
     client = get_supabase()

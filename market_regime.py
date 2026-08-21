@@ -39,10 +39,32 @@ def check_market_regime() -> Dict[str, Any]:
         
         # 2. Son 4 saatlik BTC sert düşüş kontrolü (4 mum aralığı)
         recent_4h_change = ((close_prices[-1] - close_prices[-5]) / close_prices[-5]) * 100.0 if len(close_prices) >= 5 else 0.0
-        is_dumping = recent_4h_change < -3.0
+        is_dumping = recent_4h_change < -2.5
+
+        # 3. Kısa Vadeli Fırtına Kalkanı: BTC 15 Dakikalık Ani Mum Çöküş Kontrolü
+        is_15m_dumping = False
+        try:
+            url_15m = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=15m&limit=10"
+            r_15m = requests.get(url_15m, timeout=3)
+            if r_15m.status_code == 200:
+                d_15m = r_15m.json()
+                if len(d_15m) >= 3:
+                    c15_last = float(d_15m[-1][4])
+                    c15_prev = float(d_15m[-3][1]) # 30 dk önceki açılış
+                    pct_15m = ((c15_last - c15_prev) / c15_prev) * 100.0
+                    if pct_15m < -1.5:
+                        is_15m_dumping = True
+        except Exception:
+            pass
         
-        if is_below_ema200 or is_dumping:
-            reason = f"BTC (${current_btc_price:,.0f}) EMA200 (${ema200:,.0f}) altında (Ayı Rejimi)" if is_below_ema200 else f"BTC son 4 saatte %{recent_4h_change:.1f} sert düştü"
+        if is_below_ema200 or is_dumping or is_15m_dumping:
+            if is_15m_dumping:
+                reason = "BTC son 30 dakikada ani fırtına düşüşü (-%1.5+) başlattı (Fırtına Kalkanı Aktif)"
+            elif is_below_ema200:
+                reason = f"BTC (${current_btc_price:,.0f}) EMA200 (${ema200:,.0f}) altında (Ayı Rejimi)"
+            else:
+                reason = f"BTC son 4 saatte %{recent_4h_change:.1f} sert düştü"
+
             return {
                 "is_bullish": False,
                 "status": "BEARISH_REGIME",

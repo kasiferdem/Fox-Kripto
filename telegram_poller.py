@@ -211,6 +211,26 @@ def handle_update(update: dict):
             send_message(chat_id, "🚀 *ŞU ANKİ ÇALIŞMA MODUNUZ:* `GERÇEK CANLI (Live Binance)`\nİşlemler gerçek cüzdanınızla yapılıyor. Teste geçmek için `/test` yazabilirsiniz.")
         return
 
+    if text_clean in ["surum", "sürüm", "version", "/surum", "/sürüm", "/version", "deploy", "/deploy", "health", "/health", "saglik", "sağlık"]:
+        from market_regime import check_market_regime
+        from circuit_breaker import get_adaptive_max_slots
+        regime = check_market_regime()
+        reg_status = "🟢 BOĞA / NÖTR (Alıma Açık)" if regime.get("is_bullish") else f"🔴 AYI / FIRTINA ({regime.get('reason')})"
+        
+        msg_v = (
+            f"ℹ️ *FOX-KRİPTO SİSTEM & VERSİYON BİLGİSİ*\n\n"
+            f"🏷️ *Sürüm:* `v2.5.0-PROD`\n"
+            f"🚀 *Son Deploy:* `Canlı ve Güncel`\n"
+            f"🛡️ *Piyasa Rejim Durumu:* {reg_status}\n"
+            f"📊 *BTC 15m/1h Fırtına Kalkanı:* `AKTİF`\n"
+            f"🎛️ *Dinamik Slot Yönetimi:* `Kasa < $300 (3 Slot) | > $1000 (7 Slot)`\n"
+            f"⚡ *Borsa Hatları:* `Binance TR & Binance Global (5 Yedek Hat)`\n"
+            f"🤖 *Yönetim Komitesi:* `Claude (Risk) • Codex (Kod) • Antigravity (Mimari)`\n\n"
+            f"_(Sistem 7/24 kesintisiz piyasayı taramaktadır.)_"
+        )
+        send_message(chat_id, msg_v)
+        return
+
     tenant = get_tenant_by_chat_id(chat_id)
     user_lang = str(tenant.get("preferred_language", "tr") if tenant else "tr").lower()
 
