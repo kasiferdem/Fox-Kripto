@@ -205,32 +205,30 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         return {"trade_proposal": None, "human_approval": "Rejected"}
 
     holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
-    free_try = 0.0
-    free_usdt = float(portfolio_state.get("free_usdt") or 0.0)
+    free_try = float(portfolio_state.get("free_try") or portfolio_state.get("binance_tr", {}).get("free_try") or 0.0)
+    free_usdt = float(portfolio_state.get("free_usdt") or portfolio_state.get("binance_global", {}).get("free_usdt") or 0.0)
     if isinstance(holdings, dict):
-        free_try = float(holdings.get("TRY", {}).get("amount", 0.0) if isinstance(holdings.get("TRY"), dict) else holdings.get("TRY", 0.0))
+        if free_try <= 0:
+            free_try = float(holdings.get("TRY", {}).get("amount", 0.0) if isinstance(holdings.get("TRY"), dict) else holdings.get("TRY", 0.0))
         if free_usdt <= 0:
             free_usdt = float(holdings.get("USDT", {}).get("amount", 0.0) if isinstance(holdings.get("USDT"), dict) else holdings.get("USDT", 0.0))
             
-    if is_tr_user or (free_usdt < 5.0 and free_try >= 200.0):
-        is_tr_user = True
-        pair_quote = "TRY"
-        free_cash_usd = free_try / live_fx
-    else:
-        pair_quote = "USDT"
-        free_cash_usd = free_usdt
-
-    if free_cash_usd < 5.0 and free_try < 200.0:
-        print(f"   ⏳ [Nakit Bakiye Yetersiz]: Serbest nakit (${free_cash_usd:.2f} / ₺{free_try:.2f}) yeni alım için yetersiz. Bekletiliyor.")
+    is_dual = (exch_id == "dual")
+    total_avail_usd = (free_try / live_fx) + free_usdt
+    if total_avail_usd < 5.0 and free_try < 50.0:
+        print(f"   ⏳ [Nakit Bakiye Yetersiz]: Serbest nakit (Global: ${free_usdt:.2f} / TR: ₺{free_try:.2f}) yeni alım için yetersiz. Bekletiliyor.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
 
-    # KATI PORTFÖY ÇEŞİTLİLİK ENGELİ: Cüzdanda MADDETEN BULUNAN coinleri tekrar almayı KESİNLİKLE engeller
+    # KATI PORTFÖY ÇEŞİTLİLİK ENGELİ: Cüzdanda MADDETEN BULUNAN ($2 / ₺100 üzeri) gerçek pozisyonları sayar
     current_assets = []
     if isinstance(holdings, dict):
         for k, v in holdings.items():
+            if str(k).upper() in ["TRY", "USDT", "USDC", "BNB"]:
+                continue
             amt = v.get("amount", 0.0) if isinstance(v, dict) else float(v or 0.0)
             val = v.get("val_usd", 0.0) if isinstance(v, dict) else 0.0
-            if amt > 0.0001 and val >= 1.0:
+            val_tl = v.get("val_try", 0.0) if isinstance(v, dict) else 0.0
+            if amt > 0.0001 and (val >= 2.0 or val_tl >= 90.0):
                 current_assets.append(str(k).upper())
 
     # 🛡️ 1. DEVRE KESİCİ & POZİSYON SINIRI KONTROLÜ (Circuit Breaker: Maksimum 8 Pozisyon)
@@ -250,16 +248,27 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
     from surge_detector import get_active_trading_symbols
     active_syms = get_active_trading_symbols()
 
-    # DOĞRUDAN VE KESİNTİSİZ ERKEN BALİNA VE HACİM PATLAMASI TARAYICI
+    # DOĞRUDAN VE KESİNTİSİZ ERKEN BALİNA VE HACİM PATLAMASI TARAYICI (Çift Borsa Eşzamanlı)
     dynamic_candidates = []
     seen_symbols = set()
     try:
-        early_surges = detect_early_volume_breakouts(quote=pair_quote)
-        for es in early_surges:
-            sym_c = es.get("symbol", "") if isinstance(es, dict) else str(es)
-            if sym_c and sym_c not in seen_symbols:
-                seen_symbols.add(sym_c)
-                dynamic_candidates.append(es)
+        # Eğer çift borsa kullanıcısıysa hem TRY hem USDT tahtalarını tara
+        quotes_to_scan = []
+        if is_dual:
+            if free_try >= 50.0: quotes_to_scan.append("TRY")
+            if free_usdt >= 5.0: quotes_to_scan.append("USDT")
+        elif is_tr_user or (free_usdt < 5.0 and free_try >= 50.0):
+            quotes_to_scan.append("TRY")
+        else:
+            quotes_to_scan.append("USDT")
+            
+        for q_sym in quotes_to_scan:
+            early_surges = detect_early_volume_breakouts(quote=q_sym)
+            for es in early_surges:
+                sym_c = es.get("symbol", "") if isinstance(es, dict) else str(es)
+                if sym_c and sym_c not in seen_symbols:
+                    seen_symbols.add(sym_c)
+                    dynamic_candidates.append(es)
     except Exception:
         pass
         
@@ -372,17 +381,23 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         if custom_user_budget > 10.0:
             dynamic_budget_pct = min(100.0, custom_user_budget)
             
-        safe_budget_usd = round(free_cash_usd * (dynamic_budget_pct / 100.0) * 0.98, 2)
-        min_order_usd = 5.0 if pair_quote == "TRY" else 10.0
+        cand_quote = "TRY" if (c_sym.upper().endswith("TRY") or c_sym.upper().endswith("_TRY")) else "USDT"
+        is_cand_tr = (cand_quote == "TRY")
+        cand_free_usd = (free_try / live_fx) if is_cand_tr else free_usdt
+        
+        # Kullanıcı manuel özel bütçe girmişse kullanıcının limitine saygı duy (%20)
+        custom_user_budget = float(tenant_config.get("max_budget_percent") or 20.0)
+        safe_budget_usd = round(cand_free_usd * (custom_user_budget / 100.0) * 0.98, 2)
+        min_order_usd = 3.0 if is_cand_tr else 10.0
         
         if safe_budget_usd < min_order_usd:
-            if free_cash_usd >= min_order_usd:
+            if cand_free_usd >= min_order_usd:
                 safe_budget_usd = round(min_order_usd, 2)
             else:
-                print(f"   ⏳ [Bütçe Yetersiz]: Serbest bakiye (${free_cash_usd:.2f}) asgari emir tutarının (${min_order_usd:.2f}) altında.")
+                print(f"   ⏳ [Bütçe Yetersiz]: {c_sym} için serbest bakiye (${cand_free_usd:.2f}) asgari emir tutarının (${min_order_usd:.2f}) altında.")
                 continue
             
-        fresh_coin = f"{c_base}/{pair_quote}"
+        fresh_coin = f"{c_base}/{cand_quote}"
         real_ticker = fetch_ticker_price(fresh_coin)
         real_entry_price = float(real_ticker.get("last_price") or 1.0)
         if real_entry_price <= 0:
