@@ -292,8 +292,8 @@ class BinanceGlobalRESTClient:
 
     def __init__(self, api_key: str, secret_key: str):
         self.id = "binance"
-        self.apiKey = api_key
-        self.secret = secret_key
+        self.apiKey = str(api_key or "").strip()
+        self.secret = str(secret_key or "").strip()
         self.base_url = "https://api.binance.com"
         self.endpoints = [
             "https://api.binance.com",
@@ -302,6 +302,21 @@ class BinanceGlobalRESTClient:
             "https://api3.binance.com",
             "https://api4.binance.com"
         ]
+        self._ccxt = None
+
+    def get_ccxt(self):
+        if not self._ccxt and self.apiKey and self.secret:
+            try:
+                import ccxt
+                self._ccxt = ccxt.binance({
+                    'apiKey': self.apiKey,
+                    'secret': self.secret,
+                    'enableRateLimit': True,
+                    'options': {'adjustForTimeDifference': True, 'recvWindow': 60000}
+                })
+            except Exception:
+                pass
+        return self._ccxt
 
     @classmethod
     def _sync_time(cls):
@@ -330,6 +345,17 @@ class BinanceGlobalRESTClient:
         return f"{query}&signature={sig}"
 
     def fetch_balance(self) -> dict:
+        # 1. KADEME: CCXT (Dahili saat senkronizasyonu ve C-seviyesi imza yönetimi)
+        ccxt_ex = self.get_ccxt()
+        if ccxt_ex:
+            try:
+                bal = ccxt_ex.fetch_balance()
+                if bal and ("free" in bal or "total" in bal):
+                    return bal
+            except Exception as ce:
+                pass
+
+        # 2. KADEME: Doğrudan REST Failover Havuzu
         params = {}
         query_str = self._sign(params)
         headers = {"X-MBX-APIKEY": self.apiKey}
