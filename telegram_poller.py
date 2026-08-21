@@ -808,6 +808,32 @@ def handle_update(update: dict):
                 send_message(chat_id, "⚠️ Ayarlar güncellenirken bir değer anlaşılamadı. Lütfen örneğin: 'Kâr hedefimi %3 yap' şeklinde yazın.")
                 return
         
+        # 🧹 TOZ / KIRINTI TEMİZLEME VE BNB'YE DÖNÜŞTÜRME KOMUTU
+        text_lower = user_text.lower()
+        if any(w in text_lower for w in ["toz", "kırıntı", "bnb yap", "dust", "küçük bakiye", "bakiyeleri temizle", "tozları temizle"]):
+            send_message(chat_id, "🧹 *Küçük bakiyeler taranıyor ve BNB'ye dönüştürülüyor...*" if not is_en_pref else "🧹 *Scanning and converting dust balances to BNB...*")
+            from exchange import BinanceGlobalRESTClient
+            api_k = str(tenant.get("exchange_api_key", ""))
+            sec_k = str(tenant.get("exchange_secret_key", ""))
+            if api_k.startswith("{"):
+                try:
+                    kd = json.loads(api_k)
+                    api_k = kd.get("api_key", "")
+                    sec_k = kd.get("secret_key", "") or sec_k
+                except Exception: pass
+            
+            try:
+                client_g = BinanceGlobalRESTClient(api_key=api_k, secret_key=sec_k)
+                dust_res = client_g.convert_dust_to_bnb()
+                if dust_res.get("status") == "success" or "totalServiceCharge" in str(dust_res) or "transferResult" in str(dust_res):
+                    send_message(chat_id, "✨ *Tüm küçük bakiyeler ve kırıntılar başarıyla BNB'ye dönüştürüldü!* 🚀\nCüzdanınız tertemiz hale getirildi." if not is_en_pref else "✨ *All small dust balances have been successfully converted to BNB!* 🚀")
+                else:
+                    msg = dust_res.get("message") or dust_res.get("msg") or dust_res.get("error") or "Dönüştürülecek uygun toz bakiye bulunamadı (veya 6 saatlik borsa bekleme süresi devrede)."
+                    send_message(chat_id, f"ℹ️ {msg}")
+            except Exception as d_err:
+                send_message(chat_id, f"⚠️ Toz temizleme sırasında uyarı: {d_err}")
+            return
+        
         if intent == "TRADE" and intent_data.get("coin") and intent_data.get("action"):
             coin = str(intent_data["coin"]).upper()
             action = str(intent_data["action"]).upper()
