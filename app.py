@@ -727,6 +727,21 @@ def get_dashboard_html():
                     </label>
                     <span id="trailing-status-text" style="font-size: 12px; font-weight: bold; color: var(--success);">AÇIK</span>
                 </div>
+                <div class="lang-switch">
+                    <button id="btn-tr" class="lang-btn active" onclick="changeLang('tr')">🇹🇷 Türkçe</button>
+                    <button id="btn-en" class="lang-btn" onclick="changeLang('en')">🇬🇧 English</button>
+                </div>
+                <button id="i18n-btn-refresh" class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">
+                    <span id="i18n-card-users">👥 Kayıtlı Kullanıcılar & Dinamik Risk Ayarları</span>
+                    <span id="tenant-count" class="badge badge-active">0 Aktif</span>
+                </div>
+                <table>
                     <thead>
                         <tr>
                             <th id="i18n-th-user">Kullanıcı Adı</th>
