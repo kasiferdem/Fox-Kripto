@@ -460,6 +460,7 @@ class TenantUpdateSettingsRequest(BaseModel):
     stop_loss_percent: float = 1.5
     max_budget_percent: float = 10.0
     preferred_language: str = "tr"
+    exchange_id: Optional[str] = None
 
 class TriggerGraphRequest(BaseModel):
     session_id: str = "session_001"
@@ -548,7 +549,6 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
     client = get_supabase()
     if not client:
         raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
-        raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
     try:
         curr = client.table("user_tenants").select("*").eq("id", tenant_id).execute()
         if not curr.data:
@@ -562,6 +562,8 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
             "stop_loss_percent": req.stop_loss_percent,
             "max_budget_percent": req.max_budget_percent
         }
+        if req.exchange_id:
+            payload["exchange_id"] = req.exchange_id
         
         import json
         if api_k.startswith("{"):
@@ -725,21 +727,6 @@ def get_dashboard_html():
                     </label>
                     <span id="trailing-status-text" style="font-size: 12px; font-weight: bold; color: var(--success);">AÇIK</span>
                 </div>
-                <div class="lang-switch">
-                    <button id="btn-tr" class="lang-btn active" onclick="changeLang('tr')">🇹🇷 Türkçe</button>
-                    <button id="btn-en" class="lang-btn" onclick="changeLang('en')">🇬🇧 English</button>
-                </div>
-                <button id="i18n-btn-refresh" class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
-            </div>
-        </div>
-
-        <div class="grid">
-            <div class="card">
-                <div class="card-title">
-                    <span id="i18n-card-users">👥 Kayıtlı Kullanıcılar & Dinamik Risk Ayarları</span>
-                    <span id="tenant-count" class="badge badge-active">0 Aktif</span>
-                </div>
-                <table>
                     <thead>
                         <tr>
                             <th id="i18n-th-user">Kullanıcı Adı</th>
@@ -747,13 +734,14 @@ def get_dashboard_html():
                             <th id="i18n-th-tp">🎯 Kâr Alma %</th>
                             <th id="i18n-th-sl">🛡️ Stop-Loss %</th>
                             <th id="i18n-th-mb">💵 Bütçe %</th>
+                            <th id="i18n-th-exch">🏛️ Borsa Seçimi</th>
                             <th id="i18n-th-lang">🌐 Dil / Lang</th>
                             <th id="i18n-th-status">Durum</th>
                             <th id="i18n-th-action">İşlem</th>
                         </tr>
                     </thead>
                     <tbody id="tenants-table">
-                        <tr><td colspan="8" style="color: var(--text-muted);">Yükleniyor...</td></tr>
+                        <tr><td colspan="9" style="color: var(--text-muted);">Yükleniyor...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -825,7 +813,8 @@ def get_dashboard_html():
                     thTp: "🎯 Kâr Alma %",
                     thSl: "🛡️ Stop-Loss %",
                     thMb: "💵 Bütçe %",
-                    thLang: "🌐 Dil",
+                    thExch: "🏛️ Borsa Seçimi",
+                    thLang: "🌐 Dil / Lang",
                     thStatus: "Durum",
                     thAction: "İşlem",
                     addUser: "➕ Yeni Kullanıcı Ekle",
@@ -846,7 +835,7 @@ def get_dashboard_html():
                     del: "Sil",
                     activeBadge: "Aktif",
                     confirmDel: "Bu kullanıcıyı pasife almak istediğinizden emin misiniz?",
-                    userSaved: "için Kâr Alma, Stop-Loss ve Dil tercihleri başarıyla kaydedildi!",
+                    userSaved: "için Kâr Alma, Stop-Loss, Borsa ve Dil tercihleri başarıyla kaydedildi!",
                     userAdded: "✅ Kullanıcı ve limitler başarıyla kaydedildi!",
                     userAddFailed: "❌ Kullanıcı kaydedilemedi.",
                     userDeactivated: "Kullanıcı pasife alındı."
@@ -862,6 +851,7 @@ def get_dashboard_html():
                     thTp: "🎯 Take-Profit %",
                     thSl: "🛡️ Stop-Loss %",
                     thMb: "💵 Budget %",
+                    thExch: "🏛️ Exchange Selection",
                     thLang: "🌐 Language",
                     thStatus: "Status",
                     thAction: "Action",
@@ -883,7 +873,7 @@ def get_dashboard_html():
                     del: "Delete",
                     activeBadge: "Active",
                     confirmDel: "Are you sure you want to deactivate this user?",
-                    userSaved: "Take-Profit, Stop-Loss and Language preferences saved successfully for",
+                    userSaved: "Take-Profit, Stop-Loss, Exchange and Language preferences saved successfully for",
                     userAdded: "✅ User and risk limits saved successfully!",
                     userAddFailed: "❌ Failed to save user.",
                     userDeactivated: "User deactivated successfully."
@@ -906,6 +896,7 @@ def get_dashboard_html():
                 document.getElementById('i18n-th-tp').innerText = t.thTp;
                 document.getElementById('i18n-th-sl').innerText = t.thSl;
                 document.getElementById('i18n-th-mb').innerText = t.thMb;
+                if (document.getElementById('i18n-th-exch')) document.getElementById('i18n-th-exch').innerText = t.thExch;
                 document.getElementById('i18n-th-lang').innerText = t.thLang;
                 document.getElementById('i18n-th-status').innerText = t.thStatus;
                 document.getElementById('i18n-th-action').innerText = t.thAction;
@@ -936,7 +927,7 @@ def get_dashboard_html():
                     document.getElementById('tenant-count').innerText = `${data.count} ${t.activeSuffix}`;
                     
                     if (data.tenants.length === 0) {
-                        table.innerHTML = `<tr><td colspan="8" style="color: var(--text-muted);">${t.noUsers}</td></tr>`;
+                        table.innerHTML = `<tr><td colspan="9" style="color: var(--text-muted);">${t.noUsers}</td></tr>`;
                     } else {
                         table.innerHTML = data.tenants.map((user, idx) => `
                             <tr>
@@ -950,6 +941,13 @@ def get_dashboard_html():
                                 </td>
                                 <td>
                                     <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${user.max_budget_percent || 10}">
+                                </td>
+                                <td>
+                                    <select class="input-inline" style="width: 110px;" id="exch_${idx}">
+                                        <option value="dual" ${(!user.exchange_id || user.exchange_id === 'dual') ? 'selected' : ''}>⚡ Çift Borsa</option>
+                                        <option value="binancetr" ${user.exchange_id === 'binancetr' ? 'selected' : ''}>🇹🇷 Binance TR</option>
+                                        <option value="binance" ${user.exchange_id === 'binance' ? 'selected' : ''}>🌍 Global</option>
+                                    </select>
                                 </td>
                                 <td>
                                     <select class="input-inline" style="width: 78px;" id="lang_${idx}">
@@ -1038,17 +1036,18 @@ def get_dashboard_html():
                 const tp = parseFloat(document.getElementById('tp_' + idx).value);
                 const sl = parseFloat(document.getElementById('sl_' + idx).value);
                 const mb = parseFloat(document.getElementById('mb_' + idx).value);
+                const exch = document.getElementById('exch_' + idx).value;
                 const lang = document.getElementById('lang_' + idx).value;
                 
                 try {
                     const res = await fetch('/api/tenants/' + tenantId + '/settings', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: mb, preferred_language: lang})
+                        body: JSON.stringify({take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: mb, exchange_id: exch, preferred_language: lang})
                     });
                     const resData = await res.json();
                     if (res.ok && resData.status === 'success') {
-                        alert(`✅ ${name || 'User'}: ${currentLang === 'tr' ? 'Kâr Alma' : 'Take-Profit'} (%${tp}), Stop-Loss (%${sl}) & Lang (${lang.toUpperCase()}) ${t.userSaved}`);
+                        alert(`✅ ${name || 'User'}: ${currentLang === 'tr' ? 'Kâr Alma' : 'Take-Profit'} (%${tp}), Stop-Loss (%${sl}), Borsa (${exch.toUpperCase()}) ${t.userSaved}`);
                         loadData();
                     } else {
                         alert('❌ Error: ' + (resData.detail || JSON.stringify(resData)));
