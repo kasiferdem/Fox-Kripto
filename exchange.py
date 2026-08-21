@@ -763,13 +763,13 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
             
             tenant_tr = dict(tenant_config or {})
             tenant_tr["exchange_id"] = "binancetr"
-            tenant_tr["exchange_api_key"] = keys_dict.get("binancetr", {}).get("api_key")
-            tenant_tr["exchange_secret_key"] = keys_dict.get("binancetr", {}).get("secret_key")
+            tenant_tr["exchange_api_key"] = keys_dict.get("binancetr", {}).get("api_key") or os.environ.get("BINANCE_TR_API_KEY") or os.environ.get("EXCHANGE_API_KEY")
+            tenant_tr["exchange_secret_key"] = keys_dict.get("binancetr", {}).get("secret_key") or os.environ.get("BINANCE_TR_SECRET_KEY") or os.environ.get("EXCHANGE_SECRET_KEY")
             
             tenant_gl = dict(tenant_config or {})
             tenant_gl["exchange_id"] = "binance"
-            tenant_gl["exchange_api_key"] = keys_dict.get("binance", {}).get("api_key")
-            tenant_gl["exchange_secret_key"] = keys_dict.get("binance", {}).get("secret_key")
+            tenant_gl["exchange_api_key"] = keys_dict.get("binance", {}).get("api_key") or os.environ.get("EXCHANGE_API_KEY")
+            tenant_gl["exchange_secret_key"] = keys_dict.get("binance", {}).get("secret_key") or os.environ.get("EXCHANGE_SECRET_KEY")
             
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -791,6 +791,8 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
             gl_actual_usd = 0.0 if bal_gl.get("api_error") else float(bal_gl.get("total_usdt", 0.0))
             gl_free_usd = 0.0 if bal_gl.get("api_error") else float(bal_gl.get("free_usdt", 0.0))
             
+            usdt_try_price = get_live_usd_try_rate()
+            free_try_val = float(bal_tr.get("free_try") or (bal_tr.get("holdings_details", {}).get("TRY", {}).get("amount", 0.0) if isinstance(bal_tr.get("holdings_details"), dict) else 0.0))
             tot_usd = float(bal_tr.get("total_usdt", 0.0)) + gl_actual_usd
             free_usd = float(bal_tr.get("free_usdt", 0.0)) + gl_free_usd
             
@@ -798,8 +800,10 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                 "exchange": "dual",
                 "is_dual": True,
                 "is_paper_trading": False,
-                "free_usdt": free_usd,
+                "free_try": free_try_val,
+                "free_usdt": gl_free_usd,
                 "total_usdt": tot_usd,
+                "total_try": tot_usd * usdt_try_price,
                 "holdings_details": combined_holdings,
                 "binance_tr": bal_tr,
                 "binance_global": bal_gl
