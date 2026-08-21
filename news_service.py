@@ -52,6 +52,22 @@ def fetch_live_global_crypto_news(limit_per_source: int = 4) -> List[str]:
 
     return headlines
 
+def translate_to_turkish(text: str) -> str:
+    """İngilizce metni anında profesyonel Türkçeye çevirir."""
+    try:
+        import urllib.parse
+        clean_text = text.strip()
+        url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=" + urllib.parse.quote(clean_text)
+        r = requests.get(url, timeout=3, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code == 200:
+            res_json = r.json()
+            translated = "".join([part[0] for part in res_json[0] if part and part[0]])
+            if translated and len(translated.strip()) > 3:
+                return translated.strip()
+    except Exception:
+        pass
+    return text
+
 def get_localized_crypto_news(lang: str = "tr", limit: int = 6) -> str:
     """
     Kullanıcının tercih ettiği dilde (TR / EN) güncel küresel haberleri çeker ve formatlar.
@@ -65,23 +81,20 @@ def get_localized_crypto_news(lang: str = "tr", limit: int = 6) -> str:
     selected = raw_news[:limit]
     
     if lang == "tr":
-        try:
-            from prompts import call_gpt4o
-            system_prompt = (
-                "Sen kıdemli bir finans ve kripto para tercümanısın. "
-                "Sana verilen İngilizce kripto haber başlıklarını akıcı, anlaşılır ve profesyonel Türkçeye çevireceksin. "
-                "Haber kaynağı etiketlerini (örneğin [CoinTelegraph], [CoinDesk], [Decrypt]) koru. "
-                "Her bir haberi '• 📰 [Kaynak]: Türkçe Başlık' formatında alt alta yaz. Başka hiçbir açıklama ekleme."
-            )
-            user_content = "Aşağıdaki haber başlıklarını Türkçeye çevir:\n\n" + "\n".join(selected)
-            translated_text = call_gpt4o(system_prompt, user_content)
-            if translated_text and len(translated_text.strip()) > 10:
-                return translated_text.strip()
-        except Exception as te:
-            pass
+        formatted_items = []
+        for item in selected:
+            # "📰 [Kaynak]: Başlık" formatını ayrıştır
+            source_tag = "📰 Haber:"
+            content_part = item
+            if ": " in item:
+                parts = item.split(": ", 1)
+                source_tag = parts[0]
+                content_part = parts[1]
             
-        # Fallback Türkçe formatlama
-        return "\n\n".join([f"• {h}" for h in selected])
+            tr_title = translate_to_turkish(content_part)
+            formatted_items.append(f"• {source_tag}: {tr_title}")
+            
+        return "\n\n".join(formatted_items)
     else:
         # İngilizce formatlama
         return "\n\n".join([f"• {h}" for h in selected])
