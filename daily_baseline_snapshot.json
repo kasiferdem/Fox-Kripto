@@ -1,0 +1,36 @@
+{
+  "date": "2026-08-22",
+  "baseline_time": "00:01:00",
+  "target_report_time": "2026-08-22T23:00:00",
+  "binance_tr": {
+    "free_try": 843.33,
+    "total_try": 3541.74,
+    "total_usd": 74.38,
+    "coins": [
+      "PORTO",
+      "STX",
+      "TNSR",
+      "AVNT",
+      "BCH",
+      "ENA",
+      "ETH"
+    ]
+  },
+  "binance_global": {
+    "free_usdt": 6.24,
+    "total_usd": 54.0,
+    "total_try": 2570.0,
+    "coins": [
+      "STX",
+      "BCH",
+      "GALA",
+      "ENS",
+      "ENA",
+      "BNB"
+    ]
+  },
+  "combined": {
+    "total_usd": 128.38,
+    "total_try": 6111.74
+  }
+}

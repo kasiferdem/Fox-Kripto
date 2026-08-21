@@ -242,6 +242,62 @@ def handle_update(update: dict):
         send_message(chat_id, msg_v)
         return
 
+    if text_clean in ["rapor", "gun sonu", "gün sonu", "gunsonu", "günsonu", "/rapor", "/report", "daily report", "kar zarar", "kâr zarar", "pnl"]:
+        tenant = get_tenant_by_chat_id(chat_id)
+        if not tenant:
+            send_message(chat_id, "⚠️ Kayıtlı hesap bulunamadı.")
+            return
+            
+        send_message(chat_id, "📊 *GÜN SONU / PnL PERFORMANS RAPORU HAZIRLANIYOR...*\n00:01 Kasa Başlangıcı ile Güncel Durum Karşılaştırılıyor...")
+        try:
+            from db import get_supabase
+            from exchange import fetch_portfolio_balance, get_live_usd_try_rate
+            
+            client = get_supabase()
+            res_b = client.table("crypto_agent_states").select("state_data").eq("session_id", "daily_baseline_2026_08_22").execute()
+            b_data = (res_b.data[0].get("state_data") if res_b.data else {}) or {}
+            
+            base_usd = float(b_data.get("combined", {}).get("total_usd", 128.38))
+            base_try = float(b_data.get("combined", {}).get("total_try", 6111.74))
+            
+            curr_bal = fetch_portfolio_balance(tenant)
+            curr_usd = float(curr_bal.get("total_usdt", 0.0))
+            curr_try = float(curr_bal.get("total_try", 0.0))
+            usd_rate = get_live_usd_try_rate()
+            if curr_try <= 0 and curr_usd > 0 and usd_rate > 0:
+                curr_try = curr_usd * usd_rate
+                
+            diff_usd = curr_usd - base_usd
+            diff_try = curr_try - base_try
+            diff_pct = (diff_usd / base_usd) * 100.0 if base_usd > 0 else 0.0
+            
+            pnl_emoji = "📈" if diff_usd >= 0 else "📉"
+            pnl_sign = "+" if diff_usd >= 0 else ""
+            
+            tr_curr_t = float(curr_bal.get("binance_tr", {}).get("total_try", 0.0))
+            gl_curr_u = float(curr_bal.get("binance_global", {}).get("total_usdt", 0.0))
+            
+            msg_rep = (
+                f"📑 *22 AĞUSTOS GÜN SONU PERFORMANS RAPORU*\n\n"
+                f"⏰ *Referans Başlangıç:* `00:01:00`\n"
+                f"💵 *00:01 Başlangıç Kasası:* `${base_usd:,.2f} USD` (~₺{base_try:,.2f} TL)\n\n"
+                f"⏰ *Güncel Kasa Durumu:* `{time.strftime('%H:%M:%S', time.localtime())}`\n"
+                f"🇹🇷 Binance TR: `₺{tr_curr_t:,.2f} TL`\n"
+                f"🌍 Binance Global: `${gl_curr_u:,.2f} USD`\n"
+                f"💰 *Toplam Canlı Kasa:* `${curr_usd:,.2f} USD` (~₺{curr_try:,.2f} TL)\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"{pnl_emoji} *NET GÜNLÜK PnL (KÂR/ZARAR):*\n"
+                f"• Değişim: *{pnl_sign}${diff_usd:,.2f} USD* ({pnl_sign}₺{diff_try:,.2f} TL)\n"
+                f"• Getiri Oranı: *{pnl_sign}%{diff_pct:.2f}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🛡️ *Hedef Kâr:* `%3.5` | *Stop-Loss:* `%2.5`\n"
+                f"🎯 *23:00 Otomatik Kapanış Raporu:* `Kayıt Altında ve Takipte` ✅"
+            )
+            send_message(chat_id, msg_rep)
+        except Exception as re:
+            send_message(chat_id, f"⚠️ Rapor oluşturma hatası: {re}")
+        return
+
     tenant = get_tenant_by_chat_id(chat_id)
     user_lang = str(tenant.get("preferred_language", "tr") if tenant else "tr").lower()
 
