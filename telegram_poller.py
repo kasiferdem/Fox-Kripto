@@ -369,7 +369,8 @@ def handle_update(update: dict):
                             gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{pnl_str})\n"
                 if not gl_holdings_str:
                     if gl_has_error:
-                        gl_holdings_str = " • ⚠️ _(Binance Global API Key / Spot İzni Güncellenmeli)_\n"
+                        gl_err_detail = bal_gl.get('api_error') or 'Bilinmeyen Hata'
+                        gl_holdings_str = f" • ⚠️ _(Binance Global: {gl_err_detail})_\n"
                     else:
                         gl_holdings_str = " • _(No open coin positions)_\n" if is_en else " • _(Açık coin pozisyonu yok)_\n"
                     

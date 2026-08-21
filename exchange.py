@@ -292,6 +292,13 @@ class BinanceGlobalRESTClient:
         self.apiKey = api_key
         self.secret = secret_key
         self.base_url = "https://api.binance.com"
+        self.endpoints = [
+            "https://api.binance.com",
+            "https://api1.binance.com",
+            "https://api2.binance.com",
+            "https://api3.binance.com",
+            "https://api4.binance.com"
+        ]
 
     def _sign(self, params: dict) -> str:
         params['recvWindow'] = 60000
@@ -303,22 +310,34 @@ class BinanceGlobalRESTClient:
     def fetch_balance(self) -> dict:
         params = {}
         query_str = self._sign(params)
-        url = f"{self.base_url}/api/v3/account?{query_str}"
         headers = {"X-MBX-APIKEY": self.apiKey}
-        res = requests.get(url, headers=headers, timeout=10)
-        data = res.json()
-        if "balances" in data:
-            tot_dict, free_dict = {}, {}
-            for b in data["balances"]:
-                coin = b["asset"].upper()
-                free_v = float(b["free"])
-                locked_v = float(b["locked"])
-                tot = free_v + locked_v
-                if tot > 0:
-                    tot_dict[coin] = tot
-                    free_dict[coin] = free_v
-            return {"total": tot_dict, "free": free_dict, "info": data}
-        raise Exception(f"Binance Global Balance Error: {data}")
+        
+        last_err = None
+        for base in self.endpoints:
+            try:
+                url = f"{base}/api/v3/account?{query_str}"
+                res = requests.get(url, headers=headers, timeout=5)
+                if res.status_code == 200:
+                    data = res.json()
+                    if "balances" in data:
+                        tot_dict, free_dict = {}, {}
+                        for b in data["balances"]:
+                            coin = b["asset"].upper()
+                            free_v = float(b["free"])
+                            locked_v = float(b["locked"])
+                            tot = free_v + locked_v
+                            if tot > 0:
+                                tot_dict[coin] = tot
+                                free_dict[coin] = free_v
+                        return {"total": tot_dict, "free": free_dict, "info": data}
+                    else:
+                        last_err = f"API Error: {data}"
+                else:
+                    last_err = f"Status {res.status_code}: {res.text}"
+            except Exception as ex:
+                last_err = str(ex)
+                
+        raise Exception(f"Binance Global Balance Error across all endpoints: {last_err}")
 
     def create_order(self, symbol: str, type: str, side: str, amount: float, amount_usd: float = 10.0) -> dict:
         clean_symbol = symbol.replace("/", "").replace("-", "").replace("_", "").upper()
