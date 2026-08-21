@@ -130,8 +130,21 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     
                     if trailing_enabled:
                         if stage == "INITIAL":
-                            # 1. AŞAMA: Standart Stop-Loss veya %50 Kısmi Kâr Alma
-                            if (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
+                            # 🛡️ ERKEN MALİYET VE KÂR KORUMA SİGORTASI (Early Breakeven & Peak Profit Lock)
+                            # 1. Kural: Coin en az +%2.0 görmüşse ve maliyete inerse asla zarara izin vermez, 0 zararla kapatır!
+                            if highest_p >= recorded_buy_p * 1.020 and curr_p <= recorded_buy_p * 1.002:
+                                is_stop_loss = True
+                                reason_type_str = "breakeven_exit"
+                                reason_desc = f"🛡️ Erken Maliyet Sigortası (0 Zararla Kapatıldı @ ${recorded_buy_p:,.4f})"
+                                sell_fraction = 1.0
+                            # 2. Kural: Coin en az +%3.0 görmüş ve zirveden %1.8 geri çekilmişse, kârı cebe kilitler!
+                            elif highest_p >= recorded_buy_p * 1.030 and curr_p <= highest_p * 0.982:
+                                is_take_profit = True
+                                reason_type_str = "peak_profit_lock"
+                                reason_desc = f"🏆 Zirve Kâr Koruma Satışı (+%{net_profit_pct:.2f} Net Cebe Kilitlendi)"
+                                sell_fraction = 1.0
+                            # 3. Kural: Standart Stop-Loss veya %50 Kısmi Kâr Alma
+                            elif (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
                                 is_stop_loss = True
                                 reason_type_str = "stop-loss"
                                 reason_desc = f"Stop-Loss (%{net_profit_pct:.2f} Net)"
