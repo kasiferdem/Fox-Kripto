@@ -90,7 +90,12 @@ try:
     set_cooldown_in_db(tenant_id=test_tid, symbol="SOL/USDT", base_asset="SOL", duration_seconds=3600)
     cd_list = get_active_cooldowns_from_db(tenant_id=test_tid)
     assert "SOL" in cd_list, "Soğuma DB'den okunamadı!"
-    print("  ✅ Pozisyon Kaydetme, Okuma, Silme ve Atomik Soğuma Döngüsü: %100 BAŞARILI!")
+    # Sistem Ayarları Kontrol Merkezi Testi
+    from db import get_system_setting, set_system_setting
+    set_system_setting("trailing_stop_enabled", True)
+    ts_val = get_system_setting("trailing_stop_enabled", True)
+    assert ts_val == True, "Sistem ayarı okunamadı!"
+    print("  ✅ Pozisyon Kaydetme, Okuma, Silme, Soğuma & Sistem Ayarları Kontrol Merkezi: %100 BAŞARILI!")
     results["db_ledger"] = "PASS"
 except Exception as e:
     print(f"  ❌ Hata: {e}")

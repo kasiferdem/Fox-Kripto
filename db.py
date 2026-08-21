@@ -257,7 +257,10 @@ def save_position_to_db(
     buy_price: float,
     stop_loss_price: Optional[float] = None,
     take_profit_price: Optional[float] = None,
-    is_simulated: bool = False
+    is_simulated: bool = False,
+    highest_price: Optional[float] = None,
+    stage: str = "INITIAL",
+    partial_amount_sold: float = 0.0
 ) -> bool:
     """Açılan pozisyonu Supabase crypto_agent_states üzerinde atomik ledger olarak günceller."""
     client = get_supabase()
@@ -269,6 +272,12 @@ def save_position_to_db(
         current_data = (res.data[0]["state_data"] if res.data and len(res.data) > 0 else {}) or {}
         
         base_upper = str(base_asset).upper()
+        existing_info = current_data.get(base_upper, {})
+        
+        h_price = highest_price if highest_price is not None else float(existing_info.get("highest_price") or buy_price)
+        cur_stage = stage if stage != "INITIAL" else str(existing_info.get("stage") or "INITIAL")
+        sold_amt = partial_amount_sold if partial_amount_sold > 0 else float(existing_info.get("partial_amount_sold") or 0.0)
+        
         current_data[base_upper] = {
             "symbol": str(symbol).upper(),
             "base_asset": base_upper,
@@ -277,6 +286,9 @@ def save_position_to_db(
             "buy_price": float(buy_price),
             "stop_loss_price": float(stop_loss_price) if stop_loss_price else None,
             "take_profit_price": float(take_profit_price) if take_profit_price else None,
+            "highest_price": float(h_price),
+            "stage": str(cur_stage),
+            "partial_amount_sold": float(sold_amt),
             "is_simulated": bool(is_simulated),
             "time": time.time()
         }
@@ -284,7 +296,7 @@ def save_position_to_db(
             "session_id": session_id,
             "state_data": current_data
         }).execute()
-        print(f"✅ [Supabase DB Ledger]: {symbol} pozisyonu veritabanına kaydedildi ({amount} adet @ {buy_price} | SL: {stop_loss_price}, TP: {take_profit_price})")
+        print(f"✅ [Supabase DB Ledger]: {symbol} pozisyonu veritabanına kaydedildi ({amount} adet @ {buy_price} | Aşama: {cur_stage} | SL: {stop_loss_price}, TP: {take_profit_price}, En Yüksek: ${h_price})")
         return True
     except Exception as e:
         print(f"⚠️ [Supabase DB Pozisyon Kayıt Uyarısı]: {e}")
@@ -483,6 +495,44 @@ def get_active_cooldowns_from_db(tenant_id: str) -> List[str]:
     except Exception as e:
         print(f"⚠️ [Supabase DB Cooldown Okuma Uyarısı]: {e}")
         return []
+
+# -------------------------------------------------------------
+# SİSTEM AYARLARI VE KONTROL MERKEZİ (SYSTEM SETTINGS)
+# -------------------------------------------------------------
+
+def get_system_setting(key: str, default: Any = None) -> Any:
+    """Supabase crypto_agent_states üzerinden global veya tenant sistem ayarını okur."""
+    client = get_supabase()
+    if not client: return default
+    session_id = "global_system_settings"
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        if res.data and len(res.data) > 0:
+            data = res.data[0].get("state_data") or {}
+            return data.get(key, default)
+        return default
+    except Exception as e:
+        print(f"⚠️ [Sistem Ayarı Okuma Hatası]: {e}")
+        return default
+
+def set_system_setting(key: str, value: Any) -> bool:
+    """Supabase crypto_agent_states üzerine global sistem ayarını kaydeder."""
+    client = get_supabase()
+    if not client: return False
+    session_id = "global_system_settings"
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        current_data = (res.data[0]["state_data"] if res.data and len(res.data) > 0 else {}) or {}
+        current_data[key] = value
+        client.table("crypto_agent_states").upsert({
+            "session_id": session_id,
+            "state_data": current_data
+        }).execute()
+        print(f"✅ [Sistem Ayarı Kaydedildi]: {key} = {value}")
+        return True
+    except Exception as e:
+        print(f"⚠️ [Sistem Ayarı Kaydetme Hatası]: {e}")
+        return False
 
 if __name__ == "__main__":
     print("🚀 Multi-Tenant db.py Modülü Test Ediliyor...")

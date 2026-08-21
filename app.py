@@ -248,7 +248,17 @@ def run_autonomous_trading_loop():
                             action_title = "🛒 BUY SPOT ORDER" if is_en_user else "🛒 ALIM (BUY)"
                             status_title = f"✅ Live Buy Executed Successfully ({wallet_label} Wallet)" if is_en_user else f"✅ Canlı Alım Başarıyla Gerçekleştirildi ({wallet_label} Cüzdanı)"
                         else:
-                            if is_stop_loss:
+                            r_type = str(proposal.get("reason_type", "")).lower()
+                            if r_type == "partial_take_profit":
+                                action_title = "🎯 PARTIAL TP (%50 SOLD)" if is_en_user else "🎯 KADEMELİ KÂR ALMA (%50 SATILDI)"
+                                status_title = f"🚀 %50 Profit Locked & Remaining %50 Set to Breakeven Trailing Mode!" if is_en_user else f"🚀 %50 Kâr Kasaya Kilitlendi, Kalan %50 Sıfır Risk İz Süren Moda Alındı!"
+                            elif r_type == "trailing_stop_exit":
+                                action_title = "🏆 TRAILING STOP PEAK EXIT" if is_en_user else "🏆 İZ SÜREN STOP ZİRVE ÇIKIŞI"
+                                status_title = f"🎉 Whale Wave Closed from Peak & Profit Transferred to {wallet_label} Wallet!" if is_en_user else f"🎉 Balina Dalgası Zirveden Kapatıldı ve Kâr {wallet_label} Cüzdanına Aktarıldı!"
+                            elif r_type == "breakeven_exit":
+                                action_title = "🛡️ BREAKEVEN CAPITAL EXIT" if is_en_user else "🛡️ MALİYET KORUMA (BREAKEVEN ÇIKIŞ)"
+                                status_title = f"🛡️ Breakeven Exit & Zero Loss Capital Preserved in {wallet_label} Wallet" if is_en_user else f"🛡️ Başa Baş Çıkış Gerçekleşti ve Sıfır Zararla Sermaye {wallet_label} Cüzdanına Alındı"
+                            elif is_stop_loss:
                                 action_title = "🛡️ SELL (STOP-LOSS)" if is_en_user else "🛡️ SATIM (STOP-LOSS / ZARAR KES)"
                                 status_title = f"🛡️ Stop-Loss Triggered & Capital Preserved in {wallet_label} Wallet" if is_en_user else f"🛡️ Canlı Stop-Loss Gerçekleşti ve Sermaye {wallet_label} Cüzdanına Alındı"
                             else:
@@ -455,12 +465,34 @@ class TriggerGraphRequest(BaseModel):
     session_id: str = "session_001"
     symbol: str = "BTC/USDT"
 
+class SystemSettingsRequest(BaseModel):
+    trailing_stop_enabled: bool
+
 # -----------------------------------------
 # API ROTALARI (KULLANICI EKLE / SİL / LİSTELE)
 # -----------------------------------------
 @app_api.get("/health")
 def health_check():
     return {"status": "healthy", "service": "Fox-Kripto Multi-Tenant Dashboard", "version": "2.1.0-explain-trade"}
+
+@app_api.get("/api/settings", dependencies=[Depends(authenticate_admin)])
+def get_settings_endpoint():
+    from db import get_system_setting
+    ts_enabled = bool(get_system_setting("trailing_stop_enabled", True))
+    return {
+        "status": "success",
+        "trailing_stop_enabled": ts_enabled
+    }
+
+@app_api.post("/api/settings", dependencies=[Depends(authenticate_admin)])
+def update_settings_endpoint(req: SystemSettingsRequest):
+    from db import set_system_setting
+    ok = set_system_setting("trailing_stop_enabled", req.trailing_stop_enabled)
+    return {
+        "status": "success" if ok else "error",
+        "trailing_stop_enabled": req.trailing_stop_enabled,
+        "message": f"Dinamik İz Süren Stop (Trailing Stop) Modu: {'AÇIK' if req.trailing_stop_enabled else 'KAPALI'}"
+    }
 
 @app_api.get("/api/my-ip")
 def get_my_egress_ip():
@@ -670,6 +702,12 @@ def get_dashboard_html():
             .log-item:last-child { border-bottom: none; }
             .input-inline { width: 68px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: rgba(15, 23, 42, 0.8); color: white; font-size: 13px; text-align: center; }
             .input-inline:focus { border-color: var(--accent); }
+            .switch { position: relative; display: inline-block; width: 44px; height: 24px; margin-bottom: 0; }
+            .switch input { opacity: 0; width: 0; height: 0; }
+            .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .3s; border-radius: 24px; border: 1px solid var(--border); }
+            .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+            input:checked + .slider { background-color: #10b981; }
+            input:checked + .slider:before { transform: translateX(20px); }
         </style>
     </head>
     <body>
@@ -679,6 +717,14 @@ def get_dashboard_html():
                 <p id="i18n-subtitle" style="color: var(--text-muted); font-size: 14px;">Otonom Yapay Zeka Kripto Ticaret, Risk ve Kullanıcı Yönetimi</p>
             </div>
             <div class="header-right">
+                <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px;">
+                    <span id="i18n-lbl-trailing" style="font-size: 13px; font-weight: 600; color: #60a5fa;">🚀 İz Süren Stop (Trailing SL):</span>
+                    <label class="switch">
+                        <input type="checkbox" id="trailing-stop-toggle" onchange="toggleTrailingStop(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                    <span id="trailing-status-text" style="font-size: 12px; font-weight: bold; color: var(--success);">AÇIK</span>
+                </div>
                 <div class="lang-switch">
                     <button id="btn-tr" class="lang-btn active" onclick="changeLang('tr')">🇹🇷 Türkçe</button>
                     <button id="btn-en" class="lang-btn" onclick="changeLang('en')">🇬🇧 English</button>
@@ -1049,7 +1095,40 @@ def get_dashboard_html():
                 }
             }
 
+            async function loadSystemSettings() {
+                try {
+                    const res = await fetch('/api/settings');
+                    const data = await res.json();
+                    const toggle = document.getElementById('trailing-stop-toggle');
+                    const statusTxt = document.getElementById('trailing-status-text');
+                    if (toggle && statusTxt) {
+                        const isEn = (currentLang === 'en');
+                        toggle.checked = Boolean(data.trailing_stop_enabled);
+                        statusTxt.innerText = data.trailing_stop_enabled ? (isEn ? 'ACTIVE' : 'AÇIK') : (isEn ? 'DISABLED' : 'KAPALI');
+                        statusTxt.style.color = data.trailing_stop_enabled ? 'var(--success)' : 'var(--danger)';
+                    }
+                } catch(e) { console.error('Settings load error:', e); }
+            }
+
+            async function toggleTrailingStop(enabled) {
+                try {
+                    const res = await fetch('/api/settings', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({trailing_stop_enabled: enabled})
+                    });
+                    const data = await res.json();
+                    const statusTxt = document.getElementById('trailing-status-text');
+                    if (statusTxt) {
+                        const isEn = (currentLang === 'en');
+                        statusTxt.innerText = enabled ? (isEn ? 'ACTIVE' : 'AÇIK') : (isEn ? 'DISABLED' : 'KAPALI');
+                        statusTxt.style.color = enabled ? 'var(--success)' : 'var(--danger)';
+                    }
+                } catch(e) { console.error('Settings update error:', e); }
+            }
+
             applyLang(currentLang);
+            loadSystemSettings();
             loadData();
         </script>
     </body>

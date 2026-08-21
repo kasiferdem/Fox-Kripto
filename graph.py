@@ -98,22 +98,76 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                     # Komisyon hem kârda hem zararda düşülür (Gerçek Net P&L)
                     net_profit_pct = gross_change_pct - BINANCE_COMMISSION_PCT
                     
-                    # DİNAMİK ATR STOP-LOSS VE TAKE-PROFIT TETİKLENME DENETİMİ
+                    # 🚀 CLAUDE İZ SÜREN STOP & KONTROL MERKEZİ ENTEGRASYONU
+                    from db import get_system_setting
+                    trailing_enabled = bool(get_system_setting("trailing_stop_enabled", True))
+                    stage = str(entry_info.get("stage") or "INITIAL")
+                    highest_p = float(entry_info.get("highest_price") or recorded_buy_p)
+                    
+                    # Zirve fiyatı anlık güncelle
+                    if curr_p > highest_p:
+                        highest_p = curr_p
+                        save_position_to_db(
+                            tenant_id=tenant_id,
+                            exchange_id=exch_name,
+                            symbol=target_symbol,
+                            base_asset=asset_upper,
+                            quote_asset=pair_quote,
+                            amount=coin_amount,
+                            buy_price=recorded_buy_p,
+                            stop_loss_price=pos_sl_price,
+                            take_profit_price=pos_tp_price,
+                            highest_price=curr_p,
+                            stage=stage
+                        )
+                    
                     is_stop_loss = False
                     is_take_profit = False
+                    reason_type_str = "exit"
+                    reason_desc = ""
+                    sell_fraction = 1.0 # Varsayılan %100 satış
                     
-                    if pos_sl_price > 0 and curr_p <= pos_sl_price:
-                        is_stop_loss = True
-                    elif pos_tp_price > 0 and curr_p >= pos_tp_price:
-                        is_take_profit = True
-                    elif net_profit_pct <= -user_sl:
-                        is_stop_loss = True
-                    elif net_profit_pct >= user_tp:
-                        is_take_profit = True
+                    if trailing_enabled:
+                        if stage == "INITIAL":
+                            # 1. AŞAMA: Standart Stop-Loss veya %50 Kısmi Kâr Alma
+                            if (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
+                                is_stop_loss = True
+                                reason_type_str = "stop-loss"
+                                reason_desc = f"Stop-Loss (%{net_profit_pct:.2f} Net)"
+                                sell_fraction = 1.0
+                            elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
+                                is_take_profit = True
+                                reason_type_str = "partial_take_profit"
+                                reason_desc = f"1. Aşama Kademeli Kâr (%50 Satıldı @ +%{net_profit_pct:.2f} Net)"
+                                sell_fraction = 0.5 # Yarısı satılır, kalan %50 Breakeven + Trailing'e geçer
+                        else: # STAGE_1_TP_TAKEN (Koşucu / Runner Modu)
+                            trail_sl_price = highest_p * (1 - 0.025) # Zirveden %2.5 geri çekilme
+                            if curr_p <= recorded_buy_p: # Maliyet (Breakeven) Stop
+                                is_stop_loss = True
+                                reason_type_str = "breakeven_exit"
+                                reason_desc = f"Maliyet Koruma (Breakeven @ ${recorded_buy_p:,.4f})"
+                                sell_fraction = 1.0
+                            elif curr_p <= trail_sl_price: # İz Süren Stop Zirve Çıkışı
+                                is_take_profit = True
+                                reason_type_str = "trailing_stop_exit"
+                                reason_desc = f"İz Süren Stop Zirve Çıkışı (Zirve: ${highest_p:,.4f} -> Çıkış: ${curr_p:,.4f} | Net: +%{net_profit_pct:.2f})"
+                                sell_fraction = 1.0
+                    else:
+                        # KLASİK MOD: Sabit TP ve SL ile %100 tek seferde çıkış
+                        if (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
+                            is_stop_loss = True
+                            reason_type_str = "stop-loss"
+                            reason_desc = f"Stop-Loss (%{net_profit_pct:.2f} Net)"
+                            sell_fraction = 1.0
+                        elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
+                            is_take_profit = True
+                            reason_type_str = "take-profit"
+                            reason_desc = f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
+                            sell_fraction = 1.0
                         
                     if is_stop_loss or is_take_profit:
-                        reason_type_str = "stop-loss" if is_stop_loss else "take-profit"
-                        reason_desc = f"Stop-Loss (%{net_profit_pct:.2f} Net)" if is_stop_loss else f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
+                        sell_coin_amt = coin_amount * sell_fraction
+                        sell_val_fiat = val_fiat * sell_fraction
                         
                         sell_proposal = {
                             "should_trade": True,
@@ -121,9 +175,13 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                             "direction": "SELL",
                             "is_stop_loss": is_stop_loss,
                             "reason_type": reason_type_str,
-                            "amount_usd": round(val_fiat / live_fx if is_tr_silo else val_fiat, 2),
-                            "amount_coin": coin_amount,
+                            "amount_usd": round(sell_val_fiat / live_fx if is_tr_silo else sell_val_fiat, 2),
+                            "amount_coin": sell_coin_amt,
+                            "remaining_coin": coin_amount - sell_coin_amt,
                             "entry_price": recorded_buy_p,
+                            "highest_price": highest_p,
+                            "stage": stage,
+                            "sell_fraction": sell_fraction,
                             "net_profit_pct": round(net_profit_pct, 2),
                             "gross_change_pct": round(gross_change_pct, 2),
                             "stop_loss_percent": user_sl,
@@ -131,10 +189,11 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                             "take_profit_price": pos_tp_price or curr_p,
                             "risk_justification": f"Otomatik Kâr/Zarar Kapatma: {asset_upper}/{pair_quote} ({reason_desc})"
                         }
-                        print(f"   [Seçilen İşlem Teklifi]: SATIM ({sell_proposal['symbol']}) - Kâr/Zarar: %{sell_proposal['net_profit_pct']}% | Alış: ${sell_proposal['entry_price']} -> Güncel: ${curr_p}")
+                        print(f"   [Seçilen İşlem Teklifi]: SATIM ({sell_proposal['symbol']}) - {reason_desc} | Alış: ${sell_proposal['entry_price']} -> Güncel: ${curr_p}")
                         return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
                     else:
-                        print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} (Birim: {pair_quote}, Net: %{net_profit_pct:+.2f} | SL Fiyatı: ${pos_sl_price:,.4f}, TP: ${pos_tp_price:,.4f}).")
+                        trail_info_str = f" | Zirve: ${highest_p:,.4f}, İz Süren SL: ${highest_p*0.975:,.4f}" if (trailing_enabled and stage != "INITIAL") else ""
+                        print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} (Aşama: {stage}, Birim: {pair_quote}, Net: %{net_profit_pct:+.2f}{trail_info_str} | SL: ${pos_sl_price:,.4f}, TP: ${pos_tp_price:,.4f}).")
                 elif asset_upper in saved_positions:
                     # Kalan bakiye borsa asgari işlem sınırının ($5 / ₺10) altında kalmış mikro toz ise DB'den temizle
                     remove_position_from_db(tenant_id=tenant_id, exchange_id=exch_name, symbol=f"{asset_upper}/{pair_quote}")
@@ -423,9 +482,32 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
                         is_simulated=is_simulated
                     )
                 else: # SELL
-                    remove_position_from_db(tenant_id=tenant_id, exchange_id=exch_name, symbol=proposal["symbol"])
-                    # Satılan coin için 60 dakika soğuma başlat
-                    set_cooldown_in_db(tenant_id=tenant_id, symbol=proposal["symbol"], base_asset=base_sym, duration_seconds=3600)
+                    r_type = str(proposal.get("reason_type", "")).lower()
+                    if r_type == "partial_take_profit":
+                        rem_amt = float(proposal.get("remaining_coin") or 0.0)
+                        entry_p = float(proposal.get("entry_price") or 0.0)
+                        high_p = float(proposal.get("highest_price") or entry_p)
+                        # Breakeven Stop kurulur, stage = STAGE_1_TP_TAKEN
+                        save_position_to_db(
+                            tenant_id=tenant_id,
+                            exchange_id=exch_name,
+                            symbol=proposal["symbol"],
+                            base_asset=base_sym,
+                            quote_asset=quote_c,
+                            amount=rem_amt,
+                            buy_price=entry_p,
+                            stop_loss_price=entry_p, # Maliyet (Breakeven) Stop
+                            take_profit_price=None, # Sabit TP kalkar, trailing iz sürer
+                            is_simulated=is_simulated,
+                            highest_price=high_p,
+                            stage="STAGE_1_TP_TAKEN",
+                            partial_amount_sold=float(proposal.get("amount_coin") or 0.0)
+                        )
+                        print(f"🎯 [Kademeli Kâr Alındı]: {base_sym} %50 satıldı. Kalan {rem_amt} adet Breakeven (${entry_p}) + İz Süren Moda alındı!")
+                    else:
+                        remove_position_from_db(tenant_id=tenant_id, exchange_id=exch_name, symbol=proposal["symbol"])
+                        # Satılan coin için 60 dakika soğuma başlat
+                        set_cooldown_in_db(tenant_id=tenant_id, symbol=proposal["symbol"], base_asset=base_sym, duration_seconds=3600)
             else:
                 # Satış emri bakiye yetersizliği (-2010) veya borsa mikro bakiye engeli (-1013 MIN_NOTIONAL) yüzünden başarısız olduysa,
                 # bu coin gerçek borsada zaten satılmış veya sıfırlanmıştır. DB ledger'dan temizle ki sonsuz döngüye girmesin!
