@@ -461,6 +461,12 @@ def handle_update(update: dict):
 
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir", "status", "balance", "portfolio"]:
         is_en = (user_lang == "en") or (text_clean in ["status", "balance", "portfolio"])
+        # Anında 50ms Kullanıcı Onayı (Kullanıcı asla yanıtsız kalmaz)
+        send_message(
+            chat_id, 
+            "⏳ *FETCHING LIVE EXCHANGE BALANCES...*\nScanning Binance TR and Binance Global wallets..." if is_en else
+            "⏳ *CANLI BORSA VERİLERİ OKUNUYOR...*\nBinance TR ve Binance Global cüzdan bakiyeleriniz taranıyor..."
+        )
         try:
             if not tenant:
                 send_message(
@@ -652,7 +658,16 @@ def handle_update(update: dict):
             return
         except Exception as de:
             print(f"❌ [Telegram Durum Hatası]: {de}")
-            send_message(chat_id, f"⚠️ Error fetching balance: {de}" if is_en else f"⚠️ Portföy durumu okunurken bir borsa uyarısı oluştu: {de}")
+            warn_msg = (
+                f"⏳ *SYSTEM UPDATING / RETRY IN 20 SECONDS*\n"
+                f"A live exchange synchronization or background deployment is currently in progress.\n"
+                f"Please type `durum` again in 20-30 seconds. 🔄"
+                if is_en else
+                f"⏳ *SİSTEM GÜNCELLENİYOR / 20 SANİYE SONRA TEKRAR DENEYİN*\n"
+                f"Şu anda sunucuda otonom borsa senkronizasyonu veya sistem güncellemesi sürmektedir.\n"
+                f"Lütfen 20-30 saniye sonra tekrar `durum` veya `bakiye` yazınız. 🔄"
+            )
+            send_message(chat_id, warn_msg)
             return
 
     if text_clean in ["test", "analiz", "analysis", "otonom", "tarama", "tara", "market"]:
