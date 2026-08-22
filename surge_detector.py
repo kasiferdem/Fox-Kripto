@@ -95,12 +95,12 @@ def get_active_trading_symbols():
         pass
     return _cached_active_symbols
 
-def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 10000.0, max_recent_gain: float = 5.5) -> List[Dict[str, Any]]:
+def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 25000.0, max_recent_gain: float = 5.5) -> List[Dict[str, Any]]:
     """
     Tüm Binance USDT veya TRY tahtasını paralel tarayarak:
-    1. YALNIZCA aktif işlem gören (TRADING durumundaki) spot tahtaları seçer.
-    2. Son 5 dakikada normal ortalamasının 1.8x - 15x katı hacim patlaması yaşayan TAZE PRE-PUMP balinaları tespit eder.
-    3. Büyük bir %20 - %50 rallisinin henüz %1.0 ile %5.5 başlangıç evresinde olan (İvmesi yeni patlayan) fırsatları öngörür.
+    1. YALNIZCA aktif işlem gören ve YÜKSEK LİKİDİTEYE sahip spot tahtaları seçer (Slippage ve tahta boşluğu engeli).
+    2. Son 5 dakikada normal ortalamasının 2.0x - 15x katı hacim patlaması yaşayan TAZE PRE-PUMP balinaları tespit eder.
+    3. Büyük bir %20 - %50 rallisinin henüz %1.0 ile %5.5 başlangıç evresinde olan fırsatları öngörür.
     """
     breakouts = []
     try:
@@ -112,6 +112,9 @@ def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 1
             
         tickers = r.json()
         target_tickers = []
+        # KATI LİKİDİTE BARAJI: USDT için en az $500,000 USD, TRY için en az ₺15,000,000 TL 24s hacim şartı!
+        min_24h_quote_vol = 500000.0 if quote_upper == "USDT" else 15000000.0
+        
         for t in tickers:
             sym = t.get("symbol", "")
             if not sym.endswith(quote_upper):
@@ -126,16 +129,16 @@ def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 1
             vol = float(t.get("quoteVolume", 0))
             last_p = float(t.get("lastPrice", 0))
             chg = float(t.get("priceChangePercent", 0))
-            if vol > (50000.0 if quote_upper == "USDT" else 1000000.0) and last_p > 0 and (-3.0 <= chg <= 8.5):
+            if vol >= min_24h_quote_vol and last_p > 0 and (-3.0 <= chg <= 8.5):
                 target_tickers.append(t)
         
         # Hacmi en dinamik adayları seç ve 5dk kırılım ivmesini paralel test et
-        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:100]
+        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:80]
         
         from exchange import get_live_usd_try_rate
         live_fx = get_live_usd_try_rate() or 38.5
         min_vol = min_volume_usd if quote_upper == "USDT" else (min_volume_usd * live_fx)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             futures = [executor.submit(_evaluate_candidate, c, min_vol, max_recent_gain) for c in candidates]
             for f in concurrent.futures.as_completed(futures):
                 res = f.result()
