@@ -261,6 +261,34 @@ def handle_update(update: dict):
         send_message(chat_id, msg_v)
         return
 
+    if text_clean in ["kurallar", "kural", "anayasamız", "anayasamiz", "/kurallar", "/rules", "rules"]:
+        from db import get_system_constitution_rules
+        rules = get_system_constitution_rules()
+        tiers = rules.get("adaptive_slot_tiers", [])
+        tier_str = ""
+        for t in tiers:
+            tier_str += f" • *{t.get('desc')}:* Max `{t.get('slots')} Slot` (Slot Başı: `%{t.get('share_pct'):.1f}`)\n"
+            
+        rules_msg = (
+            f"📜 *FOX-KRİPTO RESMİ SİSTEM ANAYASASI (VERİTABANI KİLİTLİ)* 🏛️\n\n"
+            f"📊 *1. KASA & SLOT KADEMELENDİRME MATRİSİ:*\n"
+            f"{tier_str}\n"
+            f"🛡️ *2. LİKİDİTE & TOZ GÜVENLİK BARAJLARI:*\n"
+            f" • *Toz (Dust) Eşiği:* `>${rules.get('dust_threshold_usd', 6.50)} USD` / `>₺{rules.get('dust_threshold_try', 250.0):.0f} TL`\n"
+            f" • *Asgari 24s Hacim (TR):* `₺{rules.get('min_24h_volume_try', 15000000):,.0f} TL`\n"
+            f" • *Asgari 24s Hacim (Global):* `${rules.get('min_24h_volume_usd', 500000):,.0f} USD`\n"
+            f" • *5dk Balina Hacim Patlaması:* `>${rules.get('min_5m_breakout_volume_usd', 25000):,.0f} USD`\n\n"
+            f"🎯 *3. RİSK & KÂR/ZARAR STANDARTLARI:*\n"
+            f" • *Kâr Alma Hedefi:* `+%{rules.get('take_profit_target_pct', 3.50):.2f} Net`\n"
+            f" • *Zarar Durdurma Limiti:* `-%{rules.get('stop_loss_target_pct', 2.50):.2f}`\n"
+            f" • *Ardışık Stop Kilidi:* `{rules.get('consecutive_stops_circuit_limit', 3)} İşlem` (Soğuma: `60 dk`)\n\n"
+            f"🔐 *Son Güncelleme:* `{rules.get('updated_at')}`\n"
+            f"👤 *Yetkili:* `{rules.get('last_modified_by')}`\n\n"
+            f"💡 _Bu kurallar Supabase veritabanında saklanmakta ve her değişiklik kalıcı olarak loglanmaktadır._"
+        )
+        send_message(chat_id, rules_msg)
+        return
+
     if text_clean in ["rapor", "gun sonu", "gün sonu", "gunsonu", "günsonu", "/rapor", "/report", "daily report", "kar zarar", "kâr zarar", "pnl"]:
         tenant = get_tenant_by_chat_id(chat_id)
         if not tenant:

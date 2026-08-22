@@ -515,23 +515,77 @@ def get_system_setting(key: str, default: Any = None) -> Any:
         print(f"⚠️ [Sistem Ayarı Okuma Hatası]: {e}")
         return default
 
-def set_system_setting(key: str, value: Any) -> bool:
-    """Supabase crypto_agent_states üzerine global sistem ayarını kaydeder."""
+# ----------------------------------------------------
+# FOX-KRİPTO SİSTEM KURALLARI ANAYASASI & AUDIT LOGLAMA
+# ----------------------------------------------------
+
+DEFAULT_SYSTEM_RULES = {
+    "adaptive_slot_tiers": [
+        {"max_usd": 300.0, "max_try": 10500.0, "slots": 3, "share_pct": 33.33, "desc": "Küçük Kasa: Sermaye bölünmez, kâr hissedilir"},
+        {"max_usd": 1000.0, "max_try": 35000.0, "slots": 5, "share_pct": 20.00, "desc": "Orta Kasa: Dengeli portföy çeşitliliği"},
+        {"max_usd": 999999.0, "max_try": 99999999.0, "slots": 7, "share_pct": 14.28, "desc": "Büyük Kasa: Kurumsal risk dağılımı"}
+    ],
+    "dust_threshold_usd": 6.50,
+    "dust_threshold_try": 250.0,
+    "min_24h_volume_try": 15000000.0,
+    "min_24h_volume_usd": 500000.0,
+    "min_5m_breakout_volume_usd": 25000.0,
+    "take_profit_target_pct": 3.50,
+    "stop_loss_target_pct": 2.50,
+    "consecutive_stops_circuit_limit": 3,
+    "circuit_breaker_cooldown_seconds": 3600,
+    "storm_shield_15m_btc_dump_pct": -1.20,
+    "storm_shield_1h_btc_dump_pct": -2.00,
+    "version": "1.0.0",
+    "updated_at": "2026-08-22T01:46:00Z",
+    "last_modified_by": "Yönetici (S)"
+}
+
+def get_system_constitution_rules() -> Dict[str, Any]:
+    """Supabase üzerinden resmi sistem anayasası kurallarını döner."""
+    client = get_supabase()
+    if not client:
+        return DEFAULT_SYSTEM_RULES
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", "system_constitution_rules").execute()
+        if res.data and len(res.data) > 0:
+            rules = res.data[0].get("state_data") or {}
+            if rules:
+                return rules
+        # İlk kurulumda varsayılan anayasayı veritabanına kaydet
+        client.table("crypto_agent_states").upsert({
+            "session_id": "system_constitution_rules",
+            "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            "state_data": DEFAULT_SYSTEM_RULES
+        }).execute()
+        return DEFAULT_SYSTEM_RULES
+    except Exception as e:
+        print(f"⚠️ [Sistem Anayasası Okuma Hatası]: {e}")
+        return DEFAULT_SYSTEM_RULES
+
+def log_system_rule_change(rule_key: str, old_val: Any, new_val: Any, modified_by: str = "Yönetici (S)", reason: str = "Kullanıcı Direktifi") -> bool:
+    """Kural değişikliklerini kalıcı olarak veritabanına loglar (Audit Trail)."""
     client = get_supabase()
     if not client: return False
-    session_id = "global_system_settings"
     try:
-        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
-        current_data = (res.data[0]["state_data"] if res.data and len(res.data) > 0 else {}) or {}
-        current_data[key] = value
-        client.table("crypto_agent_states").upsert({
-            "session_id": session_id,
-            "state_data": current_data
-        }).execute()
-        print(f"✅ [Sistem Ayarı Kaydedildi]: {key} = {value}")
+        audit_id = f"rule_audit_{int(time.time() * 1000)}"
+        payload = {
+            "session_id": audit_id,
+            "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            "state_data": {
+                "rule_key": rule_key,
+                "old_value": old_val,
+                "new_value": new_val,
+                "modified_by": modified_by,
+                "reason": reason,
+                "timestamp": time.time()
+            }
+        }
+        client.table("crypto_agent_states").upsert(payload).execute()
+        print(f"📝 [Kural Değişikliği Loglandı]: {rule_key} -> {new_val} ({modified_by}: {reason})")
         return True
     except Exception as e:
-        print(f"⚠️ [Sistem Ayarı Kaydetme Hatası]: {e}")
+        print(f"⚠️ [Kural Loglama Hatası]: {e}")
         return False
 
 if __name__ == "__main__":
