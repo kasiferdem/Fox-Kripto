@@ -1,4 +1,4 @@
-import os, sys, time, requests, io
+import os, sys, time, requests, io, json, re, threading
 
 # Windows Console Emoji UnicodeEncodeError Önleyici
 if hasattr(sys.stdout, 'buffer'):
@@ -7,14 +7,25 @@ if hasattr(sys.stderr, 'buffer'):
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 from dotenv import load_dotenv
-from db import register_user_tenant, get_tenant_by_chat_id, get_supabase, log_trade_decision, save_graph_state, load_graph_state
-from exchange import fetch_portfolio_balance, execute_spot_trade, fetch_ticker_price
+from db import (
+    register_user_tenant, get_tenant_by_chat_id, get_supabase, 
+    log_trade_decision, save_graph_state, load_graph_state,
+    get_active_positions_from_db, save_position_to_db, remove_position_from_db,
+    get_tenant_trading_mode, set_tenant_trading_mode, set_cooldown_in_db
+)
+from exchange import (
+    fetch_portfolio_balance, execute_spot_trade, fetch_ticker_price, 
+    get_live_usd_try_rate, convert_dust_to_bnb, fetch_top_volume_gainers,
+    BinanceGlobalRESTClient
+)
+from market_regime import check_market_regime
+from circuit_breaker import get_adaptive_max_slots
+from news_service import get_localized_crypto_news, fetch_live_global_crypto_news
+from surge_detector import detect_early_volume_breakouts
+from prompts import call_gpt4o
 
 load_dotenv()
-
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-if not TOKEN:
-    print("⚠️ [GÜVENLİK UYARISI]: TELEGRAM_BOT_TOKEN ortam değişkeni tanımlı değil!")
 BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 
 # Kullanıcı oturum durumları (Registration Wizards)
@@ -178,7 +189,6 @@ def handle_update(update: dict):
         return
 
     # 🎛️ TEST MODU / CANLI MOD TEK TUŞ GEÇİŞİ (Mode Switcher)
-    from db import set_tenant_trading_mode, get_tenant_trading_mode
     if text_clean in ["test", "test modu", "test_modu", "/test", "/paper", "paper", "sanal", "sanal mod", "/sanal"]:
         set_tenant_trading_mode(chat_id, is_paper=True)
         send_message(
@@ -212,9 +222,6 @@ def handle_update(update: dict):
         return
 
     if text_clean in ["surum", "sürüm", "version", "/surum", "/sürüm", "/version", "deploy", "/deploy", "health", "/health", "saglik", "sağlık", "ip", "/ip"]:
-        import requests
-        from market_regime import check_market_regime
-        from circuit_breaker import get_adaptive_max_slots
         
         server_ip = "Bilinmiyor"
         try:
@@ -250,9 +257,6 @@ def handle_update(update: dict):
             
         send_message(chat_id, "📊 *GÜN SONU / PnL PERFORMANS RAPORU HAZIRLANIYOR...*\n00:01 Kasa Başlangıcı ile Güncel Durum Karşılaştırılıyor...")
         try:
-            from db import get_supabase
-            from exchange import fetch_portfolio_balance, get_live_usd_try_rate
-            
             client = get_supabase()
             res_b = client.table("crypto_agent_states").select("state_data").eq("session_id", "daily_baseline_2026_08_22").execute()
             b_data = (res_b.data[0].get("state_data") if res_b.data else {}) or {}
@@ -305,7 +309,6 @@ def handle_update(update: dict):
         is_en = (user_lang == "en") or (text_clean in ["news"])
         send_message(chat_id, "📡 *FETCHING GLOBAL CRYPTO NEWS...*" if is_en else "📡 *KÜRESEL KRİPTO HABERLERİ ÇEKİLİYOR...*\nCoinDesk, CoinTelegraph ve Decrypt taranıyor...")
         try:
-            from news_service import get_localized_crypto_news
             lang_code = "en" if is_en else "tr"
             news_items = get_localized_crypto_news(lang=lang_code, limit=6)
             
@@ -332,7 +335,6 @@ def handle_update(update: dict):
         is_en = (user_lang == "en") or (text_clean in ["dust", "/dust", "dust to bnb"])
         send_message(chat_id, "🧹 *CONVERTING DUST BALANCES TO BNB...*" if is_en else "🧹 *TOZ BAKİYELER (DUST) BİNANCE ÜZERİNDEN BNB'YE DÖNÜŞTÜRÜLÜYOR...*\nLütfen bekleyin...")
         try:
-            from exchange import convert_dust_to_bnb
             res_dust = convert_dust_to_bnb(tenant)
             if res_dust.get("status") == "success":
                 converted = res_dust.get("converted_assets", [])
@@ -380,9 +382,6 @@ def handle_update(update: dict):
             if balance.get("is_dual"):
                 bal_tr = balance.get("binance_tr", {})
                 bal_gl = balance.get("binance_global", {})
-                
-                from db import get_active_positions_from_db, save_position_to_db
-                from exchange import get_live_usd_try_rate
                 
                 t_id = str(tenant.get("id") or tenant.get("telegram_chat_id") or "default_tenant")
                 saved_pos_tr = get_active_positions_from_db(tenant_id=t_id, exchange_id="binancetr")
@@ -554,10 +553,6 @@ def handle_update(update: dict):
         send_message(chat_id, "🧠 *SCANNING GLOBAL CRYPTO MARKETS & ON-CHAIN DATA...*" if is_en else "🧠 *KÜRESEL PİYASA VE ZİNCİR ÜSTÜ VERİLER TARANIYOR...*\nBinance hacimleri, teknik göstergeler ve sıcak altcoinler inceleniyor...")
         
         try:
-            from exchange import fetch_top_volume_gainers
-            from news_service import fetch_live_global_crypto_news
-            from surge_detector import detect_early_volume_breakouts
-            from prompts import call_gpt4o
             
             top_gainers = fetch_top_volume_gainers(limit=5)
             early_surges_usdt = detect_early_volume_breakouts(quote="USDT")
@@ -682,9 +677,6 @@ def handle_update(update: dict):
     exch_label = "BINANCE.TR 🇹🇷" if is_tr_user else "BINANCE GLOBAL 🌍"
 
     try:
-        from prompts import call_gpt4o
-        from exchange import fetch_ticker_price
-        import json, re
 
         user_text = raw_text.strip()
         
@@ -778,7 +770,6 @@ def handle_update(update: dict):
 
         if intent == "SET_LANGUAGE":
             lang = str(intent_data.get("language") or "tr").lower()
-            from db import get_supabase
             sb = get_supabase()
             if sb:
                 api_k = str(tenant.get("exchange_api_key", ""))
@@ -804,7 +795,6 @@ def handle_update(update: dict):
             is_en_pref = str(tenant.get("preferred_language", "tr")).lower() == "en"
             
             # Supabase'den geçmiş işlem loglarını çek
-            from db import get_supabase
             sb = get_supabase()
             logs_summary = "Kayıtlı geçmiş işlem bulunamadı."
             if sb:
@@ -851,7 +841,6 @@ def handle_update(update: dict):
         if intent == "UPDATE_SETTINGS":
             tp = intent_data.get("take_profit_percent")
             sl = intent_data.get("stop_loss_percent")
-            from db import get_supabase
             sb = get_supabase()
             if sb and (tp is not None or sl is not None):
                 update_payload = {}
@@ -900,7 +889,6 @@ def handle_update(update: dict):
         text_lower = user_text.lower()
         if any(w in text_lower for w in ["toz", "kırıntı", "bnb yap", "dust", "küçük bakiye", "bakiyeleri temizle", "tozları temizle"]):
             send_message(chat_id, "🧹 *Küçük bakiyeler taranıyor ve BNB'ye dönüştürülüyor...*" if not is_en_pref else "🧹 *Scanning and converting dust balances to BNB...*")
-            from exchange import BinanceGlobalRESTClient
             api_k = str(tenant.get("exchange_api_key", ""))
             sec_k = str(tenant.get("exchange_secret_key", ""))
             if api_k.startswith("{"):
@@ -932,7 +920,6 @@ def handle_update(update: dict):
             ticker = fetch_ticker_price(target_symbol)
             curr_price = float(ticker.get("last_price", 0.0))
             
-            from exchange import get_live_usd_try_rate
             live_fx = get_live_usd_try_rate()
             if amt_type == "FIAT_TRY":
                 amount_usd = amt_val / live_fx
@@ -1003,7 +990,6 @@ def handle_update(update: dict):
                 
                 # Supabase DB Ledger Güncellemesi
                 try:
-                    from db import save_position_to_db, remove_position_from_db, set_cooldown_in_db
                     t_id = str(tenant.get("id") or tenant.get("telegram_chat_id") or "default_tenant")
                     exch_id = "binancetr" if is_tr_user else "binance"
                     if action == "BUY":
@@ -1126,7 +1112,6 @@ def start_poller():
     """Telegram Poller Döngüsü (Non-blocking Fast Polling)."""
     print(f"🤖 [Telegram Poller Başlatıldı]: @FoxKriptoBot 7/24 dinleniyor...")
     offset = None
-    import threading
     while True:
         try:
             params = {"timeout": 1, "offset": offset}
