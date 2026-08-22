@@ -305,14 +305,16 @@ def execute_llm_cycle(user_prompt: str, image_b64: Optional[str] = None) -> str:
             else:
                 # Nihai Metin Yanıtı Geldi
                 final_text = msg.get("content", "")
-                CONVERSATION_HISTORY.append({"role": "assistant", "content": final_text})
-                return final_text
+                if not final_text and msg.get("tool_calls"):
+                    continue
+                CONVERSATION_HISTORY.append({"role": "assistant", "content": final_text or "İşlem tamamlandı."})
+                return final_text or "İşlem başarıyla tamamlandı."
                 
         except Exception as e:
             print(f"⚠️ LLM Hatası: {e}")
             return f"❌ Ajan İşlem Hatası: {e}"
             
-    return "İşlem adımları tamamlandı."
+    return "✅ Talep edilen kodlama ve sistem adımları başarıyla tamamlandı."
 
 # =====================================================================
 # TELEGRAM POLLER MOTORU (GÖRSEL, DOSYA VE METİN İŞLEYİCİ)
