@@ -120,7 +120,7 @@ _**Agent (claude-sonnet-5 2026-08-20 16:02:19Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
- `./\schema.sql`
+ `C:\Projects\Fox-Kripto\schema.sql`
 
 ```text
 1	-- =========================================================
@@ -219,7 +219,7 @@ _**Agent (claude-sonnet-5 2026-08-20 16:02:19Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
- `./\db.py`
+ `C:\Projects\Fox-Kripto\db.py`
 
 ```text
 1	import os, sys, time
@@ -587,7 +587,7 @@ _**Agent (claude-sonnet-5 2026-08-20 16:02:19Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
- `./\graph.py`
+ `C:\Projects\Fox-Kripto\graph.py`
 
 ```text
 1	import os, sys, time, json
@@ -1001,7 +1001,7 @@ _**Agent (claude-sonnet-5 2026-08-20 16:02:44Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
- path `./` pattern `^import requests|^import re|47\.80|34\.80|import math|from decimal|Decimal\(`
+ path `C:\Projects\Fox-Kripto` pattern `^import requests|^import re|47\.80|34\.80|import math|from decimal|Decimal\(`
 
 ```text
 graph.py:141:        free_cash_usd = free_try / 47.80
@@ -1039,7 +1039,7 @@ _**Agent (claude-sonnet-5 2026-08-20 16:02:44Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
- `./\exchange.py`
+ `C:\Projects\Fox-Kripto\exchange.py`
 
 ```text
 1	import os, sys, time, requests, hmac, hashlib, math
@@ -1969,7 +1969,7 @@ _**Agent (claude-sonnet-5 2026-08-20 16:02:55Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
- `./\FOX_KRIPTO_DENETIM_RAPORU.md`
+ `C:\Projects\Fox-Kripto\FOX_KRIPTO_DENETIM_RAPORU.md`
 
 ```text
 1	# 🦊 Fox-Kripto — Bağımsız Kod ve Risk Denetim Raporu

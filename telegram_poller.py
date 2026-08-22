@@ -564,7 +564,13 @@ def handle_update(update: dict):
                 free_usdt = float(bal_gl.get("free_usdt", 0.0)) if not gl_has_error else 0.0
                 tot_gl_usd = float(bal_gl.get("total_usdt", 0.0)) if not gl_has_error else 0.0
                 
+                bnb_amt = 0.0
+                bnb_val = 0.0
                 if gl_details and not gl_has_error:
+                    bnb_info = gl_details.get("BNB", {})
+                    bnb_amt = float(bnb_info.get("amount", 0.0))
+                    bnb_val = float(bnb_info.get("val_usd", 0.0))
+                    
                     for a, info in gl_details.items():
                         amt = info["amount"]
                         val = info["val_usd"]
@@ -594,6 +600,9 @@ def handle_update(update: dict):
                 tot_usd = float(balance.get("total_usdt", 0.0))
                 tot_combined_try = tot_tr_try + (tot_gl_usd * usd_try_rate)
                 
+                bnb_line_en = f"🪙 BNB Fee Reserve: *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.50 else ""
+                bnb_line_tr = f"🪙 Komisyon Havuzu (BNB): *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.50 else ""
+                
                 if is_en:
                     msg_text = (
                         f"📊 *LIVE DUAL-EXCHANGE PORTFOLIO REPORT*\n\n"
@@ -605,6 +614,7 @@ def handle_update(update: dict):
                         f"💰 Total TR Portfolio: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
                         f"🌍 *[BINANCE GLOBAL ACCOUNT]*\n"
                         f"💵 Free USDT: *${free_usdt:,.2f} USD*\n"
+                        f"{bnb_line_en}"
                         f"📦 *Open Positions:*\n"
                         f"{gl_holdings_str}"
                         f"💰 Total Global Portfolio: *${tot_gl_usd:,.2f} USD*\n\n"
@@ -622,6 +632,7 @@ def handle_update(update: dict):
                         f"💰 Toplam TR Portföyü: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
                         f"🌍 *[BİNANCE GLOBAL HESABINIZ]*\n"
                         f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
+                        f"{bnb_line_tr}"
                         f"📦 *Açık Pozisyonlar:*\n"
                         f"{gl_holdings_str}"
                         f"💰 Toplam Global Portföyü: *${tot_gl_usd:,.2f} USD*\n\n"
