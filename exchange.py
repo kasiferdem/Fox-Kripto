@@ -355,10 +355,14 @@ class BinanceGlobalRESTClient:
             except Exception as ce:
                 pass
 
-        # 2. KADEME: Doğrudan REST Failover Havuzu
+        # 2. KADEME: Doğrudan REST Failover Havuzu (Browser Headers + Millisecond Sync)
         params = {}
         query_str = self._sign(params)
-        headers = {"X-MBX-APIKEY": self.apiKey}
+        headers = {
+            "X-MBX-APIKEY": self.apiKey,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "application/json"
+        }
         
         last_err = None
         for base in self.endpoints:
