@@ -278,8 +278,11 @@ GÖREVLERİN:
     # -------------------------------------------------------------
     print(f"🛠️ [2. Kademe Kodlama]: {MODEL_CODER} görevi devraldı: {task_desc}")
     coder_sys_prompt = """Sen Fox AI Kodlama ve Mimari Ajanısın (Codex CLI + openai/gpt-5.6-sol).
-Görevin: Verilen göreve göre ilgili dosyaları oku (view_file), düzenle (edit_file / write_file) ve terminalde test et (run_command).
-İşini bitirdiğinde yapılan tüm değişikliklerin özetini ve kod diff'ini açıkla.
+GÖREVİN:
+1. Sana verilen görev için ASLA sadece niyet bildiren ("yapıyorum, süreci başlattım" gibi) boş metin üretme!
+2. MUTLAKA sana verilen araçları (run_command, view_file, edit_file, write_file) DOĞRUDAN ÇAĞIR.
+3. Eğer log, durum veya skor kontrolü istenmişse run_command ile terminal/python komutunu fiilen çalıştır ve dönen gerçek terminal çıktısını rapora ekle.
+4. Kod yazdıysan diff ve test sonucunu, analiz yaptıysan gerçek verileri eksiksiz sun.
 """
     coder_messages = [
         {"role": "system", "content": coder_sys_prompt},
