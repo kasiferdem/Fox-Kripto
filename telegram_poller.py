@@ -302,6 +302,99 @@ def handle_update(update: dict):
             send_message(chat_id, f"⚠️ Rapor oluşturma hatası: {re}")
         return
 
+    if text_clean in ["kasa fark", "kasa farkı", "kasafark", "kasafarki", "/kasafark", "/fark", "fark", "bakiye fark", "bakiye farkı"]:
+        tenant = get_tenant_by_chat_id(chat_id)
+        if not tenant:
+            send_message(chat_id, "⚠️ Kayıtlı hesap bulunamadı.")
+            return
+            
+        send_message(chat_id, "⏳ *SON SORGULANAN DURUM İLE GÜNCEL KASA FARKI HESAPLANIYOR...*")
+        try:
+            client = get_supabase()
+            state_key = f"last_queried_balance_{chat_id}"
+            res_prev = client.table("crypto_agent_states").select("state_data").eq("session_id", state_key).execute()
+            prev_data = (res_prev.data[0].get("state_data") if res_prev.data else {}) or {}
+            
+            curr_bal = fetch_portfolio_balance(tenant)
+            curr_ts = time.time()
+            
+            # Güncel Değerler
+            curr_tr_try = float(curr_bal.get("binance_tr", {}).get("total_try", 0.0))
+            curr_tr_usd = float(curr_bal.get("binance_tr", {}).get("total_usdt", 0.0))
+            curr_gl_usd = float(curr_bal.get("binance_global", {}).get("total_usdt", 0.0))
+            curr_tot_usd = float(curr_bal.get("total_usdt", 0.0))
+            curr_tot_try = float(curr_bal.get("total_try", 0.0))
+            
+            # Yeni durumu kaydet
+            new_snap = {
+                "timestamp": curr_ts,
+                "time_str": time.strftime("%H:%M:%S", time.localtime(curr_ts)),
+                "tr_try": curr_tr_try,
+                "tr_usd": curr_tr_usd,
+                "gl_usd": curr_gl_usd,
+                "tot_usd": curr_tot_usd,
+                "tot_try": curr_tot_try
+            }
+            client.table("crypto_agent_states").upsert({"session_id": state_key, "state_data": new_snap}).execute()
+            
+            if not prev_data:
+                # İlk kez çalıştırıldıysa
+                msg_init = (
+                    f"📌 *KASA FARKI REFERANS NOKTASI OLUŞTURULDU*\n\n"
+                    f"⏰ *Kayıt Saati:* `{new_snap['time_str']}`\n"
+                    f"🇹🇷 *Binance TR:* `₺{curr_tr_try:,.2f} TL` (~${curr_tr_usd:,.2f} USD)\n"
+                    f"🌍 *Binance Global:* `${curr_gl_usd:,.2f} USD`\n"
+                    f"🏆 *Toplam Birleşik Kasa:* `${curr_tot_usd:,.2f} USD` (~₺{curr_tot_try:,.2f} TL)\n\n"
+                    f"💡 _Bundan sonraki her `kasa fark` veya `durum` sorgunuzda aradaki kâr/zarar farkı milimetrik olarak bu noktayla karşılaştırılacaktır._"
+                )
+                send_message(chat_id, msg_init)
+                return
+                
+            prev_ts = float(prev_data.get("timestamp", curr_ts))
+            prev_time_str = prev_data.get("time_str", "Bilinmiyor")
+            mins_ago = int((curr_ts - prev_ts) / 60)
+            time_ago_str = f"{mins_ago} dakika önce" if mins_ago > 0 else "Az önce"
+            
+            prev_tr_try = float(prev_data.get("tr_try", curr_tr_try))
+            prev_gl_usd = float(prev_data.get("gl_usd", curr_gl_usd))
+            prev_tot_usd = float(prev_data.get("tot_usd", curr_tot_usd))
+            prev_tot_try = float(prev_data.get("tot_try", curr_tot_try))
+            
+            # Fark Hesaplamaları
+            diff_tr_try = curr_tr_try - prev_tr_try
+            diff_gl_usd = curr_gl_usd - prev_gl_usd
+            diff_tot_usd = curr_tot_usd - prev_tot_usd
+            diff_tot_try = curr_tot_try - prev_tot_try
+            
+            diff_tot_pct = (diff_tot_usd / prev_tot_usd * 100.0) if prev_tot_usd > 0 else 0.0
+            
+            sign_tr = "+" if diff_tr_try >= 0 else ""
+            sign_gl = "+" if diff_gl_usd >= 0 else ""
+            sign_tot = "+" if diff_tot_usd >= 0 else ""
+            emoji_tot = "📈" if diff_tot_usd >= 0 else "📉"
+            
+            msg_diff = (
+                f"⚖️ *SON DURUM İLE GÜNCEL KASA FARKI RAPORU*\n\n"
+                f"⏱️ *Önceki Sorgu:* `{prev_time_str}` _({time_ago_str})_\n"
+                f"⏱️ *Şu Anki Saat:* `{new_snap['time_str']}`\n\n"
+                f"🇹🇷 *BINANCE TR:* `₺{prev_tr_try:,.2f}` ➔ `₺{curr_tr_try:,.2f} TL`\n"
+                f"   └ Fark: *{sign_tr}₺{diff_tr_try:,.2f} TL*\n\n"
+                f"🌍 *BINANCE GLOBAL:* `${prev_gl_usd:,.2f}` ➔ `${curr_gl_usd:,.2f} USD`\n"
+                f"   └ Fark: *{sign_gl}${diff_gl_usd:,.2f} USD*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"{emoji_tot} *BİRLEŞİK TOPLAM KASA DEĞİŞİMİ:*\n"
+                f"• Önceki: `${prev_tot_usd:,.2f} USD` (~₺{prev_tot_try:,.2f} TL)\n"
+                f"• Güncel: `${curr_tot_usd:,.2f} USD` (~₺{curr_tot_try:,.2f} TL)\n"
+                f"• *Net Fark:* *{sign_tot}${diff_tot_usd:,.2f} USD* ({sign_tot}₺{diff_tot_try:,.2f} TL)\n"
+                f"• *Getiri Değişimi:* *{sign_tot}%{diff_tot_pct:.2f}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"💡 _Yeni referans noktası `{new_snap['time_str']}` olarak güncellendi._"
+            )
+            send_message(chat_id, msg_diff)
+        except Exception as e_fark:
+            send_message(chat_id, f"⚠️ Kasa farkı hesaplama hatası: {e_fark}")
+        return
+
     tenant = get_tenant_by_chat_id(chat_id)
     user_lang = str(tenant.get("preferred_language", "tr") if tenant else "tr").lower()
 
@@ -497,6 +590,26 @@ def handle_update(update: dict):
                         f"🏆 *TOPLAM BİRLEŞİK PORTFÖYÜNÜZ:* *${tot_usd:,.2f} USD* (~₺{tot_combined_try:,.2f} TL)\n"
                         f"🧪 Mod: CANLI GERÇEK HESAP ✅"
                     )
+                # Snapshot güncelle (Kasa Farkı için referans)
+                try:
+                    client = get_supabase()
+                    state_key = f"last_queried_balance_{chat_id}"
+                    c_ts = time.time()
+                    client.table("crypto_agent_states").upsert({
+                        "session_id": state_key,
+                        "state_data": {
+                            "timestamp": c_ts,
+                            "time_str": time.strftime("%H:%M:%S", time.localtime(c_ts)),
+                            "tr_try": tot_tr_try,
+                            "tr_usd": tot_tr_usd,
+                            "gl_usd": tot_gl_usd,
+                            "tot_usd": tot_usd,
+                            "tot_try": tot_combined_try
+                        }
+                    }).execute()
+                except Exception:
+                    pass
+
                 send_message(chat_id, msg_text)
                 return
 
