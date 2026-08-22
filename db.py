@@ -89,8 +89,17 @@ def get_tenant_trading_mode(telegram_chat_id: int) -> bool:
         pass
     return False
 
+_tenant_cache: Dict[int, tuple] = {} # chat_id -> (tenant_data, expire_ts)
+
 def get_tenant_by_chat_id(telegram_chat_id: int) -> Optional[Dict[str, Any]]:
-    """Telegram Chat ID'sine göre ilgili kullanıcının borsa ve bütçe ayarlarını getirir."""
+    """Telegram Chat ID'sine göre ilgili kullanıcının borsa ve bütçe ayarlarını getirir (60s In-Memory Cache)."""
+    global _tenant_cache
+    now = time.time()
+    if telegram_chat_id in _tenant_cache:
+        t_data, exp = _tenant_cache[telegram_chat_id]
+        if now < exp:
+            return t_data
+
     client = get_supabase()
     if not client: return None
     try:
@@ -110,6 +119,7 @@ def get_tenant_by_chat_id(telegram_chat_id: int) -> Optional[Dict[str, Any]]:
                     pass
             else:
                 t["preferred_language"] = str(t.get("preferred_language") or "tr").lower()
+            _tenant_cache[telegram_chat_id] = (t, now + 60.0)
             return t
         return None
     except Exception as e:

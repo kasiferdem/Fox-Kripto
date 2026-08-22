@@ -345,22 +345,12 @@ class BinanceGlobalRESTClient:
         return f"{query}&signature={sig}"
 
     def fetch_balance(self) -> dict:
-        # 1. KADEME: CCXT (Dahili saat senkronizasyonu ve C-seviyesi imza yönetimi)
-        ccxt_ex = self.get_ccxt()
-        if ccxt_ex:
-            try:
-                bal = ccxt_ex.fetch_balance()
-                if bal and ("free" in bal or "total" in bal):
-                    return bal
-            except Exception as ce:
-                pass
-
-        # 2. KADEME: Doğrudan REST Failover Havuzu (Browser Headers + Millisecond Sync)
+        # Doğrudan Yüksek Hızlı REST Failover Havuzu (CCXT 10sn gecikmesi tamamen devreden çıkarıldı)
         params = {}
         query_str = self._sign(params)
         headers = {
             "X-MBX-APIKEY": self.apiKey,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "application/json"
         }
         
@@ -368,7 +358,7 @@ class BinanceGlobalRESTClient:
         for base in self.endpoints:
             try:
                 url = f"{base}/api/v3/account?{query_str}"
-                res = requests.get(url, headers=headers, timeout=5)
+                res = requests.get(url, headers=headers, timeout=3)
                 if res.status_code == 200:
                     data = res.json()
                     if "balances" in data:
@@ -775,19 +765,21 @@ _cached_price_map = {}
 _cached_price_map_ts = 0
 
 def get_all_prices_map() -> Dict[str, float]:
-    """Tüm Binance coin fiyatlarını tek bir süper hızlı bulk istekte (100ms) çeker ve 10 saniye cache'ler."""
+    """Tüm Binance coin fiyatlarını tek bir süper hızlı bulk istekte çeker ve 30 saniye cache'ler."""
     global _cached_price_map, _cached_price_map_ts
     now = time.time()
-    if _cached_price_map and (now - _cached_price_map_ts < 10):
+    if _cached_price_map and (now - _cached_price_map_ts < 30):
         return _cached_price_map
-    try:
-        r = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=3)
-        if r.status_code == 200:
-            _cached_price_map = {item["symbol"]: float(item["price"]) for item in r.json()}
-            _cached_price_map_ts = now
-            return _cached_price_map
-    except Exception:
-        pass
+    endpoints = ["https://api1.binance.com", "https://api2.binance.com", "https://api3.binance.com", "https://api.binance.com"]
+    for ep in endpoints:
+        try:
+            r = requests.get(f"{ep}/api/v3/ticker/price", timeout=2)
+            if r.status_code == 200:
+                _cached_price_map = {item["symbol"]: float(item["price"]) for item in r.json()}
+                _cached_price_map_ts = now
+                return _cached_price_map
+        except Exception:
+            continue
     return _cached_price_map or {}
 
 def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
