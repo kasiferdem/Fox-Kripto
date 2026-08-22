@@ -151,9 +151,15 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                                 sell_fraction = 1.0
                             elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
                                 is_take_profit = True
-                                reason_type_str = "partial_take_profit"
-                                reason_desc = f"1. Aşama Kademeli Kâr (%50 Satıldı @ +%{net_profit_pct:.2f} Net)"
-                                sell_fraction = 0.5 # Yarısı satılır, kalan %50 Breakeven + Trailing'e geçer
+                                # Küçük bakiye koruması: Pozisyon $15 / ₺500 altındaysa %100 tek seferde satılır (asgari $5 limiti takılmaz)
+                                if (not is_tr_silo and val_fiat < 15.0) or (is_tr_silo and val_fiat < 500.0):
+                                    reason_type_str = "take-profit"
+                                    reason_desc = f"🏆 Tam Kâr Alma (%100 Satıldı @ +%{net_profit_pct:.2f} Net)"
+                                    sell_fraction = 1.0
+                                else:
+                                    reason_type_str = "partial_take_profit"
+                                    reason_desc = f"1. Aşama Kademeli Kâr (%50 Satıldı @ +%{net_profit_pct:.2f} Net)"
+                                    sell_fraction = 0.5 # Yarısı satılır, kalan %50 Breakeven + Trailing'e geçer
                         else: # STAGE_1_TP_TAKEN (Koşucu / Runner Modu)
                             trail_sl_price = highest_p * (1 - 0.025) # Zirveden %2.5 geri çekilme
                             if curr_p <= recorded_buy_p: # Maliyet (Breakeven) Stop

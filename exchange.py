@@ -521,31 +521,36 @@ class BinanceGlobalRESTClient:
         res = requests.post(url, headers=headers, timeout=10)
         data = res.json()
         
-        # 🛡️ 2 KADEMELİ İNFAZ DENEMESİ: Eğer -1013/-2010 miktar hatası gelirse
+        # 🛡️ 2 KADEMELİ İNFAZ DENEMESİ: Eğer -1013/-2010 miktar veya limit hatası gelirse
         if ("code" in data and data.get("code") in [-1013, -2010, 3203]) and side.upper() == "SELL":
-            # Eğer MIN_NOTIONAL hatası geldiyse (kalan bakiye $5 altı mikro toz bakiye ise)
+            # 1. Aşama: Eğer MIN_NOTIONAL ($5 altı) geldiyse, cüzdandaki tüm serbest bakiyeyi (%100) satmayı dene!
             if "NOTIONAL" in str(data.get("msg", "")).upper():
-                print(f"ℹ️ [Binance Global]: {symbol} satış tutarı asgari işlem sınırının ($5) altında kalan mikro toz bakiye (Dust). Güvenle temizlendi.")
-                return {
-                    "id": f"DUST_CLEARED_{int(time.time())}",
-                    "symbol": symbol,
-                    "price": 0.0,
-                    "amount": amount,
-                    "status": "closed",
-                    "info": {"msg": "Mikro bakiye (<$5) temizlendi."}
-                }
-            try:
-                curr_q = float(params.get("quantity", 0))
-                int_q = int(curr_q)
-                if int_q > 0 and str(int_q) != str(params.get("quantity")):
-                    print(f"⚠️ [Binance Global 2. Kademe]: {params.get('quantity')} reddedildi, tam sayı ({int_q}) ile 2. deneme yapılıyor...")
-                    params["quantity"] = str(int_q)
-                    query_str = self._sign(params)
-                    url = f"{self.base_url}/api/v3/order?{query_str}"
-                    res = requests.post(url, headers=headers, timeout=10)
-                    data = res.json()
-            except Exception as e_retry:
-                print(f"⚠️ [Binance Global Retry Hatası]: {e_retry}")
+                try:
+                    bal = self.fetch_balance()
+                    full_free = float(bal.get("free", {}).get(base_c, 0.0))
+                    if full_free > 0:
+                        params["quantity"] = f"{int(full_free)}" if dec == 0 else f"{full_free:.{dec}f}"
+                        query_str = self._sign(params)
+                        url = f"{self.base_url}/api/v3/order?{query_str}"
+                        res = requests.post(url, headers=headers, timeout=10)
+                        data = res.json()
+                except Exception:
+                    pass
+
+            # 2. Aşama: Tam sayı düzeltmesi (LOT_SIZE)
+            if "orderId" not in data:
+                try:
+                    curr_q = float(params.get("quantity", 0))
+                    int_q = int(curr_q)
+                    if int_q > 0 and str(int_q) != str(params.get("quantity")):
+                        print(f"⚠️ [Binance Global 2. Kademe]: {params.get('quantity')} reddedildi, tam sayı ({int_q}) ile 2. deneme yapılıyor...")
+                        params["quantity"] = str(int_q)
+                        query_str = self._sign(params)
+                        url = f"{self.base_url}/api/v3/order?{query_str}"
+                        res = requests.post(url, headers=headers, timeout=10)
+                        data = res.json()
+                except Exception as e_retry:
+                    print(f"⚠️ [Binance Global Retry Hatası]: {e_retry}")
 
         if "orderId" in data:
             exec_p = 0.0
