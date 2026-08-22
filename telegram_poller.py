@@ -461,12 +461,6 @@ def handle_update(update: dict):
 
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir", "status", "balance", "portfolio"]:
         is_en = (user_lang == "en") or (text_clean in ["status", "balance", "portfolio"])
-        # Anında 50ms Kullanıcı Onayı (Kullanıcı asla yanıtsız kalmaz)
-        send_message(
-            chat_id, 
-            "⏳ *FETCHING LIVE EXCHANGE BALANCES...*\nScanning Binance TR and Binance Global wallets..." if is_en else
-            "⏳ *CANLI BORSA VERİLERİ OKUNUYOR...*\nBinance TR ve Binance Global cüzdan bakiyeleriniz taranıyor..."
-        )
         try:
             if not tenant:
                 send_message(
@@ -504,9 +498,8 @@ def handle_update(update: dict):
                             curr_unit_p = val_try / amt if amt > 0 else 0.0
                             entry_info = saved_pos_tr.get(a)
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
-                            if entry_p <= 0 and curr_unit_p > 0:
+                            if entry_p <= 0:
                                 entry_p = curr_unit_p
-                                save_position_to_db(tenant_id=t_id, exchange_id="binancetr", symbol=f"{a}/TRY", base_asset=a, quote_asset="TRY", amount=amt, buy_price=entry_p)
                             
                             gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
                             # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
@@ -539,9 +532,8 @@ def handle_update(update: dict):
                             curr_unit_p = val / amt if amt > 0 else 0.0
                             entry_info = saved_pos_gl.get(a)
                             entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
-                            if entry_p <= 0 and curr_unit_p > 0:
+                            if entry_p <= 0:
                                 entry_p = curr_unit_p
-                                save_position_to_db(tenant_id=t_id, exchange_id="binance", symbol=f"{a}/USDT", base_asset=a, quote_asset="USDT", amount=amt, buy_price=entry_p)
                             
                             gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
                             # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
