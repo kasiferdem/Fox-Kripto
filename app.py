@@ -12,7 +12,7 @@ from db import (
     save_graph_state, load_graph_state, log_trade_decision, 
     register_user_tenant, get_all_active_tenants, get_supabase
 )
-from exchange import execute_spot_trade
+from exchange import execute_spot_trade, fetch_portfolio_balance
 from telegram_poller import start_poller
 
 import secrets
@@ -151,7 +151,6 @@ def run_autonomous_trading_loop():
                     tenant_name = tenant.get("tenant_name", "Kullanıcı")
                     print(f"🧠 [Otonom Analiz]: Kullanıcı '{tenant_name}' (Chat ID: {chat_id}) için piyasa taranıyor...")
                     
-                    from exchange import fetch_portfolio_balance
                     live_bal = fetch_portfolio_balance(tenant)
                     
                     # ⚠️ Borsa API ve İzin Hatası Bildirimi (5 dk spam korumalı)
