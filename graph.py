@@ -239,7 +239,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         print(f"   ⏳ [Nakit Bakiye Yetersiz]: Serbest nakit (Global: ${free_usdt:.2f} / TR: ₺{free_try:.2f}) yeni alım için yetersiz. Bekletiliyor.")
         return {"trade_proposal": None, "human_approval": "Rejected"}
 
-    # KATI PORTFÖY ÇEŞİTLİLİK ENGELİ: Cüzdanda MADDETEN BULUNAN ($2 / ₺100 üzeri) gerçek pozisyonları sayar
+    # KATI PORTFÖY ÇEŞİTLİLİK ENGELİ: Yalnızca ($6.50 USD / ₺250 TL üzeri) GERÇEK pozisyonları sayar (Tozlar elenir!)
     current_assets = []
     if isinstance(holdings, dict):
         for k, v in holdings.items():
@@ -248,7 +248,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             amt = v.get("amount", 0.0) if isinstance(v, dict) else float(v or 0.0)
             val = v.get("val_usd", 0.0) if isinstance(v, dict) else 0.0
             val_tl = v.get("val_try", 0.0) if isinstance(v, dict) else 0.0
-            if amt > 0.0001 and (val >= 2.0 or val_tl >= 90.0):
+            if amt > 0.0001 and (val >= 6.50 or val_tl >= 250.0):
                 current_assets.append(str(k).upper())
 
     # 🛡️ 1. DEVRE KESİCİ & DİNAMİK POZİSYON SINIRI KONTROLÜ (Adaptive Slot Management)
@@ -380,42 +380,33 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         
         remaining_slots = max(1, 5 - len(current_assets))
         
-        # 1. Kasa Ölçeğine Göre Taban Slot Yüzdesi
-        if cand_free_usd <= 50.0:
-            # Küçük Kasa (< ₺2.400): Kasa parçalanmaz, 2 güçlü slota bölünür (%50)
-            base_slot_pct = 50.0
-        elif cand_free_usd <= 200.0:
-            # Orta Kasa (₺2.400 - ₺9.500): 3 dengeli slota bölünür (%33.3)
-            base_slot_pct = 33.3
+        # 1. Kasa Ölçeğine Göre Güçlü Slot Bütçesi (Mikro $10 Alımları İptal Edildi)
+        is_quote_try = (cand_quote == "TRY")
+        if is_quote_try:
+            # Binance TR: Serbest TL'nin %35 - %45'i (en az ₺600 TL, en fazla ₺1,500 TL)
+            trade_budget_tl = min(max(free_try * 0.40, 600.0), 1500.0)
+            safe_budget_usd = round(trade_budget_tl / live_fx, 2)
+            min_order_usd = 12.0 # ~₺550 TL asgari
         else:
-            # Büyük Kasa (> $200): Slot başına %20 - %25
-            base_slot_pct = round(100.0 / remaining_slots, 1)
-
-        # 2. Yapay Zeka Sinyal Gücü Çarpanı (Conviction Multiplier)
-        if ai_conviction_score >= 8.5 or vol_spike >= 10.0:
-            conviction_mult = 1.0   # Zirve Sinyal: Tam Slot (%100)
-        elif ai_conviction_score >= 7.0:
-            conviction_mult = 0.85  # Güçlü Sinyal: Slotun %85'i
-        else:
-            conviction_mult = 0.70  # Standart Sinyal: Slotun %70'i
-
-        dynamic_budget_pct = round(base_slot_pct * conviction_mult, 1)
+            # Binance Global: $20 - $35 USD arası güçlü ve anlamlı tek parça alım
+            if cand_free_usd <= 45.0:
+                safe_budget_usd = round(min(cand_free_usd * 0.85, 30.0), 2)
+            else:
+                safe_budget_usd = round(min(cand_free_usd * 0.50, 35.0), 2)
+            min_order_usd = 18.0 # Asgari $18 USD
         
-        # Kullanıcı manuel özel bütçe girmişse kullanıcının limitine saygı duy (%20)
+        # Kullanıcı manuel özel bütçe girmişse kullanıcının limitine saygı duy
         custom_user_budget = float(tenant_config.get("max_budget_percent") or 0.0)
         if custom_user_budget > 10.0:
-            dynamic_budget_pct = min(100.0, custom_user_budget)
+            safe_budget_usd = round(cand_free_usd * (custom_user_budget / 100.0), 2)
             
-        safe_budget_usd = round(cand_free_usd * (dynamic_budget_pct / 100.0) * 0.98, 2)
-        min_order_usd = 3.0 if is_cand_tr else 10.0
-        
-        if safe_budget_usd < min_order_usd:
-            if cand_free_usd >= min_order_usd:
-                safe_budget_usd = round(min_order_usd, 2)
-            else:
-                user_label = (tenant_config or {}).get("tenant_name", "Kullanıcı")
-                print(f"   ⏳ [Bütçe Yetersiz ({user_label})]: {c_sym} için serbest bakiye (${cand_free_usd:.2f}) asgari emir tutarının (${min_order_usd:.2f}) altında.")
-                continue
+        if cand_free_usd < (min_order_usd * 0.85):
+            user_label = (tenant_config or {}).get("tenant_name", "Kullanıcı")
+            print(f"   ⏳ [Bütçe Yetersiz ({user_label})]: {c_sym} için serbest bakiye (${cand_free_usd:.2f}) asgari alım bütçesinin (${min_order_usd:.2f}) altında.")
+            continue
+            
+        if safe_budget_usd > cand_free_usd:
+            safe_budget_usd = round(cand_free_usd * 0.95, 2)
             
         fresh_coin = f"{c_base}/{cand_quote}"
         real_ticker = fetch_ticker_price(fresh_coin)
