@@ -22,8 +22,8 @@ DEV_BOT_TOKEN = os.environ.get("DEV_TELEGRAM_BOT_TOKEN", "8808656228:AAFP4E3N204
 AUTHORIZED_CHAT_ID = int(os.environ.get("AUTHORIZED_DEV_CHAT_ID", "8739367825"))
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
 
-DEFAULT_MODEL = "anthropic/claude-opus-5-fast"
-FALLBACK_MODEL = "anthropic/claude-sonnet-5"
+DEFAULT_MODEL = "openai/gpt-4o-mini"
+FALLBACK_MODEL = "deepseek/deepseek-chat"
 
 BASE_TELEGRAM_URL = f"https://api.telegram.org/bot{DEV_BOT_TOKEN}"
 BASE_PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
