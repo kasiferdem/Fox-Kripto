@@ -261,8 +261,19 @@ def execute_llm_cycle(user_prompt: str, image_b64: Optional[str] = None) -> str:
         try:
             r = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=60)
             res_json = r.json()
-            choice = res_json["choices"][0]
-            msg = choice["message"]
+            
+            if "error" in res_json:
+                err_msg = res_json["error"].get("message", str(res_json["error"]))
+                if "credit" in err_msg.lower() or "payment" in err_msg.lower():
+                    return "⚠️ *OpenRouter Kredi Uyarısı:*\n\nTanımladığınız OpenRouter API anahtarında bakiye (kredi) bulunmuyor.\n\n👉 Lütfen https://openrouter.ai/settings/credits adresinden hesabınıza bakiye ekleyiniz."
+                return f"⚠️ *Yapay Zeka API Uyarısı:* {err_msg}"
+                
+            choices = res_json.get("choices")
+            if not choices:
+                return f"⚠️ Model yanıt üretemedi: {res_json}"
+                
+            choice = choices[0]
+            msg = choice.get("message", {})
             messages.append(msg)
             
             # Eğer Tool çağrısı varsa icra et
