@@ -373,40 +373,32 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         if ai_conviction_score < 6.0:
             continue
             
-        # 🧠 AKILLI DİNAMİK YATIRIM VE POZİSYON BOYUTLANDIRMA MOTORU (Smart Dynamic Sizing)
+        # 🎯 KASA MATEMATİĞİ (TOPLAM KASA / SLOT SAYISI):
+        # Kasa bütçesi doğrudan toplam kasa değerinin slot sayısına bölünmesiyle belirlenir.
+        # Örnek: $50 / 3 = $16.66 | $100 / 3 = $33.33 | ₺3000 / 3 = ₺1000 TL
         cand_quote = "TRY" if (c_sym.upper().endswith("TRY") or c_sym.upper().endswith("_TRY")) else "USDT"
-        is_cand_tr = (cand_quote == "TRY")
-        cand_free_usd = (free_try / live_fx) if is_cand_tr else free_usdt
-        
-        remaining_slots = max(1, 5 - len(current_assets))
-        
-        # 1. Kasa Ölçeğine Göre Güçlü Slot Bütçesi (Mikro $10 Alımları İptal Edildi)
         is_quote_try = (cand_quote == "TRY")
-        if is_quote_try:
-            # Binance TR: Serbest TL'nin %35 - %45'i (en az ₺600 TL, en fazla ₺1,500 TL)
-            trade_budget_tl = min(max(free_try * 0.40, 600.0), 1500.0)
-            safe_budget_usd = round(trade_budget_tl / live_fx, 2)
-            min_order_usd = 12.0 # ~₺550 TL asgari
-        else:
-            # Binance Global: $20 - $35 USD arası güçlü ve anlamlı tek parça alım
-            if cand_free_usd <= 45.0:
-                safe_budget_usd = round(min(cand_free_usd * 0.85, 30.0), 2)
-            else:
-                safe_budget_usd = round(min(cand_free_usd * 0.50, 35.0), 2)
-            min_order_usd = 18.0 # Asgari $18 USD
+        target_slots = max(1, adaptive_max_slots)
         
-        # Kullanıcı manuel özel bütçe girmişse kullanıcının limitine saygı duy
-        custom_user_budget = float(tenant_config.get("max_budget_percent") or 0.0)
-        if custom_user_budget > 10.0:
-            safe_budget_usd = round(cand_free_usd * (custom_user_budget / 100.0), 2)
-            
-        if cand_free_usd < (min_order_usd * 0.85):
-            user_label = (tenant_config or {}).get("tenant_name", "Kullanıcı")
-            print(f"   ⏳ [Bütçe Yetersiz ({user_label})]: {c_sym} için serbest bakiye (${cand_free_usd:.2f}) asgari alım bütçesinin (${min_order_usd:.2f}) altında.")
-            continue
-            
-        if safe_budget_usd > cand_free_usd:
-            safe_budget_usd = round(cand_free_usd * 0.95, 2)
+        if is_quote_try:
+            tot_tr_try = float(portfolio_state.get("binance_tr", {}).get("total_try", 0.0)) or (tot_val_usd * live_fx)
+            slot_budget_tl = round(tot_tr_try / target_slots, 2)
+            # Serbest TL nakit ile sınırla
+            trade_budget_tl = min(slot_budget_tl, free_try * 0.98)
+            safe_budget_usd = round(trade_budget_tl / live_fx, 2)
+            if free_try < 100.0 or trade_budget_tl < 100.0:
+                user_label = (tenant_config or {}).get("tenant_name", "Kullanıcı")
+                print(f"   ⏳ [Bütçe Yetersiz ({user_label})]: Serbest TL (₺{free_try:.2f}) slot bütçesi (₺{slot_budget_tl:.2f}) için yetersiz.")
+                continue
+        else:
+            tot_gl_usd = float(portfolio_state.get("binance_global", {}).get("total_usdt", 0.0)) or tot_val_usd
+            slot_budget_usd = round(tot_gl_usd / target_slots, 2)
+            # Serbest USDT nakit ile sınırla
+            safe_budget_usd = round(min(slot_budget_usd, free_usdt * 0.98), 2)
+            if free_usdt < 5.0 or safe_budget_usd < 5.0:
+                user_label = (tenant_config or {}).get("tenant_name", "Kullanıcı")
+                print(f"   ⏳ [Bütçe Yetersiz ({user_label})]: Serbest USDT (${free_usdt:.2f}) slot bütçesi (${slot_budget_usd:.2f}) için yetersiz.")
+                continue
             
         fresh_coin = f"{c_base}/{cand_quote}"
         real_ticker = fetch_ticker_price(fresh_coin)
