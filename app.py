@@ -10,9 +10,10 @@ from state import CryptoAgentState
 from graph import create_crypto_graph
 from db import (
     save_graph_state, load_graph_state, log_trade_decision, 
-    register_user_tenant, get_all_active_tenants, get_supabase
+    register_user_tenant, get_all_active_tenants, get_supabase,
+    get_active_positions_from_db
 )
-from exchange import execute_spot_trade, fetch_portfolio_balance
+from exchange import execute_spot_trade, fetch_portfolio_balance, get_live_usd_try_rate
 from telegram_poller import start_poller
 
 import secrets
