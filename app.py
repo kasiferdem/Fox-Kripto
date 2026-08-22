@@ -608,6 +608,40 @@ def delete_tenant(tenant_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app_api.get("/api/tenants/{tenant_id}/portfolio", dependencies=[Depends(authenticate_admin)])
+def get_tenant_portfolio(tenant_id: str):
+    """Admin Paneli İçin Kullanıcının Canlı Borsa Cüzdanını ve Coin Detaylarını Döner."""
+    client = get_supabase()
+    if not client:
+        raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
+    try:
+        res = client.table("user_tenants").select("*").eq("id", tenant_id).execute()
+        if not res.data or len(res.data) == 0:
+            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+            
+        t_row = dict(res.data[0])
+        t_id = str(t_row.get("id") or t_row.get("telegram_chat_id"))
+        
+        bal = fetch_portfolio_balance(t_row)
+        saved_pos_tr = get_active_positions_from_db(t_id, "binancetr")
+        saved_pos_gl = get_active_positions_from_db(t_id, "binance")
+        usd_try_rate = get_live_usd_try_rate()
+        
+        return {
+            "status": "success",
+            "tenant_id": tenant_id,
+            "tenant_name": t_row.get("tenant_name", "Kullanıcı"),
+            "telegram_chat_id": t_row.get("telegram_chat_id"),
+            "exchange_id": t_row.get("exchange_id", "dual"),
+            "usd_try_rate": usd_try_rate,
+            "portfolio": bal,
+            "saved_positions_tr": saved_pos_tr,
+            "saved_positions_gl": saved_pos_gl
+        }
+    except Exception as e:
+        print(f"❌ [Tenant Portfolio Error]: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app_api.get("/api/trade-logs", dependencies=[Depends(authenticate_admin)])
 def list_trade_logs():
     """Canlı Supabase işlem kararlarını ve loglarını kullanıcı isimleriyle listeler."""
@@ -953,7 +987,11 @@ def get_dashboard_html():
                     } else {
                         table.innerHTML = data.tenants.map((user, idx) => `
                             <tr>
-                                <td><strong>${user.tenant_name}</strong></td>
+                                <td>
+                                    <span style="cursor: pointer; color: #60a5fa; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" onclick="openUserPortfolioModal('${user.id}', '${user.tenant_name}')">
+                                        🔍 ${user.tenant_name}
+                                    </span>
+                                </td>
                                 <td><code>${user.telegram_chat_id}</code></td>
                                 <td>
                                     <input type="number" step="0.1" class="input-inline" id="tp_${idx}" value="${user.take_profit_percent || 1.5}">
@@ -977,7 +1015,9 @@ def get_dashboard_html():
                                         <option value="en" ${user.preferred_language === 'en' ? 'selected' : ''}>🇬🇧 EN</option>
                                     </select>
                                 </td>
-                                <td><span class="badge badge-active">${t.activeBadge}</span></td>
+                                <td>
+                                    <span class="badge badge-active" style="cursor: pointer;" onclick="openUserPortfolioModal('${user.id}', '${user.tenant_name}')">📊 Cüzdanı Gör</span>
+                                </td>
                                 <td>
                                     <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${user.id}', ${idx}, '${user.tenant_name}')">${t.save}</button>
                                     <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('${user.id}')">${t.del}</button>
@@ -1148,10 +1188,175 @@ def get_dashboard_html():
                 } catch(e) { console.error('Settings update error:', e); }
             }
 
+            // ==========================================
+            // KULLANICI CÜZDAN & VARLIK DETAY MODALI
+            // ==========================================
+            async function openUserPortfolioModal(tenantId, tenantName) {
+                const modal = document.getElementById('user-portfolio-modal');
+                const content = document.getElementById('portfolio-modal-body');
+                const title = document.getElementById('portfolio-modal-title');
+                
+                title.innerHTML = `💼 <strong>${tenantName}</strong> — Canlı Borsa & Cüzdan Detayları`;
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        <p style="font-size: 18px; margin-bottom: 8px;">⏳ Borsa Cüzdanları ve Açık Pozisyonlar Taranıyor...</p>
+                        <small>Binance TR (TRY) ve Binance Global (USDT) REST API sorgulanıyor...</small>
+                    </div>
+                `;
+                modal.style.display = 'flex';
+                
+                try {
+                    const res = await fetch('/api/tenants/' + tenantId + '/portfolio');
+                    const data = await res.json();
+                    
+                    if (!res.ok || data.status !== 'success') {
+                        content.innerHTML = `<div style="color: var(--danger); padding: 20px;">❌ Hata: ${data.detail || 'Cüzdan verisi alınamadı.'}</div>`;
+                        return;
+                    }
+                    
+                    const p = data.portfolio || {};
+                    const bTr = p.binance_tr || {};
+                    const bGl = p.binance_global || {};
+                    const posTr = data.saved_positions_tr || {};
+                    const posGl = data.saved_positions_gl || {};
+                    
+                    const freeTry = Number(bTr.free_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const totalTry = Number(bTr.total_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const freeUsdt = Number(bGl.free_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const totalUsdt = Number(bGl.total_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const grandUsd = Number(p.total_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const grandTry = Number(p.total_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    
+                    // TR Pozisyonları HTML
+                    let trCoinsHtml = '';
+                    const trKeys = Object.keys(posTr);
+                    if (trKeys.length === 0) {
+                        trCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 12px;">Şu an açık coin pozisyonu yok (Kasa %100 Serbest TRY Nakitte).</td></tr>`;
+                    } else {
+                        trCoinsHtml = trKeys.map(sym => {
+                            const coin = posTr[sym];
+                            const pnl = coin.pnl_percent || 0;
+                            const pnlColor = pnl >= 0 ? 'var(--success)' : 'var(--danger)';
+                            return `
+                                <tr style="border-bottom: 1px solid var(--border);">
+                                    <td style="padding: 10px;"><strong>🪙 ${sym}</strong></td>
+                                    <td style="padding: 10px;">${coin.amount}</td>
+                                    <td style="padding: 10px;">₺${Number(coin.entry_price || 0).toFixed(4)}</td>
+                                    <td style="padding: 10px;">₺${Number(coin.current_price || coin.entry_price || 0).toFixed(4)}</td>
+                                    <td style="padding: 10px; font-weight: bold; color: ${pnlColor};">${pnl >= 0 ? '+' : ''}%${Number(pnl).toFixed(2)}</td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                    
+                    // Global Pozisyonları HTML
+                    let glCoinsHtml = '';
+                    const glKeys = Object.keys(posGl);
+                    if (glKeys.length === 0) {
+                        glCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 12px;">Şu an açık coin pozisyonu yok (Kasa %100 Serbest USDT Nakitte).</td></tr>`;
+                    } else {
+                        glCoinsHtml = glKeys.map(sym => {
+                            const coin = posGl[sym];
+                            const pnl = coin.pnl_percent || 0;
+                            const pnlColor = pnl >= 0 ? 'var(--success)' : 'var(--danger)';
+                            return `
+                                <tr style="border-bottom: 1px solid var(--border);">
+                                    <td style="padding: 10px;"><strong>🪙 ${sym}</strong></td>
+                                    <td style="padding: 10px;">${coin.amount}</td>
+                                    <td style="padding: 10px;">$${Number(coin.entry_price || 0).toFixed(4)}</td>
+                                    <td style="padding: 10px;">$${Number(coin.current_price || coin.entry_price || 0).toFixed(4)}</td>
+                                    <td style="padding: 10px; font-weight: bold; color: ${pnlColor};">${pnl >= 0 ? '+' : ''}%${Number(pnl).toFixed(2)}</td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+
+                    content.innerHTML = `
+                        <!-- Toplam Kasa Özeti -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 20px;">
+                            <div style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 12px; padding: 14px; text-align: center;">
+                                <div style="color: var(--text-muted); font-size: 12px; font-weight: 600;">🏆 TOPLAM PORTFÖY DEĞERİ</div>
+                                <div style="font-size: 22px; font-weight: bold; color: #60a5fa; margin-top: 4px;">$${grandUsd} USD</div>
+                                <small style="color: var(--text-muted);">~₺${grandTry} TL</small>
+                            </div>
+                            <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; padding: 14px; text-align: center;">
+                                <div style="color: var(--text-muted); font-size: 12px; font-weight: 600;">🇹🇷 BİNANCE TR NAKİT</div>
+                                <div style="font-size: 20px; font-weight: bold; color: var(--success); margin-top: 4px;">₺${freeTry} TL</div>
+                                <small style="color: var(--text-muted);">Toplam TR: ₺${totalTry} TL</small>
+                            </div>
+                            <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 14px; text-align: center;">
+                                <div style="color: var(--text-muted); font-size: 12px; font-weight: 600;">🌍 BİNANCE GLOBAL NAKİT</div>
+                                <div style="font-size: 20px; font-weight: bold; color: #fbbf24; margin-top: 4px;">$${freeUsdt} USDT</div>
+                                <small style="color: var(--text-muted);">Toplam Global: $${totalUsdt} USD</small>
+                            </div>
+                        </div>
+
+                        <!-- Binance TR Tablosu -->
+                        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h3 style="font-size: 15px; color: #f8fafc;">🇹🇷 Binance TR Cüzdanı ve Eldeki Coinler</h3>
+                                <span class="badge badge-active">${trKeys.length} Açık Pozisyon</span>
+                            </div>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                <thead>
+                                    <tr style="border-bottom: 2px solid var(--border); color: var(--text-muted); text-align: left;">
+                                        <th style="padding: 8px;">Coin</th>
+                                        <th style="padding: 8px;">Adet</th>
+                                        <th style="padding: 8px;">Giriş Fiyatı</th>
+                                        <th style="padding: 8px;">Anlık Fiyat</th>
+                                        <th style="padding: 8px;">Kâr / Zarar %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${trCoinsHtml}</tbody>
+                            </table>
+                        </div>
+
+                        <!-- Binance Global Tablosu -->
+                        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 12px; padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h3 style="font-size: 15px; color: #f8fafc;">🌍 Binance Global Cüzdanı ve Eldeki Coinler</h3>
+                                <span class="badge badge-active">${glKeys.length} Açık Pozisyon</span>
+                            </div>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                <thead>
+                                    <tr style="border-bottom: 2px solid var(--border); color: var(--text-muted); text-align: left;">
+                                        <th style="padding: 8px;">Coin</th>
+                                        <th style="padding: 8px;">Adet</th>
+                                        <th style="padding: 8px;">Giriş Fiyatı</th>
+                                        <th style="padding: 8px;">Anlık Fiyat</th>
+                                        <th style="padding: 8px;">Kâr / Zarar %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${glCoinsHtml}</tbody>
+                            </table>
+                        </div>
+                    `;
+                } catch(e) {
+                    content.innerHTML = `<div style="color: var(--danger); padding: 20px;">Bağlantı Hatası: ${e}</div>`;
+                }
+            }
+
+            function closeUserPortfolioModal() {
+                document.getElementById('user-portfolio-modal').style.display = 'none';
+            }
+
             applyLang(currentLang);
             loadSystemSettings();
             loadData();
         </script>
+
+        <!-- KULLANICI CÜZDAN DETAY MODAL HTML -->
+        <div id="user-portfolio-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 10000;" onclick="if(event.target===this) closeUserPortfolioModal()">
+            <div style="background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; width: 90%; max-width: 820px; max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 18px;">
+                    <h2 id="portfolio-modal-title" style="font-size: 18px; color: #f8fafc; font-weight: 700;">💼 Kullanıcı Cüzdan Detayları</h2>
+                    <button onclick="closeUserPortfolioModal()" style="background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: bold; font-size: 14px;">✕ Kapat</button>
+                </div>
+                <div id="portfolio-modal-body">
+                    <!-- Dinamik Cüzdan İçeriği Buraya Yüklenecek -->
+                </div>
+            </div>
+        </div>
     </body>
     </html>
     """
