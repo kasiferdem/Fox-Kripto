@@ -38,8 +38,37 @@ CURRENT_PROJECT = "Fox-Kripto"
 
 CONVERSATION_HISTORY: List[Dict[str, Any]] = []
 
+def log_dev_chat_message(sender: str, message: str):
+    """Telefondaki konuşmayı gerçek zamanlı olarak Supabase hafızasına kaydeder."""
+    try:
+        from db import get_supabase
+        client = get_supabase()
+        if client:
+            state_key = f"dev_chat_history_{AUTHORIZED_CHAT_ID}"
+            res = client.table("crypto_agent_states").select("state_data").eq("session_id", state_key).execute()
+            history = []
+            if res.data and len(res.data) > 0:
+                history = res.data[0].get("state_data", {}).get("messages", [])
+            
+            history.append({
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                "sender": sender,
+                "message": message
+            })
+            if len(history) > 50:
+                history = history[-50:]
+                
+            client.table("crypto_agent_states").upsert({
+                "session_id": state_key,
+                "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "state_data": {"messages": history}
+            }).execute()
+    except Exception as e:
+        print(f"⚠️ Dev Chat Log Hatası: {e}")
+
 def send_telegram_msg(chat_id: int, text: str, parse_mode: str = "Markdown") -> bool:
-    """Telegram üzerinden formatlı mesaj gönderir."""
+    """Telegram üzerinden formatlı mesaj gönderir ve hafızaya kaydeder."""
+    log_dev_chat_message("BOT (@FoxSystemBot)", text)
     try:
         url = f"{BASE_TELEGRAM_URL}/sendMessage"
         if len(text) > 4000:
@@ -340,6 +369,7 @@ def start_dev_poller():
                         
                     user_text = msg.get("text", "") or msg.get("caption", "")
                     photo_arr = msg.get("photo", [])
+                    log_dev_chat_message("KULLANICI (S)", user_text or "[FOTOĞRAF / GÖRSEL]")
                     
                     # Fotoğraf İndirme
                     image_b64 = None
