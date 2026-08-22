@@ -436,7 +436,7 @@ def handle_update(update: dict):
             send_message(chat_id, f"⚠️ Error: {ne}")
         return
 
-    if text_clean in ["toz", "dust", "toz temizle", "tozlari temizle", "tozları temizle", "/dust", "dust to bnb", "toz bnb", "bnb ye cevir", "bnb ye dönüştür"]:
+    if text_clean in ["toz", "dust", "toz temizle", "tozlari temizle", "tozları temizle", "kırıntı", "kirinti", "kırıntıları temizle", "kirintilari temizle", "kırıntı temizle", "kirinti temizle", "kırıntıları sil", "tozları sil", "/dust", "dust to bnb", "toz bnb", "bnb ye cevir", "bnb ye dönüştür", "bnb yap"]:
         is_en = (user_lang == "en") or (text_clean in ["dust", "/dust", "dust to bnb"])
         send_message(chat_id, "🧹 *CONVERTING DUST BALANCES TO BNB...*" if is_en else "🧹 *TOZ BAKİYELER (DUST) BİNANCE ÜZERİNDEN BNB'YE DÖNÜŞTÜRÜLÜYOR...*\nLütfen bekleyin...")
         try:
