@@ -440,6 +440,14 @@ def startup_event():
     auto_thread = threading.Thread(target=run_autonomous_trading_loop, daemon=True)
     auto_thread.start()
 
+    print("👑 [FastAPI Startup]: 7/24 Mobil AI Geliştirici Köprüsü (@FoxSystemBot) Başlatılıyor...")
+    try:
+        from dev_agent_bridge import start_dev_poller
+        dev_thread = threading.Thread(target=start_dev_poller, daemon=True)
+        dev_thread.start()
+    except Exception as e:
+        print(f"⚠️ Dev-Bridge Başlatma Hatası: {e}")
+
 # -----------------------------------------
 # PYDANTIC MODEL TANIMLARI
 # -----------------------------------------
