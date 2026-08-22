@@ -1232,18 +1232,20 @@ def get_dashboard_html():
                     let trCoinsHtml = '';
                     const trKeys = Object.keys(posTr);
                     if (trKeys.length === 0) {
-                        trCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 12px;">Şu an açık coin pozisyonu yok (Kasa %100 Serbest TRY Nakitte).</td></tr>`;
+                        trCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 16px; font-weight: 500;">✅ Şu an açık coin pozisyonu yok (Kasa %100 Serbest TRY Nakitte).</td></tr>`;
                     } else {
                         trCoinsHtml = trKeys.map(sym => {
                             const coin = posTr[sym];
-                            const pnl = coin.pnl_percent || 0;
+                            const buyPrice = Number(coin.buy_price || coin.entry_price || 0);
+                            const currentPrice = Number(coin.current_price || coin.highest_price || buyPrice);
+                            const pnl = buyPrice > 0 ? (((currentPrice - buyPrice) / buyPrice) * 100) : (coin.pnl_percent || 0);
                             const pnlColor = pnl >= 0 ? 'var(--success)' : 'var(--danger)';
                             return `
                                 <tr style="border-bottom: 1px solid var(--border);">
                                     <td style="padding: 10px;"><strong>🪙 ${sym}</strong></td>
                                     <td style="padding: 10px;">${coin.amount}</td>
-                                    <td style="padding: 10px;">₺${Number(coin.entry_price || 0).toFixed(4)}</td>
-                                    <td style="padding: 10px;">₺${Number(coin.current_price || coin.entry_price || 0).toFixed(4)}</td>
+                                    <td style="padding: 10px;">₺${buyPrice.toFixed(4)}</td>
+                                    <td style="padding: 10px;">₺${currentPrice.toFixed(4)}</td>
                                     <td style="padding: 10px; font-weight: bold; color: ${pnlColor};">${pnl >= 0 ? '+' : ''}%${Number(pnl).toFixed(2)}</td>
                                 </tr>
                             `;
@@ -1254,18 +1256,20 @@ def get_dashboard_html():
                     let glCoinsHtml = '';
                     const glKeys = Object.keys(posGl);
                     if (glKeys.length === 0) {
-                        glCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 12px;">Şu an açık coin pozisyonu yok (Kasa %100 Serbest USDT Nakitte).</td></tr>`;
+                        glCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 16px; font-weight: 500;">✅ Şu an açık coin pozisyonu yok (Kasa %100 Serbest USDT Nakitte).</td></tr>`;
                     } else {
                         glCoinsHtml = glKeys.map(sym => {
                             const coin = posGl[sym];
-                            const pnl = coin.pnl_percent || 0;
+                            const buyPrice = Number(coin.buy_price || coin.entry_price || 0);
+                            const currentPrice = Number(coin.current_price || coin.highest_price || buyPrice);
+                            const pnl = buyPrice > 0 ? (((currentPrice - buyPrice) / buyPrice) * 100) : (coin.pnl_percent || 0);
                             const pnlColor = pnl >= 0 ? 'var(--success)' : 'var(--danger)';
                             return `
                                 <tr style="border-bottom: 1px solid var(--border);">
                                     <td style="padding: 10px;"><strong>🪙 ${sym}</strong></td>
                                     <td style="padding: 10px;">${coin.amount}</td>
-                                    <td style="padding: 10px;">$${Number(coin.entry_price || 0).toFixed(4)}</td>
-                                    <td style="padding: 10px;">$${Number(coin.current_price || coin.entry_price || 0).toFixed(4)}</td>
+                                    <td style="padding: 10px;">$${buyPrice.toFixed(4)}</td>
+                                    <td style="padding: 10px;">$${currentPrice.toFixed(4)}</td>
                                     <td style="padding: 10px; font-weight: bold; color: ${pnlColor};">${pnl >= 0 ? '+' : ''}%${Number(pnl).toFixed(2)}</td>
                                 </tr>
                             `;
