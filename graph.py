@@ -413,7 +413,8 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             if cand_free_usd >= min_order_usd:
                 safe_budget_usd = round(min_order_usd, 2)
             else:
-                print(f"   ⏳ [Bütçe Yetersiz]: {c_sym} için serbest bakiye (${cand_free_usd:.2f}) asgari emir tutarının (${min_order_usd:.2f}) altında.")
+                user_label = (tenant_config or {}).get("tenant_name", "Kullanıcı")
+                print(f"   ⏳ [Bütçe Yetersiz ({user_label})]: {c_sym} için serbest bakiye (${cand_free_usd:.2f}) asgari emir tutarının (${min_order_usd:.2f}) altında.")
                 continue
             
         fresh_coin = f"{c_base}/{cand_quote}"
