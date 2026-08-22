@@ -170,22 +170,34 @@ def handle_update(update: dict):
         return
 
     # Komut İşleme (Taksim / işaretli veya taksimsiz esnek eşleşme)
-    if text_clean in ["start", "help", "yardim", "yardım", "merhaba", "hello", "hi"]:
+    if text_clean in ["start", "help", "yardim", "yardım", "merhaba", "hello", "hi", "komutlar", "komut", "menu", "menü", "/komutlar", "/help", "/start", "/yardim", "/yardım", "/menu"]:
         tenant = get_tenant_by_chat_id(chat_id)
         if tenant:
-            send_message(
-                chat_id, 
-                f"👋 Merhaba / Hello *{first_name}*!\n\n"
-                f"✅ Registered as: *{tenant['tenant_name']}*\n\n"
-                f"📌 *Kullanabileceğiniz Komutlar / Available Commands:*\n"
-                f"• `durum` / `status` / `balance` - Canlı portföy / Live holdings\n"
-                f"• `haberler` / `news` - Kripto haberleri / Market headlines\n"
-                f"• `analiz` / `analysis` - Yapay zeka taraması / AI Market scan\n"
-                f"• `lang en` 🇬🇧 / `dil tr` 🇹🇷 - Dil seçimi / Language switch\n"
-                f"• `500 TL SOL al` / `Buy $10 SOL` - Doğal dille işlem / Natural trade"
+            help_card = (
+                f"🤖 *FOX-KRİPTO BOT KOMUTLAR REHBERİ* 📋\n\n"
+                f"👋 Merhaba *{first_name}*! Kullanabileceğiniz tüm komutlar aşağıdadır:\n\n"
+                f"📊 *PORTFÖY & KASA TAKİBİ:*\n"
+                f"• `durum` veya `bakiye` ➔ Canlı çift borsa (TR+Global) varlıklarınızı ve açık pozisyonlarınızı listeler.\n"
+                f"• `kasa fark` veya `fark` ➔ Son sorguladığınız andan bu yana kasanızdaki kâr/zarar farkını kuruşu kuruşuna verir.\n"
+                f"• `rapor` veya `gun sonu` ➔ Gece 00:01'den bu yana 24 saatlik resmi PnL bilançosunu çıkarır.\n\n"
+                f"⚡ *AL-SAT & MANUEL İŞLEMLER:*\n"
+                f"• `BTC sat` veya `MOVE sat` ➔ Belirtilen coinin tamamını anında marketten nakde çevirir.\n"
+                f"• `500 TL SOL al` veya `Buy $10 SOL` ➔ Belirttiğiniz bütçeyle anında canlı alım yapar.\n"
+                f"• `tozları temizle` veya `bnb yap` ➔ Cüzdandaki $1 altı tüm kırıntıları tek tuşla BNB'ye dönüştürür.\n\n"
+                f"🧠 *YAPAY ZEKA & ANALİZ:*\n"
+                f"• `analiz` veya `tara` ➔ Piyasadaki taze balina kırılımlarını ve ivme puanlarını tarar.\n"
+                f"• `haberler` veya `gundem` ➔ CoinDesk, CoinTelegraph ve Decrypt'ten canlı kripto haberlerini çeker.\n\n"
+                f"⚙️ *AYARLAR & MOD GEÇİŞİ:*\n"
+                f"• `Kâr hedefimi %3 yap` ➔ Otonom kâr alma (Take-Profit) hedefinizi günceller.\n"
+                f"• `Stop limitimi %2 yap` ➔ Otonom zarar kes (Stop-Loss) limitinizi günceller.\n"
+                f"• `/test` (Sanal Mod) | `/canli` (Gerçek Borsa Modu) ➔ Çalışma modunu değiştirir.\n"
+                f"• `/surum` veya `/ip` ➔ Sunucu IP'sini, sürümünü ve piyasa rejimini gösterir.\n"
+                f"• `dil tr` 🇹🇷 | `lang en` 🇬🇧 ➔ Botun dilini değiştirir.\n\n"
+                f"💡 _İpucu: Komutları büyük/küçük harf fark etmeksizin dilediğiniz gibi yazabilirsiniz!_"
             )
+            send_message(chat_id, help_card)
         else:
-            send_message(chat_id, f"👋 Merhaba / Hello *{first_name}*!\nFox-Kripto Otonom Ajan Sistemine Hoş Geldiniz / Welcome to Fox-Crypto AI Agent System!\n\nBinance hesabınızı bağlamak için `bagla` yazabilirsiniz.")
+            send_message(chat_id, f"👋 Merhaba *{first_name}*!\nFox-Kripto Sistemine Hoş Geldiniz.\n\nBinance hesabınızı bağlamak için `bagla` yazabilirsiniz.")
         return
 
     # 🎛️ TEST MODU / CANLI MOD TEK TUŞ GEÇİŞİ (Mode Switcher)
