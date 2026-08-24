@@ -736,8 +736,9 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
 
 # -----------------------------------------
 # WEB DASHBOARD (HTML / JAVASCRIPT ARAYÜZÜ)
-# -----------------------------------------
 @app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/admin", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 def get_dashboard_html():
     html_content = """
     <!DOCTYPE html>
