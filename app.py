@@ -1053,6 +1053,13 @@ def get_dashboard_html():
                 document.getElementById('i18n-card-logs').innerText = t.logsTitle;
             }
 
+            function getAuthHeaders() {
+                return {
+                    'Authorization': 'Basic ' + btoa('admin:foxkripto2026'),
+                    'Accept': 'application/json'
+                };
+            }
+
             function changeLang(lang) {
                 applyLang(lang);
                 loadData();
@@ -1060,16 +1067,17 @@ def get_dashboard_html():
 
             async function loadData() {
                 const t = dict[currentLang];
+                const table = document.getElementById('tenants-table');
                 try {
-                    const res = await fetch('/api/tenants');
+                    const res = await fetch('/api/tenants', { headers: getAuthHeaders() });
                     const data = await res.json();
-                    const table = document.getElementById('tenants-table');
-                    document.getElementById('tenant-count').innerText = `${data.count} ${t.activeSuffix}`;
+                    const tenantsList = (data && data.tenants) ? data.tenants : [];
+                    document.getElementById('tenant-count').innerText = `${tenantsList.length} ${t.activeSuffix}`;
                     
-                    if (data.tenants.length === 0) {
+                    if (tenantsList.length === 0) {
                         table.innerHTML = `<tr><td colspan="9" style="color: var(--text-muted);">${t.noUsers}</td></tr>`;
                     } else {
-                        table.innerHTML = data.tenants.map((user, idx) => `
+                        table.innerHTML = tenantsList.map((user, idx) => `
                             <tr>
                                 <td>
                                     <span style="cursor: pointer; color: #60a5fa; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" onclick="openUserPortfolioModal('${user.id}', '${user.tenant_name}')">
@@ -1111,10 +1119,11 @@ def get_dashboard_html():
                     }
 
                     // Logları Yükle
-                    const logRes = await fetch('/api/trade-logs');
+                    const logRes = await fetch('/api/trade-logs', { headers: getAuthHeaders() });
                     const logData = await logRes.json();
                     const logContainer = document.getElementById('logs-container');
-                    if (!logData.logs || logData.logs.length === 0) {
+                    const logsList = (logData && logData.logs) ? logData.logs : [];
+                    if (logsList.length === 0) {
                         logContainer.innerHTML = `<p style="color: var(--text-muted);">${t.noLogs}</p>`;
                     } else {
                         logContainer.innerHTML = `
@@ -1218,7 +1227,7 @@ def get_dashboard_html():
                 };
                 const res = await fetch('/api/tenants', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
@@ -1233,7 +1242,10 @@ def get_dashboard_html():
             async function deleteTenant(tenantId) {
                 const t = dict[currentLang];
                 if (!confirm(t.confirmDel)) return;
-                const res = await fetch(`/api/tenants/${tenantId}`, { method: 'DELETE' });
+                const res = await fetch(`/api/tenants/${tenantId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
                 if (res.ok) {
                     alert(t.userDeactivated);
                     loadData();
@@ -1242,7 +1254,7 @@ def get_dashboard_html():
 
             async function loadSystemSettings() {
                 try {
-                    const res = await fetch('/api/settings');
+                    const res = await fetch('/api/settings', { headers: getAuthHeaders() });
                     const data = await res.json();
                     const toggle = document.getElementById('trailing-stop-toggle');
                     const statusTxt = document.getElementById('trailing-status-text');
@@ -1259,7 +1271,7 @@ def get_dashboard_html():
                 try {
                     const res = await fetch('/api/settings', {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify({trailing_stop_enabled: enabled})
                     });
                     const data = await res.json();
@@ -1290,7 +1302,7 @@ def get_dashboard_html():
                 modal.style.display = 'flex';
                 
                 try {
-                    const res = await fetch('/api/tenants/' + tenantId + '/portfolio');
+                    const res = await fetch('/api/tenants/' + tenantId + '/portfolio', { headers: getAuthHeaders() });
                     const data = await res.json();
                     
                     if (!res.ok || data.status !== 'success') {
