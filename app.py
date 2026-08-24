@@ -541,17 +541,33 @@ def get_my_egress_ip():
 
 @app_api.get("/api/tenants", dependencies=[Depends(authenticate_admin)])
 def list_tenants():
-    """Tüm kullanıcıları (Tenants) listeler (Tam Güvenli & Maskelenmiş)."""
-    tenants = get_all_active_tenants()
-    sanitized = []
-    for t in tenants:
-        safe_t = dict(t)
-        safe_t.pop("exchange_secret_key", None)
-        raw_k = safe_t.pop("exchange_api_key", "")
-        safe_t["exchange_api_key_configured"] = bool(raw_k)
-        safe_t["exchange_api_key_masked"] = "***CONFIGURED***" if raw_k else "NOT_CONFIGURED"
-        sanitized.append(safe_t)
-    return {"status": "success", "count": len(sanitized), "tenants": sanitized}
+    """Tüm kullanıcıları (Tenants) süper hızlı ve maskelenmiş olarak listeler."""
+    from db import get_supabase
+    client = get_supabase()
+    if not client:
+        return {"status": "error", "count": 0, "tenants": []}
+    try:
+        res = client.table("user_tenants").select("*").order("created_at", desc=False).execute()
+        raw_tenants = res.data or []
+        sanitized = []
+        for t in raw_tenants:
+            safe_t = dict(t)
+            safe_t.pop("exchange_secret_key", None)
+            raw_k = str(safe_t.pop("exchange_api_key", ""))
+            safe_t["exchange_api_key_configured"] = bool(raw_k)
+            safe_t["exchange_api_key_masked"] = "***CONFIGURED***" if raw_k else "NOT_CONFIGURED"
+            if raw_k.startswith("{"):
+                try:
+                    import json
+                    kd = json.loads(raw_k)
+                    safe_t["take_profit_percent"] = float(kd.get("take_profit_percent") or safe_t.get("take_profit_percent") or 1.5)
+                    safe_t["preferred_language"] = str(kd.get("preferred_language") or safe_t.get("preferred_language") or "tr")
+                except Exception:
+                    pass
+            sanitized.append(safe_t)
+        return {"status": "success", "count": len(sanitized), "tenants": sanitized}
+    except Exception as e:
+        return {"status": "error", "count": 0, "tenants": [], "error": str(e)}
 
 @app_api.post("/api/tenants", dependencies=[Depends(authenticate_admin)])
 def create_tenant(req: TenantCreateRequest):
