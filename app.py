@@ -812,9 +812,11 @@ def get_dashboard_html():
                     <td>
                         <span class="badge badge-active" style="cursor: pointer;" onclick="openUserPortfolioModal('{safe_id}', '{safe_name}')">📊 Cüzdanı Gör</span>
                     </td>
-                    <td>
-                        <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('{safe_id}', {idx}, '{safe_name}')">💾 Kaydet</button>
-                        <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('{safe_id}')">Sil</button>
+                    <td style="white-space: nowrap;">
+                        <div style="display: inline-flex; gap: 6px; align-items: center;">
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px; white-space: nowrap;" onclick="updateSettings('{safe_id}', {idx}, '{safe_name}')">💾 Kaydet</button>
+                            <button class="btn btn-danger" style="padding: 6px 10px; font-size: 12px; white-space: nowrap;" onclick="deleteTenant('{safe_id}')">Sil</button>
+                        </div>
                     </td>
                 </tr>
                 """
@@ -824,6 +826,69 @@ def get_dashboard_html():
 
     if not tenants_ssr_html:
         tenants_ssr_html = "<tr><td colspan='9' style='color: var(--text-muted);'>Henüz eklenmiş kullanıcı yok.</td></tr>"
+
+    logs_ssr_html = ""
+    try:
+        if client:
+            res_l = client.table("crypto_trade_logs").select("*").order("created_at", desc=True).limit(25).execute()
+            logs_list = res_l.data or []
+            if not logs_list:
+                logs_ssr_html = "<p style='color: var(--text-muted); padding: 12px;'>Henüz kayıtlı işlem logu yok.</p>"
+            else:
+                rows = ""
+                for l in logs_list:
+                    d = str(l.get("created_at") or "")[:19].replace("T", " ")
+                    is_buy = str(l.get("direction", "BUY")).upper() == "BUY"
+                    dir_badge = '<span style="color: var(--success); font-weight: bold;">🛒 ALIM (BUY)</span>' if is_buy else '<span style="color: var(--danger); font-weight: bold;">🎯 SATIM (SELL)</span>'
+                    score = float(l.get("sentiment_score") or 0.0)
+                    is_failed = l.get("status") == "FAILED" or (l.get("execution_details", {}) or {}).get("status") == "FAILED"
+                    is_exec = l.get("status") in ["SUCCESS", "EXECUTED"] or bool(l.get("order_id"))
+                    if is_exec:
+                        badge = '<span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success);">✅ Canlı İnfaz</span>'
+                    elif is_failed:
+                        badge = '<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger);">❌ Başarısız</span>'
+                    else:
+                        badge = '<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">⏳ Beklemede</span>'
+                    
+                    price = float(l.get("entry_price") or 0.0)
+                    price_str = f"${price:.6f}" if price < 0.001 else f"${price:.4f}"
+                    amt_usd = float(l.get("amount_usd") or 0.0)
+                    
+                    rows += f"""
+                    <tr style="border-bottom: 1px solid var(--border); font-size: 13px;">
+                        <td style="padding: 10px;"><strong>{l.get('tenant_name') or 'S'}</strong></td>
+                        <td style="padding: 10px;">{dir_badge} <code>{l.get('symbol', '—')}</code></td>
+                        <td style="padding: 10px;">${amt_usd:.2f}</td>
+                        <td style="padding: 10px;">{price_str}</td>
+                        <td style="padding: 10px; color: var(--text-muted);">${l.get('take_profit_price') or '—'} / ${l.get('stop_loss_price') or '—'}</td>
+                        <td style="padding: 10px;"><span style="color: var(--accent); font-weight: bold;">{score:+.1f} / +10</span></td>
+                        <td style="padding: 10px;">{badge} <small style="display: block; color: var(--text-muted);">{l.get('exchange_label') or 'Binance'}</small></td>
+                        <td style="padding: 10px; color: var(--text-muted); font-size: 12px;">{d}</td>
+                    </tr>
+                    """
+                logs_ssr_html = f"""
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border); color: var(--text-muted); text-align: left; font-size: 13px;">
+                                <th style="padding: 10px;">👤 Kullanıcı</th>
+                                <th style="padding: 10px;">🪙 İşlem & Coin</th>
+                                <th style="padding: 10px;">💵 Bütçe</th>
+                                <th style="padding: 10px;">📥 Fiyat</th>
+                                <th style="padding: 10px;">🎯 Kâr Al / SL</th>
+                                <th style="padding: 10px;">📊 AI Skoru</th>
+                                <th style="padding: 10px;">🏷️ Durum</th>
+                                <th style="padding: 10px;">⏱️ Zaman</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows}
+                        </tbody>
+                    </table>
+                </div>
+                """
+    except Exception as e_log:
+        logs_ssr_html = f"<p style='color: var(--text-muted); padding: 12px;'>Log hatası: {e_log}</p>"
 
     html_content = """
     <!DOCTYPE html>
@@ -856,8 +921,8 @@ def get_dashboard_html():
             .grid { display: grid; grid-template-columns: 1fr 380px; gap: 24px; }
             .card { background: var(--card-bg); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
             .card-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: auto; }
+            th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; white-space: nowrap; }
             th { color: var(--text-muted); font-weight: 600; }
             .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }
             .badge-active { background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
@@ -1020,7 +1085,7 @@ __SSR_TENANTS_HTML__
 
         <div class="card" style="margin-top: 24px;">
             <div id="i18n-card-logs" class="card-title">📜 Canlı İşlem Kararları ve Loglar (Supabase)</div>
-            <div id="logs-container">Yükleniyor...</div>
+            <div id="logs-container">__SSR_LOGS_HTML__</div>
         </div>
 
         <script>
@@ -1678,6 +1743,7 @@ __SSR_TENANTS_HTML__
         html_content
         .replace("__SSR_TENANTS_DATA__", tenants_ssr_json)
         .replace("__SSR_TENANTS_HTML__", tenants_ssr_html)
+        .replace("__SSR_LOGS_HTML__", logs_ssr_html)
         .replace("__TENANT_COUNT__", f"{len(clean)} Aktif")
     )
     return HTMLResponse(content=res_html)
