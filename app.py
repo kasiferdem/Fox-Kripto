@@ -742,13 +742,13 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
 def get_dashboard_html():
     from db import get_supabase
     import json
-    tenants_ssr_json = "[]"
+    clean = []
+    tenants_ssr_html = ""
     try:
         client = get_supabase()
         if client:
             res = client.table("user_tenants").select("*").order("created_at", desc=False).execute()
             raw = res.data or []
-            clean = []
             for t in raw:
                 st = dict(t)
                 st.pop("exchange_secret_key", None)
@@ -763,8 +763,67 @@ def get_dashboard_html():
                         pass
                 clean.append(st)
             tenants_ssr_json = json.dumps(clean)
+            
+            for idx, user in enumerate(clean):
+                safe_name = str(user.get("tenant_name", "Kullanıcı")).replace("'", "\\'")
+                safe_id = str(user.get("id", ""))
+                tp = float(user.get("take_profit_percent") or 1.5)
+                sl = float(user.get("stop_loss_percent") or 1.5)
+                mb = float(user.get("max_budget_percent") or 10)
+                exch = str(user.get("exchange_id") or "dual")
+                lang = str(user.get("preferred_language") or "tr")
+                tg_id = user.get("telegram_chat_id")
+                sel_dual = "selected" if exch == "dual" else ""
+                sel_tr = "selected" if exch == "binancetr" else ""
+                sel_gl = "selected" if exch == "binance" else ""
+                sel_lang_tr = "selected" if lang == "tr" else ""
+                sel_lang_en = "selected" if lang == "en" else ""
+                
+                tenants_ssr_html += f"""
+                <tr>
+                    <td>
+                        <span style="cursor: pointer; color: #60a5fa; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" onclick="openUserPortfolioModal('{safe_id}', '{safe_name}')">
+                            🔍 {user.get('tenant_name')}
+                        </span>
+                    </td>
+                    <td><code>{tg_id}</code></td>
+                    <td>
+                        <input type="number" step="0.1" class="input-inline" id="tp_{idx}" value="{tp}">
+                    </td>
+                    <td>
+                        <input type="number" step="0.1" class="input-inline" id="sl_{idx}" value="{sl}">
+                    </td>
+                    <td>
+                        <input type="number" step="1" class="input-inline" id="mb_{idx}" value="{mb}">
+                    </td>
+                    <td>
+                        <select class="input-inline" style="width: 110px;" id="exch_{idx}">
+                            <option value="dual" {sel_dual}>⚡ Çift Borsa</option>
+                            <option value="binancetr" {sel_tr}>🇹🇷 Binance TR</option>
+                            <option value="binance" {sel_gl}>🌍 Global</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select class="input-inline" style="width: 78px;" id="lang_{idx}">
+                            <option value="tr" {sel_lang_tr}>🇹🇷 TR</option>
+                            <option value="en" {sel_lang_en}>🇬🇧 EN</option>
+                        </select>
+                    </td>
+                    <td>
+                        <span class="badge badge-active" style="cursor: pointer;" onclick="openUserPortfolioModal('{safe_id}', '{safe_name}')">📊 Cüzdanı Gör</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('{safe_id}', {idx}, '{safe_name}')">💾 Kaydet</button>
+                        <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('{safe_id}')">Sil</button>
+                    </td>
+                </tr>
+                """
     except Exception as e:
         print(f"SSR Error: {e}")
+        tenants_ssr_html = "<tr><td colspan='9' style='color: var(--text-muted);'>Yükleniyor...</td></tr>"
+
+    if not tenants_ssr_html:
+        tenants_ssr_html = "<tr><td colspan='9' style='color: var(--text-muted);'>Henüz eklenmiş kullanıcı yok.</td></tr>"
 
     html_content = """
     <!DOCTYPE html>
@@ -890,7 +949,7 @@ def get_dashboard_html():
             <div class="card">
                 <div class="card-title">
                     <span id="i18n-card-users">👥 Kayıtlı Kullanıcılar & Dinamik Risk Ayarları</span>
-                    <span id="tenant-count" class="badge badge-active">0 Aktif</span>
+                    <span id="tenant-count" class="badge badge-active">__TENANT_COUNT__</span>
                 </div>
                 <table>
                     <thead>
@@ -907,7 +966,7 @@ def get_dashboard_html():
                         </tr>
                     </thead>
                     <tbody id="tenants-table">
-                        <tr><td colspan="9" style="color: var(--text-muted);">Yükleniyor...</td></tr>
+__SSR_TENANTS_HTML__
                     </tbody>
                 </table>
             </div>
@@ -1615,7 +1674,13 @@ def get_dashboard_html():
     </body>
     </html>
     """
-    return HTMLResponse(content=html_content.replace("__SSR_TENANTS_DATA__", tenants_ssr_json))
+    res_html = (
+        html_content
+        .replace("__SSR_TENANTS_DATA__", tenants_ssr_json)
+        .replace("__SSR_TENANTS_HTML__", tenants_ssr_html)
+        .replace("__TENANT_COUNT__", f"{len(clean)} Aktif")
+    )
+    return HTMLResponse(content=res_html)
 
 if __name__ == "__main__":
     import uvicorn
