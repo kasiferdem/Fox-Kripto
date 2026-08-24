@@ -475,7 +475,14 @@ class TriggerGraphRequest(BaseModel):
     symbol: str = "BTC/USDT"
 
 class SystemSettingsRequest(BaseModel):
-    trailing_stop_enabled: bool
+    trailing_stop_enabled: bool = True
+
+class StrategyConfigRequest(BaseModel):
+    active_preset: str = "agile_21_august"
+    volume_spike_multiplier: float = 1.3
+    min_volume_usd: float = 8000.0
+    max_recent_gain_24h: float = 15.0
+    min_ai_score: float = 5.0
 
 # -----------------------------------------
 # API ROTALARI (KULLANICI EKLE / SİL / LİSTELE)
@@ -735,6 +742,31 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
         save_graph_state(req.session_id, res)
     background_tasks.add_task(_execute)
     return {"status": "STARTED", "message": f"Otonom akış başlatıldı (Session: {req.session_id})"}
+
+@app_api.get("/api/settings", dependencies=[Depends(authenticate_admin)])
+def get_system_settings_endpoint():
+    from db import get_system_setting
+    val = get_system_setting("trailing_stop_enabled", True)
+    return {"status": "success", "trailing_stop_enabled": bool(val)}
+
+@app_api.post("/api/settings", dependencies=[Depends(authenticate_admin)])
+def update_system_settings_endpoint(req: SystemSettingsRequest):
+    from db import set_system_setting
+    set_system_setting("trailing_stop_enabled", bool(req.trailing_stop_enabled))
+    return {"status": "success", "trailing_stop_enabled": bool(req.trailing_stop_enabled)}
+
+@app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
+def get_strategy_config_endpoint():
+    from db import get_strategy_config
+    cfg = get_strategy_config()
+    return {"status": "success", "config": cfg}
+
+@app_api.post("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
+def update_strategy_config_endpoint(req: StrategyConfigRequest):
+    from db import save_strategy_config
+    cfg_data = req.dict()
+    save_strategy_config(cfg_data)
+    return {"status": "success", "config": cfg_data}
 
 # -----------------------------------------
 # WEB DASHBOARD (HTML / JAVASCRIPT ARAYÜZÜ)
