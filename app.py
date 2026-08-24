@@ -493,6 +493,32 @@ def get_settings_endpoint():
         "trailing_stop_enabled": ts_enabled
     }
 
+class StrategyConfigRequest(BaseModel):
+    active_preset: str
+    volume_spike_multiplier: float
+    min_volume_usd: float
+    max_recent_gain_24h: float
+    min_ai_score: float
+
+@app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
+def get_strategy_config_endpoint():
+    from db import get_strategy_config, STRATEGY_PRESETS
+    cfg = get_strategy_config()
+    return {"status": "success", "config": cfg, "presets": STRATEGY_PRESETS}
+
+@app_api.post("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
+def save_strategy_config_endpoint(req: StrategyConfigRequest):
+    from db import save_strategy_config
+    payload = {
+        "active_preset": req.active_preset,
+        "volume_spike_multiplier": req.volume_spike_multiplier,
+        "min_volume_usd": req.min_volume_usd,
+        "max_recent_gain_24h": req.max_recent_gain_24h,
+        "min_ai_score": req.min_ai_score
+    }
+    ok = save_strategy_config(payload)
+    return {"status": "success" if ok else "error", "config": payload}
+
 @app_api.post("/api/settings", dependencies=[Depends(authenticate_admin)])
 def update_settings_endpoint(req: SystemSettingsRequest):
     from db import set_system_setting
@@ -774,6 +800,46 @@ def get_dashboard_html():
                     <button id="btn-en" class="lang-btn" onclick="changeLang('en')">🇬🇧 English</button>
                 </div>
                 <button id="i18n-btn-refresh" class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
+            </div>
+        </div>
+
+        <!-- ⚡ STRATEJİ VE RİSK PROFİLİ SEÇİCİ KARTI -->
+        <div class="card" style="margin-bottom: 24px; border: 1px solid rgba(59, 130, 246, 0.35); background: linear-gradient(180deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95)); box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>⚡ <strong>Strateji & Risk Profili Seçici (Al-Sat Çeviklik Motoru)</strong></span>
+                <span id="active-strategy-badge" class="badge" style="background: rgba(59, 130, 246, 0.25); color: #60a5fa; border: 1px solid #3b82f6; font-size: 13px; padding: 6px 12px;">🚀 21 Ağustos Profili Aktif</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr auto; gap: 14px; align-items: end; margin-top: 10px;">
+                <div>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 Hazır Strateji Profili</label>
+                    <select id="strategy-preset-select" onchange="onPresetChange(this.value)" style="width: 100%; padding: 9px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 13px;">
+                        <option value="agile_21_august">🚀 Agresif & Çevik (21 Ağustos Profili)</option>
+                        <option value="defensive_22_august">🛡️ Defansif & Koruma (22 Ağustos Profili)</option>
+                        <option value="custom">⚙️ Özel Profil (Custom)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">⚡ Hacim Çarpanı</label>
+                    <input type="number" id="strat-spike" step="0.1" value="1.3" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">💵 Min 5dk Hacim ($)</label>
+                    <input type="number" id="strat-minvol" step="1000" value="8000" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">📈 24s Tavan Prim %</label>
+                    <input type="number" id="strat-maxgain" step="0.5" value="15.0" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🧠 Min AI Skoru</label>
+                    <input type="number" id="strat-minscore" step="0.5" value="5.0" min="1.0" max="10.0" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="saveStrategySettings()" style="height: 38px; white-space: nowrap; font-weight: 600;">💾 Profili Uygula</button>
+                </div>
+            </div>
+            <div id="strat-desc" style="font-size: 12px; color: #94a3b8; margin-top: 10px;">
+                💡 <em>Açıklama: Yüksek işlem sıklığı, dipten yeni kalkan altcoinleri 1.3x hacimle anında yakalar.</em>
             </div>
         </div>
 
@@ -1345,8 +1411,95 @@ def get_dashboard_html():
                 document.getElementById('user-portfolio-modal').style.display = 'none';
             }
 
+            async function loadStrategyConfig() {
+                try {
+                    const res = await fetch('/api/strategy-config', { headers: getAuthHeaders() });
+                    const data = await res.json();
+                    if (data.status === 'success' && data.config) {
+                        const cfg = data.config;
+                        const sel = document.getElementById('strategy-preset-select');
+                        sel.value = cfg.active_preset || 'agile_21_august';
+                        document.getElementById('strat-spike').value = cfg.volume_spike_multiplier || 1.3;
+                        document.getElementById('strat-minvol').value = cfg.min_volume_usd || 8000;
+                        document.getElementById('strat-maxgain').value = cfg.max_recent_gain_24h || 15.0;
+                        document.getElementById('strat-minscore').value = cfg.min_ai_score || 5.0;
+                        updateStrategyBadge(cfg.active_preset, cfg.volume_spike_multiplier);
+                    }
+                } catch (e) {
+                    console.error('Strateji yükleme hatası:', e);
+                }
+            }
+
+            function onPresetChange(preset) {
+                const desc = document.getElementById('strat-desc');
+                if (preset === 'agile_21_august') {
+                    document.getElementById('strat-spike').value = 1.3;
+                    document.getElementById('strat-minvol').value = 8000;
+                    document.getElementById('strat-maxgain').value = 15.0;
+                    document.getElementById('strat-minscore').value = 5.0;
+                    desc.innerHTML = '💡 <em>Açıklama: Yüksek işlem sıklığı, dipten yeni kalkan altcoinleri 1.3x hacimle anında yakalar. (21 Ağustos kârlı modu)</em>';
+                } else if (preset === 'defensive_22_august') {
+                    document.getElementById('strat-spike').value = 1.8;
+                    document.getElementById('strat-minvol').value = 25000;
+                    document.getElementById('strat-maxgain').value = 8.5;
+                    document.getElementById('strat-minscore').value = 6.0;
+                    desc.innerHTML = '💡 <em>Açıklama: Düşük işlem sıklığı, sadece devasa balina patlamalarında (%8.5 altı) devreye girer.</em>';
+                } else {
+                    desc.innerHTML = '💡 <em>Açıklama: Serbest özel parametreler belirleyebilirsiniz.</em>';
+                }
+            }
+
+            function updateStrategyBadge(preset, spike) {
+                const badge = document.getElementById('active-strategy-badge');
+                if (preset === 'agile_21_august') {
+                    badge.innerHTML = '🚀 21 Ağustos Çevik Mod (' + spike + 'x) Aktif';
+                    badge.style.borderColor = '#3b82f6';
+                    badge.style.color = '#60a5fa';
+                } else if (preset === 'defensive_22_august') {
+                    badge.innerHTML = '🛡️ 22 Ağustos Defansif Mod (' + spike + 'x) Aktif';
+                    badge.style.borderColor = '#10b981';
+                    badge.style.color = '#34d399';
+                } else {
+                    badge.innerHTML = '⚙️ Özel Mod (' + spike + 'x) Aktif';
+                    badge.style.borderColor = '#f59e0b';
+                    badge.style.color = '#fbbf24';
+                }
+            }
+
+            async function saveStrategySettings() {
+                const preset = document.getElementById('strategy-preset-select').value;
+                const spike = parseFloat(document.getElementById('strat-spike').value) || 1.3;
+                const minvol = parseFloat(document.getElementById('strat-minvol').value) || 8000;
+                const maxgain = parseFloat(document.getElementById('strat-maxgain').value) || 15.0;
+                const minscore = parseFloat(document.getElementById('strat-minscore').value) || 5.0;
+
+                try {
+                    const res = await fetch('/api/strategy-config', {
+                        method: 'POST',
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            active_preset: preset,
+                            volume_spike_multiplier: spike,
+                            min_volume_usd: minvol,
+                            max_recent_gain_24h: maxgain,
+                            min_ai_score: minscore
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        updateStrategyBadge(preset, spike);
+                        alert('✅ Strateji Profili Başarıyla Güncellendi ve Motora Uygulandı!\n\nHacim Çarpanı: ' + spike + 'x | Min Hacim: $' + minvol + ' | Tavan Prim: %' + maxgain);
+                    } else {
+                        alert('❌ Kaydetme Başarısız!');
+                    }
+                } catch (e) {
+                    alert('Hata: ' + e);
+                }
+            }
+
             applyLang(currentLang);
             loadSystemSettings();
+            loadStrategyConfig();
             loadData();
         </script>
 

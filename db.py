@@ -573,29 +573,75 @@ def get_system_constitution_rules() -> Dict[str, Any]:
         print(f"⚠️ [Sistem Anayasası Okuma Hatası]: {e}")
         return DEFAULT_SYSTEM_RULES
 
-def log_system_rule_change(rule_key: str, old_val: Any, new_val: Any, modified_by: str = "Yönetici (S)", reason: str = "Kullanıcı Direktifi") -> bool:
-    """Kural değişikliklerini kalıcı olarak veritabanına loglar (Audit Trail)."""
+STRATEGY_PRESETS = {
+    "agile_21_august": {
+        "name": "🚀 Agresif & Çevik Mod (21 Ağustos Profili)",
+        "volume_spike_multiplier": 1.3,
+        "min_volume_usd": 8000.0,
+        "max_recent_gain_24h": 15.0,
+        "min_ai_score": 5.0,
+        "description": "Yüksek işlem sıklığı, dipten yeni kalkan altcoinleri 1.3x hacimle anında yakalar."
+    },
+    "defensive_22_august": {
+        "name": "🛡️ Defansif & Koruma Modu (22 Ağustos Profili)",
+        "volume_spike_multiplier": 1.8,
+        "min_volume_usd": 25000.0,
+        "max_recent_gain_24h": 8.5,
+        "min_ai_score": 6.0,
+        "description": "Düşük işlem sıklığı, yalnızca devasa balina patlamalarında (%8.5 altı) devreye girer."
+    }
+}
+
+_cached_strategy_config = None
+_cached_strategy_config_ts = 0
+
+def get_strategy_config() -> dict:
+    """Veritabanından aktif strateji ve risk profilini çeker."""
+    global _cached_strategy_config, _cached_strategy_config_ts
+    now = time.time()
+    if _cached_strategy_config and (now - _cached_strategy_config_ts < 15):
+        return _cached_strategy_config
+    
+    client = get_supabase()
+    if client:
+        try:
+            res = client.table("crypto_agent_states").select("state_data").eq("session_id", "system_strategy_config").execute()
+            if res.data and len(res.data) > 0:
+                _cached_strategy_config = res.data[0].get("state_data", {})
+                _cached_strategy_config_ts = now
+                return _cached_strategy_config
+        except Exception:
+            pass
+            
+    # Varsayılan profil: 21 Ağustos Agresif & Çevik Mod
+    _cached_strategy_config = {
+        "active_preset": "agile_21_august",
+        "volume_spike_multiplier": 1.3,
+        "min_volume_usd": 8000.0,
+        "max_recent_gain_24h": 15.0,
+        "min_ai_score": 5.0,
+        "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    }
+    _cached_strategy_config_ts = now
+    return _cached_strategy_config
+
+def save_strategy_config(config_data: dict) -> bool:
+    """Strateji ve risk profilini Supabase'e kaydeder."""
+    global _cached_strategy_config, _cached_strategy_config_ts
     client = get_supabase()
     if not client: return False
     try:
-        audit_id = f"rule_audit_{int(time.time() * 1000)}"
-        payload = {
-            "session_id": audit_id,
-            "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            "state_data": {
-                "rule_key": rule_key,
-                "old_value": old_val,
-                "new_value": new_val,
-                "modified_by": modified_by,
-                "reason": reason,
-                "timestamp": time.time()
-            }
-        }
-        client.table("crypto_agent_states").upsert(payload).execute()
-        print(f"📝 [Kural Değişikliği Loglandı]: {rule_key} -> {new_val} ({modified_by}: {reason})")
+        config_data["updated_at"] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        client.table("crypto_agent_states").upsert({
+            "session_id": "system_strategy_config",
+            "updated_at": config_data["updated_at"],
+            "state_data": config_data
+        }).execute()
+        _cached_strategy_config = config_data
+        _cached_strategy_config_ts = time.time()
         return True
     except Exception as e:
-        print(f"⚠️ [Kural Loglama Hatası]: {e}")
+        print(f"⚠️ [Strateji Kaydetme Hatası]: {e}")
         return False
 
 if __name__ == "__main__":

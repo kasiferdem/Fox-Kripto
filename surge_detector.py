@@ -51,13 +51,19 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     # Mum Formasyonu ve Alıcı Baskısı (Üst Fitil Analizi):
     upper_wick_ratio = ((last_candle["high"] - last_candle["close"]) / candle_range) if candle_range > 0 else 0.0
     
-    # ERKEN BALİNA KIRILIMI VE %20 KOŞU POTANSİYELİ ŞARTLARI:
-    # 1. Hacim İvmesi: Son 5dk hacmi ortalamanın en az 1.3x katı olmalı (21 Ağustos kârlı seviyesi)
-    # 2. Hacim Büyüklüğü: Son 5 dakikada en az 8,000$ değerinde gerçek emir infaz edilmiş olmalı
-    # 3. Kırılım Başlangıcı: Fiyat değişimi %0.8 ile %7.0 arasında olmalı
-    # 4. Satış Direnci: Üst fitil %45'in altında olmalı
-    # 5. 24 Saatlik Değişim Sınırı: %+15.0'i aşmamış olmalı (Geniş fırsat penceresi)
-    if volume_spike_ratio >= 1.3 and recent_5m_volume >= min_volume_usd and (0.8 <= price_change_5m <= 7.0) and upper_wick_ratio <= 0.45 and (price_change_24h <= 15.0):
+    # DİNAMİK STRATEJİ VE RİSK PROFİLİ OKUMA:
+    try:
+        from db import get_strategy_config
+        strat = get_strategy_config()
+        min_spike_req = float(strat.get("volume_spike_multiplier", 1.3))
+        min_vol_req = float(strat.get("min_volume_usd", min_volume_usd))
+        max_24h_req = float(strat.get("max_recent_gain_24h", 15.0))
+    except Exception:
+        min_spike_req = 1.3
+        min_vol_req = min_volume_usd
+        max_24h_req = 15.0
+
+    if volume_spike_ratio >= min_spike_req and recent_5m_volume >= min_vol_req and (0.8 <= price_change_5m <= 7.0) and upper_wick_ratio <= 0.45 and (price_change_24h <= max_24h_req):
         momentum_score = min(10.0, round(5.0 + (volume_spike_ratio * 0.5) + (price_change_5m * 0.4), 1))
         clean_base = sym.replace("USDT", "").replace("TRY", "")
         quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
