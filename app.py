@@ -939,12 +939,12 @@ def get_dashboard_html():
             .log-item:last-child { border-bottom: none; }
             .input-inline { width: 68px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: rgba(15, 23, 42, 0.8); color: white; font-size: 13px; text-align: center; }
             .input-inline:focus { border-color: var(--accent); }
-            .switch { position: relative; display: inline-block; width: 44px; height: 24px; margin-bottom: 0; }
+            .switch { position: relative; display: inline-block; width: 48px; height: 24px; margin-bottom: 0; }
             .switch input { opacity: 0; width: 0; height: 0; }
-            .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .3s; border-radius: 24px; border: 1px solid var(--border); }
-            .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
-            input:checked + .slider { background-color: #10b981; }
-            input:checked + .slider:before { transform: translateX(20px); }
+            .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #475569; transition: .3s; border-radius: 24px; border: 1px solid var(--border); }
+            .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+            input:checked + .slider { background-color: #10b981 !important; }
+            input:checked + .slider:before { transform: translateX(24px) !important; background-color: #ffffff !important; }
         </style>
     </head>
     <body>
@@ -1389,7 +1389,7 @@ __SSR_TENANTS_HTML__
                 try {
                     const res = await fetch('/api/tenants/' + tenantId + '/settings', {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify({take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: mb, exchange_id: exch, preferred_language: lang})
                     });
                     const resData = await res.json();
