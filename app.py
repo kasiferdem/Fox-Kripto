@@ -740,6 +740,32 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
 @app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/admin", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 def get_dashboard_html():
+    from db import get_supabase
+    import json
+    tenants_ssr_json = "[]"
+    try:
+        client = get_supabase()
+        if client:
+            res = client.table("user_tenants").select("*").order("created_at", desc=False).execute()
+            raw = res.data or []
+            clean = []
+            for t in raw:
+                st = dict(t)
+                st.pop("exchange_secret_key", None)
+                raw_k = str(st.pop("exchange_api_key", ""))
+                st["exchange_api_key_configured"] = bool(raw_k)
+                if raw_k.startswith("{"):
+                    try:
+                        kd = json.loads(raw_k)
+                        st["take_profit_percent"] = float(kd.get("take_profit_percent") or st.get("take_profit_percent") or 1.5)
+                        st["preferred_language"] = str(kd.get("preferred_language") or st.get("preferred_language") or "tr")
+                    except Exception:
+                        pass
+                clean.append(st)
+            tenants_ssr_json = json.dumps(clean)
+    except Exception as e:
+        print(f"SSR Error: {e}")
+
     html_content = """
     <!DOCTYPE html>
     <html lang="tr">
@@ -1065,76 +1091,84 @@ def get_dashboard_html():
                 loadData();
             }
 
-            async function loadTenantsTable() {
+            function renderTenants(tenantsList) {
                 const t = dict[currentLang] || dict.tr;
                 const table = document.getElementById('tenants-table');
+                if (!table) return;
+                const countEl = document.getElementById('tenant-count');
+                if (countEl) countEl.innerText = `${tenantsList.length} ${t.activeSuffix || 'Aktif'}`;
+                
+                if (!tenantsList || tenantsList.length === 0) {
+                    table.innerHTML = `<tr><td colspan="9" style="color: var(--text-muted); padding: 16px; text-align: center;">${t.noUsers || 'Henüz eklenmiş kullanıcı yok.'}</td></tr>`;
+                    return;
+                }
+                table.innerHTML = tenantsList.map((user, idx) => {
+                    const safeName = (user.tenant_name || 'Kullanıcı').replace(/'/g, "\\'");
+                    const safeId = user.id || '';
+                    const tp = user.take_profit_percent || 1.5;
+                    const sl = user.stop_loss_percent || 1.5;
+                    const mb = user.max_budget_percent || 10;
+                    const exch = user.exchange_id || 'dual';
+                    const lang = user.preferred_language || 'tr';
+                    
+                    return `
+                        <tr>
+                            <td>
+                                <span style="cursor: pointer; color: #60a5fa; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" onclick="openUserPortfolioModal('${safeId}', '${safeName}')">
+                                    🔍 ${user.tenant_name}
+                                </span>
+                            </td>
+                            <td><code>${user.telegram_chat_id}</code></td>
+                            <td>
+                                <input type="number" step="0.1" class="input-inline" id="tp_${idx}" value="${tp}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-inline" id="sl_${idx}" value="${sl}">
+                            </td>
+                            <td>
+                                <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${mb}">
+                            </td>
+                            <td>
+                                <select class="input-inline" style="width: 110px;" id="exch_${idx}">
+                                    <option value="dual" ${exch === 'dual' ? 'selected' : ''}>⚡ Çift Borsa</option>
+                                    <option value="binancetr" ${exch === 'binancetr' ? 'selected' : ''}>🇹🇷 Binance TR</option>
+                                    <option value="binance" ${exch === 'binance' ? 'selected' : ''}>🌍 Global</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select class="input-inline" style="width: 78px;" id="lang_${idx}">
+                                    <option value="tr" ${lang === 'tr' ? 'selected' : ''}>🇹🇷 TR</option>
+                                    <option value="en" ${lang === 'en' ? 'selected' : ''}>🇬🇧 EN</option>
+                                </select>
+                            </td>
+                            <td>
+                                <span class="badge badge-active" style="cursor: pointer;" onclick="openUserPortfolioModal('${safeId}', '${safeName}')">📊 Cüzdanı Gör</span>
+                            </td>
+                            <td>
+                                <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${safeId}', ${idx}, '${safeName}')">${t.save || 'Kaydet'}</button>
+                                <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('${safeId}')">${t.del || 'Sil'}</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            const SSR_DATA = __SSR_TENANTS_DATA__;
+
+            async function loadTenantsTable() {
+                if (Array.isArray(SSR_DATA) && SSR_DATA.length > 0) {
+                    renderTenants(SSR_DATA);
+                }
                 try {
                     const res = await fetch('/api/tenants', { headers: getAuthHeaders() });
-                    if (!res.ok) {
-                        table.innerHTML = `<tr><td colspan="9" style="color: var(--danger); padding: 12px;">❌ Yetkilendirme Hatası (${res.status}). Sayfayı yenileyin.</td></tr>`;
-                        return;
-                    }
-                    const data = await res.json();
-                    const tenantsList = (data && Array.isArray(data.tenants)) ? data.tenants : [];
-                    const countEl = document.getElementById('tenant-count');
-                    if (countEl) countEl.innerText = `${tenantsList.length} ${t.activeSuffix || 'Aktif'}`;
-                    
-                    if (tenantsList.length === 0) {
-                        table.innerHTML = `<tr><td colspan="9" style="color: var(--text-muted); padding: 16px; text-align: center;">${t.noUsers || 'Henüz eklenmiş kullanıcı yok.'}</td></tr>`;
-                    } else {
-                        table.innerHTML = tenantsList.map((user, idx) => {
-                            const safeName = (user.tenant_name || 'Kullanıcı').replace(/'/g, "\\'");
-                            const safeId = user.id || '';
-                            const tp = user.take_profit_percent || 1.5;
-                            const sl = user.stop_loss_percent || 1.5;
-                            const mb = user.max_budget_percent || 10;
-                            const exch = user.exchange_id || 'dual';
-                            const lang = user.preferred_language || 'tr';
-                            
-                            return `
-                                <tr>
-                                    <td>
-                                        <span style="cursor: pointer; color: #60a5fa; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" onclick="openUserPortfolioModal('${safeId}', '${safeName}')">
-                                            🔍 ${user.tenant_name}
-                                        </span>
-                                    </td>
-                                    <td><code>${user.telegram_chat_id}</code></td>
-                                    <td>
-                                        <input type="number" step="0.1" class="input-inline" id="tp_${idx}" value="${tp}">
-                                    </td>
-                                    <td>
-                                        <input type="number" step="0.1" class="input-inline" id="sl_${idx}" value="${sl}">
-                                    </td>
-                                    <td>
-                                        <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${mb}">
-                                    </td>
-                                    <td>
-                                        <select class="input-inline" style="width: 110px;" id="exch_${idx}">
-                                            <option value="dual" ${exch === 'dual' ? 'selected' : ''}>⚡ Çift Borsa</option>
-                                            <option value="binancetr" ${exch === 'binancetr' ? 'selected' : ''}>🇹🇷 Binance TR</option>
-                                            <option value="binance" ${exch === 'binance' ? 'selected' : ''}>🌍 Global</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <select class="input-inline" style="width: 78px;" id="lang_${idx}">
-                                            <option value="tr" ${lang === 'tr' ? 'selected' : ''}>🇹🇷 TR</option>
-                                            <option value="en" ${lang === 'en' ? 'selected' : ''}>🇬🇧 EN</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <span class="badge badge-active" style="cursor: pointer;" onclick="openUserPortfolioModal('${safeId}', '${safeName}')">📊 Cüzdanı Gör</span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${safeId}', ${idx}, '${safeName}')">${t.save || 'Kaydet'}</button>
-                                        <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('${safeId}')">${t.del || 'Sil'}</button>
-                                    </td>
-                                </tr>
-                            `;
-                        }).join('');
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && Array.isArray(data.tenants)) {
+                            renderTenants(data.tenants);
+                        }
                     }
                 } catch(err) {
-                    console.error('Tenants load error:', err);
-                    table.innerHTML = `<tr><td colspan="9" style="color: var(--danger); padding: 12px;">Hata: ${err.message}</td></tr>`;
+                    console.error('Tenants background refresh error:', err);
                 }
             }
 
@@ -1581,7 +1615,7 @@ def get_dashboard_html():
     </body>
     </html>
     """
-    return HTMLResponse(content=html_content)
+    return HTMLResponse(content=html_content.replace("__SSR_TENANTS_DATA__", tenants_ssr_json))
 
 if __name__ == "__main__":
     import uvicorn

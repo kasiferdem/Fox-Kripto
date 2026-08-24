@@ -2,6 +2,8 @@
 # FOX-KRİPTO DIGITALOCEAN DOCKERFILE
 # -----------------------------------------
 FROM python:3.12-slim
+LABEL maintainer="FoxKripto"
+LABEL build.version="20260824-v3-fresh"
 
 # Çalışma dizinini ayarla
 WORKDIR /app
