@@ -1065,66 +1065,89 @@ def get_dashboard_html():
                 loadData();
             }
 
-            async function loadData() {
-                const t = dict[currentLang];
+            async function loadTenantsTable() {
+                const t = dict[currentLang] || dict.tr;
                 const table = document.getElementById('tenants-table');
                 try {
                     const res = await fetch('/api/tenants', { headers: getAuthHeaders() });
+                    if (!res.ok) {
+                        table.innerHTML = `<tr><td colspan="9" style="color: var(--danger); padding: 12px;">❌ Yetkilendirme Hatası (${res.status}). Sayfayı yenileyin.</td></tr>`;
+                        return;
+                    }
                     const data = await res.json();
-                    const tenantsList = (data && data.tenants) ? data.tenants : [];
-                    document.getElementById('tenant-count').innerText = `${tenantsList.length} ${t.activeSuffix}`;
+                    const tenantsList = (data && Array.isArray(data.tenants)) ? data.tenants : [];
+                    const countEl = document.getElementById('tenant-count');
+                    if (countEl) countEl.innerText = `${tenantsList.length} ${t.activeSuffix || 'Aktif'}`;
                     
                     if (tenantsList.length === 0) {
-                        table.innerHTML = `<tr><td colspan="9" style="color: var(--text-muted);">${t.noUsers}</td></tr>`;
+                        table.innerHTML = `<tr><td colspan="9" style="color: var(--text-muted); padding: 16px; text-align: center;">${t.noUsers || 'Henüz eklenmiş kullanıcı yok.'}</td></tr>`;
                     } else {
-                        table.innerHTML = tenantsList.map((user, idx) => `
-                            <tr>
-                                <td>
-                                    <span style="cursor: pointer; color: #60a5fa; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" onclick="openUserPortfolioModal('${user.id}', '${user.tenant_name}')">
-                                        🔍 ${user.tenant_name}
-                                    </span>
-                                </td>
-                                <td><code>${user.telegram_chat_id}</code></td>
-                                <td>
-                                    <input type="number" step="0.1" class="input-inline" id="tp_${idx}" value="${user.take_profit_percent || 1.5}">
-                                </td>
-                                <td>
-                                    <input type="number" step="0.1" class="input-inline" id="sl_${idx}" value="${user.stop_loss_percent || 1.5}">
-                                </td>
-                                <td>
-                                    <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${user.max_budget_percent || 10}">
-                                </td>
-                                <td>
-                                    <select class="input-inline" style="width: 110px;" id="exch_${idx}">
-                                        <option value="dual" ${(!user.exchange_id || user.exchange_id === 'dual') ? 'selected' : ''}>⚡ Çift Borsa</option>
-                                        <option value="binancetr" ${user.exchange_id === 'binancetr' ? 'selected' : ''}>🇹🇷 Binance TR</option>
-                                        <option value="binance" ${user.exchange_id === 'binance' ? 'selected' : ''}>🌍 Global</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <select class="input-inline" style="width: 78px;" id="lang_${idx}">
-                                        <option value="tr" ${user.preferred_language === 'en' ? '' : 'selected'}>🇹🇷 TR</option>
-                                        <option value="en" ${user.preferred_language === 'en' ? 'selected' : ''}>🇬🇧 EN</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <span class="badge badge-active" style="cursor: pointer;" onclick="openUserPortfolioModal('${user.id}', '${user.tenant_name}')">📊 Cüzdanı Gör</span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${user.id}', ${idx}, '${user.tenant_name}')">${t.save}</button>
-                                    <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('${user.id}')">${t.del}</button>
-                                </td>
-                            </tr>
-                        `).join('');
+                        table.innerHTML = tenantsList.map((user, idx) => {
+                            const safeName = (user.tenant_name || 'Kullanıcı').replace(/'/g, "\\'");
+                            const safeId = user.id || '';
+                            const tp = user.take_profit_percent || 1.5;
+                            const sl = user.stop_loss_percent || 1.5;
+                            const mb = user.max_budget_percent || 10;
+                            const exch = user.exchange_id || 'dual';
+                            const lang = user.preferred_language || 'tr';
+                            
+                            return `
+                                <tr>
+                                    <td>
+                                        <span style="cursor: pointer; color: #60a5fa; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" onclick="openUserPortfolioModal('${safeId}', '${safeName}')">
+                                            🔍 ${user.tenant_name}
+                                        </span>
+                                    </td>
+                                    <td><code>${user.telegram_chat_id}</code></td>
+                                    <td>
+                                        <input type="number" step="0.1" class="input-inline" id="tp_${idx}" value="${tp}">
+                                    </td>
+                                    <td>
+                                        <input type="number" step="0.1" class="input-inline" id="sl_${idx}" value="${sl}">
+                                    </td>
+                                    <td>
+                                        <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${mb}">
+                                    </td>
+                                    <td>
+                                        <select class="input-inline" style="width: 110px;" id="exch_${idx}">
+                                            <option value="dual" ${exch === 'dual' ? 'selected' : ''}>⚡ Çift Borsa</option>
+                                            <option value="binancetr" ${exch === 'binancetr' ? 'selected' : ''}>🇹🇷 Binance TR</option>
+                                            <option value="binance" ${exch === 'binance' ? 'selected' : ''}>🌍 Global</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select class="input-inline" style="width: 78px;" id="lang_${idx}">
+                                            <option value="tr" ${lang === 'tr' ? 'selected' : ''}>🇹🇷 TR</option>
+                                            <option value="en" ${lang === 'en' ? 'selected' : ''}>🇬🇧 EN</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-active" style="cursor: pointer;" onclick="openUserPortfolioModal('${safeId}', '${safeName}')">📊 Cüzdanı Gör</span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${safeId}', ${idx}, '${safeName}')">${t.save || 'Kaydet'}</button>
+                                        <button class="btn btn-danger" style="padding: 5px 10px;" onclick="deleteTenant('${safeId}')">${t.del || 'Sil'}</button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
                     }
+                } catch(err) {
+                    console.error('Tenants load error:', err);
+                    table.innerHTML = `<tr><td colspan="9" style="color: var(--danger); padding: 12px;">Hata: ${err.message}</td></tr>`;
+                }
+            }
 
-                    // Logları Yükle
+            async function loadLogsTable() {
+                const t = dict[currentLang] || dict.tr;
+                const logContainer = document.getElementById('logs-container');
+                try {
                     const logRes = await fetch('/api/trade-logs', { headers: getAuthHeaders() });
+                    if (!logRes.ok) return;
                     const logData = await logRes.json();
-                    const logContainer = document.getElementById('logs-container');
-                    const logsList = (logData && logData.logs) ? logData.logs : [];
+                    const logsList = (logData && Array.isArray(logData.logs)) ? logData.logs : [];
                     if (logsList.length === 0) {
-                        logContainer.innerHTML = `<p style="color: var(--text-muted);">${t.noLogs}</p>`;
+                        logContainer.innerHTML = `<p style="color: var(--text-muted);">${t.noLogs || 'Henüz kayıtlı işlem logu yok.'}</p>`;
                     } else {
                         logContainer.innerHTML = `
                             <div style="overflow-x: auto;">
@@ -1142,7 +1165,7 @@ def get_dashboard_html():
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${logData.logs.map(l => {
+                                        ${logsList.map(l => {
                                             const d = l.created_at ? new Date(l.created_at).toLocaleString(currentLang === 'tr' ? 'tr-TR' : 'en-US') : '—';
                                             const isBuy = (l.direction || 'BUY').toUpperCase() === 'BUY';
                                             const dirBadge = isBuy ? '<span style="color: var(--success); font-weight: bold;">🛒 ALIM (BUY)</span>' : '<span style="color: var(--danger); font-weight: bold;">🎯 SATIM (SELL)</span>';
@@ -1155,18 +1178,22 @@ def get_dashboard_html():
                                             if (isExec) {
                                                 badgeHtml = `<span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success);">✅ Canlı İnfaz Edildi</span>`;
                                             } else if (isFailed) {
-                                                badgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger);">⏳ Nakit Beklemede (Hold)</span>`;
+                                                badgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger);">❌ İnfaz Başarısız</span>`;
                                             } else {
-                                                badgeHtml = `<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--accent);">${l.human_approval || 'Approved'}</span>`;
+                                                badgeHtml = `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">⏳ Beklemede</span>`;
                                             }
-                                            
-                                            const formattedPrice = l.entry_price ? (Number(l.entry_price) < 1 ? Number(l.entry_price).toFixed(4) : Number(l.entry_price).toLocaleString()) : '—';
+
+                                            let formattedPrice = '—';
+                                            if (l.entry_price) {
+                                                const pNum = Number(l.entry_price);
+                                                formattedPrice = pNum < 0.001 ? pNum.toFixed(6) : pNum.toFixed(4);
+                                            }
                                             
                                             return `
                                                 <tr style="border-bottom: 1px solid var(--border); font-size: 13px;">
-                                                    <td style="padding: 10px;"><strong>${l.tenant_name || 'Ana Kullanıcı'}</strong></td>
-                                                    <td style="padding: 10px;">${dirBadge} <code>${l.symbol}</code></td>
-                                                    <td style="padding: 10px;"><strong>$${l.amount_usd || 10} USD</strong></td>
+                                                    <td style="padding: 10px;"><strong>${l.tenant_name || 'S'}</strong></td>
+                                                    <td style="padding: 10px;">${dirBadge} <code>${l.symbol || '—'}</code></td>
+                                                    <td style="padding: 10px;">$${Number(l.amount_usd || 0).toFixed(2)}</td>
                                                     <td style="padding: 10px;">$${formattedPrice}</td>
                                                     <td style="padding: 10px; color: var(--text-muted);">$${l.take_profit_price || '—'} / $${l.stop_loss_price || '—'}</td>
                                                     <td style="padding: 10px;"><span style="color: var(--accent); font-weight: bold;">${score} / +10</span></td>
@@ -1183,7 +1210,14 @@ def get_dashboard_html():
                             </div>
                         `;
                     }
-                } catch(e) { console.error(e); }
+                } catch(err) {
+                    console.error('Logs load error:', err);
+                }
+            }
+
+            async function loadData() {
+                await loadTenantsTable();
+                await loadLogsTable();
             }
 
             async function updateSettings(tenantId, idx, name) {
