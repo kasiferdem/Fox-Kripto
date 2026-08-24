@@ -611,7 +611,9 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
         
         payload = {
             "stop_loss_percent": req.stop_loss_percent,
-            "max_budget_percent": req.max_budget_percent
+            "max_budget_percent": req.max_budget_percent,
+            "take_profit_percent": req.take_profit_percent,
+            "preferred_language": req.preferred_language
         }
         if req.exchange_id:
             payload["exchange_id"] = req.exchange_id
@@ -635,6 +637,10 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
             payload["exchange_api_key"] = json.dumps(kd)
                 
         res = client.table("user_tenants").update(payload).eq("id", tenant_id).execute()
+        from db import _tenant_cache
+        tg_id = t_row.get("telegram_chat_id")
+        if tg_id:
+            _tenant_cache.pop(int(tg_id), None)
         return {"status": "success", "message": "Ayarlar başarıyla güncellendi.", "data": res.data}
     except Exception as e:
         print(f"❌ [Settings Update Error]: {e}")
