@@ -940,12 +940,12 @@ def get_dashboard_html():
             .log-item:last-child { border-bottom: none; }
             .input-inline { width: 68px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: rgba(15, 23, 42, 0.8); color: white; font-size: 13px; text-align: center; }
             .input-inline:focus { border-color: var(--accent); }
-            .switch { position: relative; display: inline-block; width: 48px; height: 24px; margin-bottom: 0; }
+            .switch { position: relative; display: inline-block; width: 44px; height: 22px; margin-bottom: 0; }
             .switch input { opacity: 0; width: 0; height: 0; }
-            .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #475569; transition: .3s; border-radius: 24px; border: 1px solid var(--border); }
-            .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+            .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .2s ease; border-radius: 22px; border: 1px solid var(--border); }
+            .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .2s ease; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
             input:checked + .slider { background-color: #10b981 !important; }
-            input:checked + .slider:before { transform: translateX(24px) !important; background-color: #ffffff !important; }
+            input:checked + .slider:before { transform: translateX(22px) !important; background-color: #ffffff !important; }
         </style>
     </head>
     <body>
@@ -958,10 +958,10 @@ def get_dashboard_html():
                 <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px;">
                     <span id="i18n-lbl-trailing" style="font-size: 13px; font-weight: 600; color: #60a5fa;">🚀 İz Süren Stop (Trailing SL):</span>
                     <label class="switch">
-                        <input type="checkbox" id="trailing-stop-toggle" onchange="toggleTrailingStop(this.checked)">
+                        <input type="checkbox" id="trailing-stop-toggle" __TRAILING_CHECKED__ onchange="toggleTrailingStop(this.checked)">
                         <span class="slider"></span>
                     </label>
-                    <span id="trailing-status-text" style="font-size: 12px; font-weight: bold; color: var(--success);">AÇIK</span>
+                    <span id="trailing-status-text" style="font-size: 12px; font-weight: bold; color: __TRAILING_COLOR__;">__TRAILING_STATUS__</span>
                 </div>
                 <div class="lang-switch">
                     <button id="btn-tr" class="lang-btn active" onclick="changeLang('tr')">🇹🇷 Türkçe</button>
@@ -1740,12 +1740,21 @@ __SSR_TENANTS_HTML__
     </body>
     </html>
     """
+    from db import get_system_setting
+    trailing_stop_enabled = bool(get_system_setting("trailing_stop_enabled", True))
+    trailing_checked = "checked" if trailing_stop_enabled else ""
+    trailing_status = "AÇIK" if trailing_stop_enabled else "KAPALI"
+    trailing_color = "var(--success)" if trailing_stop_enabled else "var(--danger)"
+
     res_html = (
         html_content
         .replace("__SSR_TENANTS_DATA__", tenants_ssr_json)
         .replace("__SSR_TENANTS_HTML__", tenants_ssr_html)
         .replace("__SSR_LOGS_HTML__", logs_ssr_html)
         .replace("__TENANT_COUNT__", f"{len(clean)} Aktif")
+        .replace("__TRAILING_CHECKED__", trailing_checked)
+        .replace("__TRAILING_STATUS__", trailing_status)
+        .replace("__TRAILING_COLOR__", trailing_color)
     )
     return HTMLResponse(content=res_html)
 
