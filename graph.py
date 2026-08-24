@@ -418,6 +418,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         coin_perf = get_coin_historical_performance(tenant_id, c_base)
         perf_insight = coin_perf.get("insight_summary", "Geçmiş veri yok.")
         
+        dynamic_budget_pct = round(100.0 / target_slots, 1)
         selected_proposal = {
             "should_trade": True,
             "symbol": fresh_coin,
