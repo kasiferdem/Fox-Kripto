@@ -607,34 +607,29 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
             
         t_row = curr.data[0]
         api_k = str(t_row.get("exchange_api_key", ""))
-        sec_k = str(t_row.get("exchange_secret_key", ""))
-        
         payload = {
-            "stop_loss_percent": req.stop_loss_percent,
-            "max_budget_percent": req.max_budget_percent,
-            "take_profit_percent": req.take_profit_percent,
-            "preferred_language": req.preferred_language
+            "stop_loss_percent": float(req.stop_loss_percent),
+            "max_budget_percent": float(req.max_budget_percent),
+            "exchange_id": str(req.exchange_id or "binance")
         }
-        if req.exchange_id:
-            payload["exchange_id"] = req.exchange_id
         
         import json
+        kd = {}
         if api_k.startswith("{"):
             try:
                 kd = json.loads(api_k)
-                kd["take_profit_percent"] = req.take_profit_percent
-                kd["preferred_language"] = req.preferred_language
-                payload["exchange_api_key"] = json.dumps(kd)
             except Exception:
-                pass
+                kd = {}
         else:
             kd = {
-                "api_key": api_k,
-                "secret_key": sec_k,
-                "take_profit_percent": req.take_profit_percent,
-                "preferred_language": req.preferred_language
+                "binance": {
+                    "api_key": api_k,
+                    "secret_key": sec_k
+                }
             }
-            payload["exchange_api_key"] = json.dumps(kd)
+        kd["take_profit_percent"] = float(req.take_profit_percent)
+        kd["preferred_language"] = str(req.preferred_language or "tr")
+        payload["exchange_api_key"] = json.dumps(kd)
                 
         res = client.table("user_tenants").update(payload).eq("id", tenant_id).execute()
         from db import _tenant_cache
