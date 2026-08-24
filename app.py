@@ -481,6 +481,7 @@ class SystemSettingsRequest(BaseModel):
 # API ROTALARI (KULLANICI EKLE / SİL / LİSTELE)
 # -----------------------------------------
 @app_api.get("/health")
+@app_api.get("/")
 def health_check():
     return {"status": "healthy", "service": "Fox-Kripto Multi-Tenant Dashboard", "version": "2.1.0-explain-trade"}
 
@@ -738,7 +739,6 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
 # WEB DASHBOARD (HTML / JAVASCRIPT ARAYÜZÜ)
 @app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/admin", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
-@app_api.get("/", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 def get_dashboard_html():
     html_content = """
     <!DOCTYPE html>
