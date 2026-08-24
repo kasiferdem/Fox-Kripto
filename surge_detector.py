@@ -52,12 +52,12 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     upper_wick_ratio = ((last_candle["high"] - last_candle["close"]) / candle_range) if candle_range > 0 else 0.0
     
     # ERKEN BALİNA KIRILIMI VE %20 KOŞU POTANSİYELİ ŞARTLARI:
-    # 1. Hacim İvmesi: Son 5dk hacmi ortalamanın en az 1.8x - 15.0x katı olmalı (Agresif Balina Girişi)
-    # 2. Hacim Büyüklüğü: Son 5 dakikada en az 15,000$ değerinde gerçek emir infaz edilmiş olmalı
-    # 3. Kırılım Başlangıcı: Fiyat değişimi tam %1.0 ile %5.5 arasında olmalı (Koşunun en başı!)
-    # 4. Satış Direnci Yok: Üst fitil %35'in altında olmalı
-    # 5. 24 Saatlik Değişim Sınırı: %+8.5'i aşmamış olmalı (FOMO engeli)
-    if volume_spike_ratio >= 1.8 and recent_5m_volume >= min_volume_usd and (1.0 <= price_change_5m <= 5.5) and upper_wick_ratio <= 0.35 and (price_change_24h <= 8.5):
+    # 1. Hacim İvmesi: Son 5dk hacmi ortalamanın en az 1.3x katı olmalı (21 Ağustos kârlı seviyesi)
+    # 2. Hacim Büyüklüğü: Son 5 dakikada en az 8,000$ değerinde gerçek emir infaz edilmiş olmalı
+    # 3. Kırılım Başlangıcı: Fiyat değişimi %0.8 ile %7.0 arasında olmalı
+    # 4. Satış Direnci: Üst fitil %45'in altında olmalı
+    # 5. 24 Saatlik Değişim Sınırı: %+15.0'i aşmamış olmalı (Geniş fırsat penceresi)
+    if volume_spike_ratio >= 1.3 and recent_5m_volume >= min_volume_usd and (0.8 <= price_change_5m <= 7.0) and upper_wick_ratio <= 0.45 and (price_change_24h <= 15.0):
         momentum_score = min(10.0, round(5.0 + (volume_spike_ratio * 0.5) + (price_change_5m * 0.4), 1))
         clean_base = sym.replace("USDT", "").replace("TRY", "")
         quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
@@ -95,7 +95,7 @@ def get_active_trading_symbols():
         pass
     return _cached_active_symbols
 
-def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 25000.0, max_recent_gain: float = 5.5) -> List[Dict[str, Any]]:
+def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 8000.0, max_recent_gain: float = 7.0) -> List[Dict[str, Any]]:
     """
     Tüm Binance USDT veya TRY tahtasını paralel tarayarak:
     1. YALNIZCA aktif işlem gören ve YÜKSEK LİKİDİTEYE sahip spot tahtaları seçer (Slippage ve tahta boşluğu engeli).

@@ -330,16 +330,15 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         # -------------------------------------------------------------
         # 1. KURAL: DİP GİRİŞ KONTROLÜ (Pre-Pump Ground-Floor Filter)
         # -------------------------------------------------------------
-        # Eğer bir coin son 24 saatte %+8.5 üzeri primlenmişse veya 5 dakikada %+5.5'i aşmışsa tepeye girilmez!
+        # 24 saatte %+15.0 ve 5 dakikada %+7.0'yi aşmamış taze hareketler yakalanır.
         cand_24h_change = float(best_candidate_meta.get("price_change_24h", 0.0))
-        if cand_24h_change > 8.5 or price_change_5m > 5.5:
-            print(f"   🛑 [1. Kural Reddi]: {c_base} zaten %+8.5 üzeri primli veya ani fırlamış (24s: %{cand_24h_change:+.1f}, 5dk: %{price_change_5m:+.1f}). FOMO engellendi.")
+        if cand_24h_change > 15.0 or price_change_5m > 7.0:
+            print(f"   🛑 [1. Kural Reddi]: {c_base} aşırı primli (24s: %{cand_24h_change:+.1f}, 5dk: %{price_change_5m:+.1f}). FOMO engellendi.")
             continue
 
         # -------------------------------------------------------------
         # 2. KURAL: DOYUM NOKTASI VE DERİNLİK ANALİZİ (Saturation Engine)
         # -------------------------------------------------------------
-        # Tahtadaki anlık alış/satış derinliği ve doyum seviyesi incelenir (Fail-Closed).
         try:
             depth_res = requests.get(f"https://api.binance.com/api/v3/depth?symbol={target_pair_clean}&limit=10", timeout=2).json()
             bids_vol = sum(float(b[1]) for b in depth_res.get("bids", []))
@@ -352,25 +351,23 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
             print(f"   🛑 [2. Kural Reddi]: {c_base} tahta derinliği okunamadı ({e_depth}). Fail-Closed gereği alım iptal.")
             continue
 
-        # Satış baskısı alışın 1.3 katından fazlaysa (Alış/Satış < 0.77): Doyum noktasına ulaşılmıştır!
-        if asks_vol > (bids_vol * 1.3) or orderbook_ratio < 0.77:
-            print(f"   🛑 [2. Kural Reddi]: {c_base} tahtasında doyum ve satış baskısı tespit edildi (Alış/Satış Oranı: {orderbook_ratio:.2f}). Alım iptal.")
+        # Satış baskısı alışın 1.5 katından fazlaysa (Alış/Satış < 0.65): Doyum noktasına ulaşılmıştır!
+        if asks_vol > (bids_vol * 1.5) or orderbook_ratio < 0.65:
+            print(f"   🛑 [2. Kural Reddi]: {c_base} tahtasında ağır satış baskısı (Alış/Satış: {orderbook_ratio:.2f}). Alım iptal.")
             continue
 
-        orderbook_boost = 1.0 if orderbook_ratio >= 1.3 else (0.0 if orderbook_ratio >= 0.9 else -1.0)
+        orderbook_boost = 1.0 if orderbook_ratio >= 1.2 else (0.0 if orderbook_ratio >= 0.8 else -0.5)
         ai_conviction_score = min(10.0, max(1.0, round(base_score + orderbook_boost, 1)))
 
         # -------------------------------------------------------------
-        # 3. KURAL: KÂR VE ZARAR SONRASI ZORUNLU DİNLENME SOĞUMASI (Strict Cooldown Filter)
+        # 3. KURAL: KÂR VE ZARAR SONRASI DİNLENME SOĞUMASI (Cooldown Filter)
         # -------------------------------------------------------------
-        # Kârlı veya zararlı çıkış fark etmeksizin, aynı coinin tepe fitilinden (bull trap)
-        # tekrar alınmasını önlemek için 30 dakika boyunca kesin dinlenme uygulanır!
         is_recently_sold = (c_base in active_db_cooldowns)
         if is_recently_sold:
-            print(f"   ⏳ [3. Kural - Soğuma Kilidi Aktif]: {c_base} yakın zamanda satıldığı için zorunlu 30 dk dinlenme modunda. Tepe tuzağı (Bull Trap) ve intikam alımını önlemek için işlem engellendi.")
+            print(f"   ⏳ [3. Kural - Soğuma Kilidi]: {c_base} yakın zamanda satıldığı için dinlenmede.")
             continue
 
-        if ai_conviction_score < 6.0:
+        if ai_conviction_score < 5.0:
             continue
             
         # 🎯 KASA MATEMATİĞİ (TOPLAM KASA / SLOT SAYISI):
