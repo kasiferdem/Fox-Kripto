@@ -51,6 +51,7 @@ def register_user_tenant(
             "is_active": True
         }
         res = client.table("user_tenants").upsert(payload, on_conflict="telegram_chat_id").execute()
+        _tenant_cache.pop(telegram_chat_id, None)
         print(f"✅ [Multi-Tenant]: Kullanıcı '{tenant_name}' (Chat ID: {telegram_chat_id}) başarıyla kaydedildi.")
         return res.data[0] if res.data else None
     except Exception as e:
