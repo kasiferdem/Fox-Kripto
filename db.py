@@ -526,6 +526,25 @@ def get_system_setting(key: str, default: Any = None) -> Any:
         print(f"⚠️ [Sistem Ayarı Okuma Hatası]: {e}")
         return default
 
+def set_system_setting(key: str, value: Any) -> bool:
+    """Supabase crypto_agent_states üzerinden global sistem ayarını yazar."""
+    client = get_supabase()
+    if not client: return False
+    session_id = "global_system_settings"
+    try:
+        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
+        data = (res.data[0].get("state_data") if res.data and len(res.data) > 0 else {}) or {}
+        data[key] = value
+        client.table("crypto_agent_states").upsert({
+            "session_id": session_id,
+            "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            "state_data": data
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"⚠️ [Sistem Ayarı Kaydetme Hatası]: {e}")
+        return False
+
 # ----------------------------------------------------
 # FOX-KRİPTO SİSTEM KURALLARI ANAYASASI & AUDIT LOGLAMA
 # ----------------------------------------------------
