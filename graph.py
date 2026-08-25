@@ -182,9 +182,34 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                     recorded_buy_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else 0.0
                     pos_sl_price = float(entry_info.get("stop_loss_price") or 0.0) if isinstance(entry_info, dict) else 0.0
                     pos_tp_price = float(entry_info.get("take_profit_price") or 0.0) if isinstance(entry_info, dict) else 0.0
-                    stage = str(entry_info.get("stage") or "INITIAL")
-                    highest_p = float(entry_info.get("highest_price") or recorded_buy_p)
-                    
+                    # Eğer DB'de alış fiyatı yoksa, doğrudan borsanın resmi işlem defterinden (/myTrades) çek:
+                    if recorded_buy_p <= 0.0:
+                        kd = tenant_config.get("keys_data") or {}
+                        api_k = (kd.get("binancetr" if is_tr_silo else "binance", {}) or {}).get("api_key") or tenant_config.get("exchange_api_key")
+                        sec_k = (kd.get("binancetr" if is_tr_silo else "binance", {}) or {}).get("secret_key") or tenant_config.get("exchange_secret_key")
+                        if api_k and sec_k and not is_tr_silo:
+                            try:
+                                import hmac, hashlib
+                                ts_h = int(time.time() * 1000)
+                                q_h = f"symbol={asset_upper}USDT&timestamp={ts_h}&recvWindow=60000"
+                                sig_h = hmac.new(sec_k.encode('utf-8'), q_h.encode('utf-8'), hashlib.sha256).hexdigest()
+                                url_h = f"https://api.binance.com/api/v3/myTrades?{q_h}&signature={sig_h}"
+                                r_h = requests.get(url_h, headers={"X-MBX-APIKEY": api_k}, timeout=4)
+                                if r_h.status_code == 200:
+                                    buys = [t for t in r_h.json() if t.get("isBuyer")]
+                                    if buys:
+                                        recorded_buy_p = float(buys[-1]["price"])
+                                        save_position_to_db(
+                                            tenant_id=tenant_id, exchange_id=exch_name, symbol=target_symbol,
+                                            base_asset=asset_upper, quote_asset=pair_quote, amount=coin_amount,
+                                            buy_price=recorded_buy_p, stop_loss_price=round(recorded_buy_p * (1 - (user_sl/100.0)), 6),
+                                            take_profit_price=round(recorded_buy_p * (1 + (user_tp/100.0)), 6),
+                                            highest_price=max(recorded_buy_p, curr_p), stage="INITIAL"
+                                        )
+                                        print(f"📖 [Binance Defteri]: {asset_upper} son gerçek alış fiyatı borsadan senkronize edildi: ${recorded_buy_p:,.4f}")
+                            except Exception as e_hist:
+                                print(f"⚠️ myTrades okuma uyarısı ({asset_upper}): {e_hist}")
+                                
                     if recorded_buy_p <= 0.0:
                         continue
                         
