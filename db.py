@@ -615,11 +615,11 @@ STRATEGY_PRESETS = {
 _cached_strategy_config = None
 _cached_strategy_config_ts = 0
 
-def get_strategy_config() -> dict:
+def get_strategy_config(use_cache: bool = True) -> dict:
     """Veritabanından aktif strateji ve risk profilini çeker."""
     global _cached_strategy_config, _cached_strategy_config_ts
     now = time.time()
-    if _cached_strategy_config and (now - _cached_strategy_config_ts < 15):
+    if use_cache and _cached_strategy_config and (now - _cached_strategy_config_ts < 2):
         return _cached_strategy_config
     
     client = get_supabase()

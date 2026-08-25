@@ -511,7 +511,7 @@ class StrategyConfigRequest(BaseModel):
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
     from db import get_strategy_config, STRATEGY_PRESETS
-    cfg = get_strategy_config()
+    cfg = get_strategy_config(use_cache=False)
     return {"status": "success", "config": cfg, "presets": STRATEGY_PRESETS}
 
 @app_api.post("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
@@ -1686,7 +1686,7 @@ __SSR_TENANTS_HTML__
 
             async function loadStrategyConfig() {
                 try {
-                    const res = await fetch('/api/strategy-config', { headers: getAuthHeaders() });
+                    const res = await fetch('/api/strategy-config?t=' + Date.now(), { headers: getAuthHeaders() });
                     const data = await res.json();
                     if (data.status === 'success' && data.config) {
                         const cfg = data.config;
@@ -1761,7 +1761,8 @@ __SSR_TENANTS_HTML__
                     const data = await res.json();
                     if (data.status === 'success') {
                         updateStrategyBadge(preset, spike);
-                        alert('✅ Strateji Profili Başarıyla Güncellendi ve Motora Uygulandı!\n\nHacim Çarpanı: ' + spike + 'x | Min Hacim: $' + minvol + ' | Tavan Prim: %' + maxgain);
+                        alert('✅ Strateji Profili Başarıyla Kaydedildi!\n\nSeçili Profil: ' + preset + '\nHacim Çarpanı: ' + spike + 'x\nMin Hacim: $' + minvol + '\n24s Tavan: %' + maxgain);
+                        loadStrategyConfig();
                     } else {
                         alert('❌ Kaydetme Başarısız!');
                     }
@@ -1813,7 +1814,7 @@ __SSR_TENANTS_HTML__
     trailing_status = "AÇIK" if trailing_stop_enabled else "KAPALI"
     trailing_color = "var(--success)" if trailing_stop_enabled else "var(--danger)"
 
-    strat_cfg = get_strategy_config()
+    strat_cfg = get_strategy_config(use_cache=False)
     active_preset = strat_cfg.get("active_preset", "agile_21_august")
     strat_spike = float(strat_cfg.get("volume_spike_multiplier", 1.3))
     strat_minvol = float(strat_cfg.get("min_volume_usd", 8000.0))
