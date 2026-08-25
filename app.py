@@ -1848,8 +1848,6 @@ __SSR_TENANTS_HTML__
                     alert('Hata: ' + e);
                 }
             }
-                }
-            }
 
             async function triggerManualScan() {
                 if (!confirm('⚡ Tüm aktif kullanıcılar için piyasa taraması ve alım-satım analizi hemen başlatılsın mı?')) return;
