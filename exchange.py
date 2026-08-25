@@ -1212,6 +1212,82 @@ def execute_spot_trade(
         "stop_loss_price": stop_loss_price
     }
 
+def convert_dust_to_bnb(tenant_config: Optional[Dict[str, Any]] = None, max_usd_threshold: float = 0.50) -> Dict[str, Any]:
+    """
+    Kullanıcının Binance Global hesabındaki $0.50 altı mikro kırıntıları tespit edip
+    otomatik olarak BNB'ye (Komisyon Yakıtı) dönüştürür.
+    Açık pozisyonları veya $0.50 üzerindeki değerli coinleri (PROM, ONG vb.) asla dönüştürmez.
+    """
+    client = get_exchange_for_tenant(tenant_config)
+    if not client or not getattr(client, "apiKey", None) or not getattr(client, "secret", None):
+        return {"status": "FAILED", "error": "Borsa API istemcisi bulunamadı."}
+
+    if not isinstance(client, BinanceGlobalRESTClient):
+        return {"status": "SKIPPED", "message": "Yalnızca Binance Global hesapları için desteklenir."}
+
+    try:
+        # 1. Mevcut portföy varlıklarını ve değerlerini çek
+        bal = fetch_portfolio_balance(tenant_config)
+        holdings = bal.get("holdings_details", {})
+        
+        # 2. Açık pozisyonları çek (ASLA DÖNÜŞTÜRÜLMEYECEK COINLER)
+        from db import get_active_positions_from_db
+        t_id = str((tenant_config or {}).get("id") or (tenant_config or {}).get("telegram_chat_id", "default"))
+        open_positions = get_active_positions_from_db(t_id, "binance", is_simulated=False)
+        protected_symbols = set(open_positions.keys())
+        
+        # 3. Korumalı temel varlıklar
+        protected_assets = {"USDT", "TRY", "FDUSD", "BNB", "USDC", "BTC", "ETH"}.union(protected_symbols)
+        
+        # 4. Kırıntı (Dust) Adaylarını Belirle
+        dust_candidates = []
+        for asset, details in holdings.items():
+            clean_asset = asset.replace(" (Earn)", "").replace(" (Global)", "").strip()
+            if clean_asset in protected_assets:
+                continue
+            val_usd = float(details.get("val_usd", 0.0))
+            amt = float(details.get("amount", 0.0))
+            if 0 < val_usd <= max_usd_threshold and amt > 0:
+                dust_candidates.append(clean_asset)
+                
+        if not dust_candidates:
+            return {"status": "SUCCESS", "converted_count": 0, "message": "Dönüştürülecek kırıntı bulunamadı. Kasa temiz."}
+
+        # 5. Binance SAPI POST /sapi/v1/asset/dust çağrısı yap
+        ts = int(time.time() * 1000)
+        query_params = []
+        for a in dust_candidates[:10]: # Binance tek seferde maksimum 10-20 varlık kabul eder
+            query_params.append(f"asset={a}")
+        query_params.append(f"timestamp={ts}")
+        
+        query_str = "&".join(query_params)
+        sig = hmac.new(client.secret.encode("utf-8"), query_str.encode("utf-8"), hashlib.sha256).hexdigest()
+        url = f"https://api.binance.com/sapi/v1/asset/dust?{query_str}&signature={sig}"
+        
+        headers = {
+            "X-MBX-APIKEY": client.apiKey,
+            "User-Agent": "Mozilla/5.0 (Fox-Kripto Autonomous)"
+        }
+        resp = requests.post(url, headers=headers, timeout=10)
+        data = resp.json()
+        
+        if resp.status_code == 200:
+            return {
+                "status": "SUCCESS",
+                "converted_assets": dust_candidates[:10],
+                "converted_count": len(dust_candidates[:10]),
+                "raw_response": data,
+                "message": f"{len(dust_candidates[:10])} adet kırıntı ({', '.join(dust_candidates[:10])}) başarıyla BNB'ye dönüştürüldü."
+            }
+        else:
+            return {
+                "status": "FAILED",
+                "error": data.get("msg") or str(data),
+                "candidates": dust_candidates
+            }
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e)}
+
 if __name__ == "__main__":
     print("🚀 Multi-Tenant exchange.py Modülü Test Ediliyor...")
     portfolio = fetch_portfolio_balance()

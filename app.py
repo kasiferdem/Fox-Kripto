@@ -13,7 +13,7 @@ from db import (
     register_user_tenant, get_all_active_tenants, get_supabase,
     get_active_positions_from_db
 )
-from exchange import execute_spot_trade, fetch_portfolio_balance, get_live_usd_try_rate
+from exchange import execute_spot_trade, fetch_portfolio_balance, get_live_usd_try_rate, convert_dust_to_bnb
 from telegram_poller import start_poller
 
 import secrets
@@ -134,12 +134,14 @@ def handle_autonomous_error_alert(tenant_name, sym_target, action_name, exch_nam
         )
         send_message(chat_id, warning_msg)
 
+last_daily_dust_sweep_ts = 0
+
 def run_autonomous_trading_loop():
     """
     7/24 Otonom Yapay Zeka Alım-Satım ve Piyasa Analiz Döngüsü.
     Sistemdeki tüm aktif kullanıcılar (Tenants) için 5 saniyede bir piyasayı tarar.
     """
-    global last_error_alerts
+    global last_error_alerts, last_daily_dust_sweep_ts
     print("🤖 [Yapay Zeka Otonom Ajan]: 7/24 Tam Otonom Alım-Satım Döngüsü Aktif!")
     import time
     time.sleep(10)
@@ -147,6 +149,22 @@ def run_autonomous_trading_loop():
         try:
             tenants = get_all_active_tenants()
             if tenants:
+                # 🧹 GÜNLÜK OTONOM KIRINTI SÜPÜRME (24 saatte bir otomatik çalışır)
+                now_ts = time.time()
+                if now_ts - last_daily_dust_sweep_ts > 86400:
+                    last_daily_dust_sweep_ts = now_ts
+                    for t_dust in tenants:
+                        if not t_dust.get("is_paper_trading"):
+                            try:
+                                d_res = convert_dust_to_bnb(t_dust, max_usd_threshold=0.50)
+                                if d_res.get("status") == "SUCCESS" and d_res.get("converted_count", 0) > 0:
+                                    c_id = t_dust.get("telegram_chat_id")
+                                    if c_id:
+                                        from telegram_poller import send_message
+                                        send_message(c_id, f"🧹 *GÜNLÜK OTO-KIRINTI TEMİZLİĞİ TAMAMLANDI*\n\n{d_res.get('message')}\nKasanızdaki mikro küsuratlar otomatik olarak BNB komisyon yakıtına dönüştürüldü. 🚀")
+                            except Exception as e_d:
+                                print(f"⚠️ [Günlük Kırıntı Hatası]: {e_d}")
+
                 for tenant in tenants:
                     chat_id = tenant.get("telegram_chat_id")
                     tenant_name = tenant.get("tenant_name", "Kullanıcı")
@@ -743,6 +761,20 @@ def run_graph_endpoint(req: TriggerGraphRequest, background_tasks: BackgroundTas
     background_tasks.add_task(_execute)
     return {"status": "STARTED", "message": f"Otonom akış başlatıldı (Session: {req.session_id})"}
 
+@app_api.post("/api/clean-dust", dependencies=[Depends(authenticate_admin)])
+def clean_dust_endpoint():
+    """Kullanıcıların Binance hesaplarındaki $0.50 altı mikro kırıntıları anında BNB'ye dönüştürür."""
+    tenants = get_all_active_tenants()
+    results = []
+    for t in tenants:
+        if not t.get("is_paper_trading"):
+            res = convert_dust_to_bnb(t, max_usd_threshold=0.50)
+            results.append({
+                "tenant_name": t.get("tenant_name"),
+                "result": res
+            })
+    return {"status": "success", "results": results}
+
 @app_api.get("/api/settings", dependencies=[Depends(authenticate_admin)])
 def get_system_settings_endpoint():
     from db import get_system_setting
@@ -1013,6 +1045,7 @@ def get_dashboard_html():
                     <button id="btn-en" class="lang-btn" onclick="changeLang('en')">🇬🇧 English</button>
                 </div>
                 <button class="btn btn-primary" onclick="triggerManualScan()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; display: flex; align-items: center; gap: 6px;">⚡ Piyasayı Şimdi Tara</button>
+                <button class="btn" onclick="triggerDustClean()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer;">🧹 Kırıntıları BNB'ye Dönüştür</button>
                 <button id="i18n-btn-refresh" class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
             </div>
         </div>
@@ -1814,6 +1847,29 @@ __SSR_TENANTS_HTML__
                     setTimeout(loadData, 4000);
                 } catch(e) {
                     alert('Hata: ' + e);
+                }
+            }
+
+            async function triggerDustClean() {
+                if (!confirm('🧹 $0.50 altındaki tüm mikro kırıntılar (STORJ, MINA, AMP, ACE vb.) otomatik olarak BNB komisyon yakıtına dönüştürülsün mü?\\n\\n(Not: PROM, ONG ve açık pozisyonlarınız korunur, dönüştürülmez.)')) return;
+                try {
+                    const res = await fetch('/api/clean-dust', {
+                        method: 'POST',
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' }
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        let msg = '🧹 Kırıntı Temizliği Tamamlandı:\\n\\n';
+                        for (const r of data.results || []) {
+                            msg += r.tenant_name + ': ' + (r.result.message || r.result.error || 'İşlem tamamlandı.') + '\\n';
+                        }
+                        alert(msg);
+                        loadData();
+                    } else {
+                        alert('❌ Hata: ' + (data.error || JSON.stringify(data)));
+                    }
+                } catch(e) {
+                    alert('Bağlantı Hatası: ' + e);
                 }
             }
 
