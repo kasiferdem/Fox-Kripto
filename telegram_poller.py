@@ -1,4 +1,4 @@
-import os, sys, time, requests, io, json, re, threading
+import os, sys, time, requests, io, json, re, threading, hmac, hashlib
 
 # Windows Console Emoji UnicodeEncodeError Önleyici
 if hasattr(sys.stdout, 'buffer'):
@@ -580,6 +580,11 @@ def handle_update(update: dict):
                 tr_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
 
             # 🌍 Global Varlıkları
+            api_k = tenant.get("exchange_api_key", "")
+            kd = json.loads(api_k) if str(api_k).startswith("{") else {}
+            gl_api_k = kd.get("binance", {}).get("api_key") or tenant.get("exchange_api_key")
+            gl_sec_k = kd.get("binance", {}).get("secret_key") or tenant.get("exchange_secret_key")
+
             free_usdt = float(bal_gl.get("free_usdt", 0.0))
             tot_gl_usd = float(bal_gl.get("total_usdt", 0.0))
             gl_details = bal_gl.get("holdings_details", {})
@@ -593,12 +598,29 @@ def handle_update(update: dict):
                 for a, info in gl_details.items():
                     amt = float(info["amount"])
                     val = float(info["val_usd"])
-                    if a not in ["USDT", "BNB"] and val >= 0.50:
+                    if a not in ["USDT", "BNB"] and val >= 2.0:
                         curr_unit_p = val / amt if amt > 0 else 0.0
                         entry_info = saved_pos_gl.get(a) or saved_pos_gl.get(f"{a}/USDT") or {}
                         entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
+                        
+                        # Eğer DB'de yoksa, doğrudan Binance son alış işleminden gerçek maliyeti çek:
+                        if entry_p <= 0 and gl_api_k and gl_sec_k:
+                            try:
+                                ts_h = int(time.time() * 1000)
+                                q_h = f"symbol={a}USDT&timestamp={ts_h}&recvWindow=60000"
+                                sig_h = hmac.new(gl_sec_k.encode('utf-8'), q_h.encode('utf-8'), hashlib.sha256).hexdigest()
+                                url_h = f"https://api.binance.com/api/v3/myTrades?{q_h}&signature={sig_h}"
+                                r_h = requests.get(url_h, headers={"X-MBX-APIKEY": gl_api_k}, timeout=3)
+                                if r_h.status_code == 200:
+                                    buys = [t for t in r_h.json() if t.get("isBuyer")]
+                                    if buys:
+                                        entry_p = float(buys[-1]["price"])
+                            except Exception:
+                                pass
+                                
                         if entry_p <= 0:
                             entry_p = curr_unit_p
+                            
                         gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
                         pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
                         pnl_fiat = val - (amt * entry_p) - (val * 0.002 if gross_pct > 0 else 0.0)
