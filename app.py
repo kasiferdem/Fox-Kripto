@@ -843,7 +843,10 @@ def get_dashboard_html():
                         </select>
                     </td>
                     <td>
-                        <span class="badge badge-active" style="cursor: pointer;" onclick="openUserPortfolioModal('{safe_id}', '{safe_name}')">📊 Cüzdanı Gör</span>
+                        <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid #16a34a; font-weight: bold; padding: 5px 10px; border-radius: 6px;">🟢 Aktif</span>
+                    </td>
+                    <td>
+                        <button class="btn" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #3b82f6; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 600; font-size: 12px; white-space: nowrap;" onclick="openUserPortfolioModal('{safe_id}', '{safe_name}')">📊 Cüzdanı Gör</button>
                     </td>
                     <td style="white-space: nowrap;">
                         <div style="display: inline-flex; gap: 6px; align-items: center;">
@@ -1060,8 +1063,9 @@ def get_dashboard_html():
                             <th id="i18n-th-mb">💵 Bütçe %</th>
                             <th id="i18n-th-exch">🏛️ Borsa Seçimi</th>
                             <th id="i18n-th-lang">🌐 Dil / Lang</th>
-                            <th id="i18n-th-status">Durum</th>
-                            <th id="i18n-th-action">İşlem</th>
+                            <th id="i18n-th-status">⚡ Durum</th>
+                            <th id="i18n-th-wallet">💼 Cüzdan</th>
+                            <th id="i18n-th-action">⚙️ İşlem</th>
                         </tr>
                     </thead>
                     <tbody id="tenants-table">
@@ -1300,7 +1304,10 @@ __SSR_TENANTS_HTML__
                                 </select>
                             </td>
                             <td>
-                                <span class="badge badge-active" style="cursor: pointer;" onclick="openUserPortfolioModal('${safeId}', '${safeName}')">📊 Cüzdanı Gör</span>
+                                <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid #16a34a; font-weight: bold; padding: 5px 10px; border-radius: 6px;">🟢 Aktif</span>
+                            </td>
+                            <td>
+                                <button class="btn" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #3b82f6; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 600; font-size: 12px; white-space: nowrap;" onclick="openUserPortfolioModal('${safeId}', '${safeName}')">📊 Cüzdanı Gör</button>
                             </td>
                             <td>
                                 <button class="btn btn-primary" style="padding: 5px 12px; margin-right: 4px;" onclick="updateSettings('${safeId}', ${idx}, '${safeName}')">${t.save || 'Kaydet'}</button>
