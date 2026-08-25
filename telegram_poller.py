@@ -539,223 +539,96 @@ def handle_update(update: dict):
                 return
 
             balance = fetch_portfolio_balance(tenant)
+            t_id = str(tenant.get("id") or tenant.get("telegram_chat_id") or "default_tenant")
+            saved_pos_tr = get_active_positions_from_db(tenant_id=t_id, exchange_id="binancetr")
+            saved_pos_gl = get_active_positions_from_db(tenant_id=t_id, exchange_id="binance")
+            usd_try_rate = get_live_usd_try_rate()
+            if usd_try_rate <= 0:
+                usd_try_rate = 48.0
 
-            if balance.get("is_dual"):
-                bal_tr = balance.get("binance_tr", {})
-                bal_gl = balance.get("binance_global", {})
-                
-                t_id = str(tenant.get("id") or tenant.get("telegram_chat_id") or "default_tenant")
-                saved_pos_tr = get_active_positions_from_db(tenant_id=t_id, exchange_id="binancetr")
-                saved_pos_gl = get_active_positions_from_db(tenant_id=t_id, exchange_id="binance")
-                usd_try_rate = get_live_usd_try_rate()
-                if usd_try_rate <= 0:
-                    usd_try_rate = 35.0
-                
-                # 🇹🇷 TR Varlıkları (Yalnızca ve Tamamen TRY)
-                tr_holdings_str = ""
-                tr_details = bal_tr.get("holdings_details", {})
-                free_try = 0.0
-                tot_tr_try = float(bal_tr.get("total_try", 0.0)) or 0.0
-                if tr_details:
-                    for a, info in tr_details.items():
-                        amt = info["amount"]
-                        val_try = float(info.get("val_try", 0.0)) or (float(info.get("val_usd", 0.0)) * usd_try_rate)
-                        if a == "TRY":
-                            free_try = amt
-                        elif val_try >= 100.0: # ₺100 TL altı kırıntıları gizle (Yalnızca gerçek pozisyonları göster)
-                            curr_unit_p = val_try / amt if amt > 0 else 0.0
-                            entry_info = saved_pos_tr.get(a)
-                            entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
-                            if entry_p <= 0:
-                                entry_p = curr_unit_p
-                            
-                            gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
-                            # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
-                            pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
-                            pnl_fiat = val_try - (amt * entry_p) - (val_try * 0.002 if gross_pct > 0 else 0.0)
-                            if pnl_pct >= 0:
-                                pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+₺{pnl_fiat:,.2f} TL)"
-                            else:
-                                pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-₺{abs(pnl_fiat):,.2f} TL)"
-                            tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{val_try:,.2f} TL{pnl_str})\n"
-                if not tr_holdings_str:
-                    tr_holdings_str = " • _(No open coin positions)_\n" if is_en else " • _(Açık coin pozisyonu yok)_\n"
-                            
-                tot_tr_usd = float(bal_tr.get("total_usdt", 0.0))
-                if tot_tr_try <= 0:
-                    tot_tr_try = tot_tr_usd * usd_try_rate
-                
-                # 🌍 Global Varlıkları (Yalnızca ve Tamamen USDT)
-                gl_holdings_str = ""
-                gl_details = bal_gl.get("holdings_details", {})
-                gl_has_error = bool(bal_gl.get("api_error"))
-                free_usdt = float(bal_gl.get("free_usdt", 0.0)) if not gl_has_error else 0.0
-                tot_gl_usd = float(bal_gl.get("total_usdt", 0.0)) if not gl_has_error else 0.0
-                
-                bnb_amt = 0.0
-                bnb_val = 0.0
-                if gl_details and not gl_has_error:
-                    bnb_info = gl_details.get("BNB", {})
-                    bnb_amt = float(bnb_info.get("amount", 0.0))
-                    bnb_val = float(bnb_info.get("val_usd", 0.0))
-                    
-                    for a, info in gl_details.items():
-                        amt = info["amount"]
-                        val = info["val_usd"]
-                        if a not in ["USDT", "BNB"] and val >= 5.0: # $5 altı kırıntıları ve komisyon BNB'sini gizle
-                            curr_unit_p = val / amt if amt > 0 else 0.0
-                            entry_info = saved_pos_gl.get(a)
-                            entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
-                            if entry_p <= 0:
-                                entry_p = curr_unit_p
-                            
-                            gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
-                            # 0.20% Binance Alış + Satış Komisyonunu Düş (Net Kâr)
-                            pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
-                            pnl_fiat = val - (amt * entry_p) - (val * 0.002 if gross_pct > 0 else 0.0)
-                            if pnl_pct >= 0:
-                                pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+${pnl_fiat:,.2f} USD)"
-                            else:
-                                pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} (-${abs(pnl_fiat):,.2f} USD)"
-                            gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{pnl_str})\n"
-                if not gl_holdings_str:
-                    if gl_has_error:
-                        gl_err_detail = bal_gl.get('api_error') or 'Bilinmeyen Hata'
-                        gl_holdings_str = f" • ⚠️ _(Binance Global: {gl_err_detail})_\n"
-                    else:
-                        gl_holdings_str = " • _(No open coin positions)_\n" if is_en else " • _(Açık coin pozisyonu yok)_\n"
-                    
-                tot_usd = float(balance.get("total_usdt", 0.0))
-                tot_combined_try = tot_tr_try + (tot_gl_usd * usd_try_rate)
-                
-                bnb_line_en = f"🪙 BNB Fee Reserve: *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.50 else ""
-                bnb_line_tr = f"🪙 Komisyon Havuzu (BNB): *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.50 else ""
-                
-                if is_en:
-                    msg_text = (
-                        f"📊 *LIVE DUAL-EXCHANGE PORTFOLIO REPORT*\n\n"
-                        f"👤 User: {tenant.get('tenant_name', 'User')}\n\n"
-                        f"🇹🇷 *[BINANCE TR ACCOUNT]*\n"
-                        f"💵 Free Cash: *₺{free_try:,.2f} TL*\n"
-                        f"📦 *Open Positions:*\n"
-                        f"{tr_holdings_str}"
-                        f"💰 Total TR Portfolio: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
-                        f"🌍 *[BINANCE GLOBAL ACCOUNT]*\n"
-                        f"💵 Free USDT: *${free_usdt:,.2f} USD*\n"
-                        f"{bnb_line_en}"
-                        f"📦 *Open Positions:*\n"
-                        f"{gl_holdings_str}"
-                        f"💰 Total Global Portfolio: *${tot_gl_usd:,.2f} USD*\n\n"
-                        f"🏆 *OVERALL TOTAL PORTFOLIO:* *${tot_usd:,.2f} USD* (~₺{tot_combined_try:,.2f} TL)\n"
-                        f"🧪 Mode: REAL LIVE TRADING ✅"
-                    )
-                else:
-                    msg_text = (
-                        f"📊 *CANLI ÇİFT BORSA PORTFÖY DURUMUNUZ*\n\n"
-                        f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n\n"
-                        f"🇹🇷 *[BİNANCE TR HESABINIZ]*\n"
-                        f"💵 Serbest Nakit: *₺{free_try:,.2f} TL*\n"
-                        f"📦 *Açık Pozisyonlar:*\n"
-                        f"{tr_holdings_str}"
-                        f"💰 Toplam TR Portföyü: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
-                        f"🌍 *[BİNANCE GLOBAL HESABINIZ]*\n"
-                        f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
-                        f"{bnb_line_tr}"
-                        f"📦 *Açık Pozisyonlar:*\n"
-                        f"{gl_holdings_str}"
-                        f"💰 Toplam Global Portföyü: *${tot_gl_usd:,.2f} USD*\n\n"
-                        f"🏆 *TOPLAM BİRLEŞİK PORTFÖYÜNÜZ:* *${tot_usd:,.2f} USD* (~₺{tot_combined_try:,.2f} TL)\n"
-                        f"🧪 Mod: CANLI GERÇEK HESAP ✅"
-                    )
-                # Snapshot güncelle (Kasa Farkı için referans)
-                try:
-                    client = get_supabase()
-                    state_key = f"last_queried_balance_{chat_id}"
-                    c_ts = time.time()
-                    client.table("crypto_agent_states").upsert({
-                        "session_id": state_key,
-                        "state_data": {
-                            "timestamp": c_ts,
-                            "time_str": time.strftime("%H:%M:%S", time.localtime(c_ts)),
-                            "tr_try": tot_tr_try,
-                            "tr_usd": tot_tr_usd,
-                            "gl_usd": tot_gl_usd,
-                            "tot_usd": tot_usd,
-                            "tot_try": tot_combined_try
-                        }
-                    }).execute()
-                except Exception:
-                    pass
+            is_dual = bool(balance.get("is_dual"))
+            bal_tr = balance.get("binance_tr", {}) if is_dual else (balance if tenant.get("exchange_id") == "binancetr" else {})
+            bal_gl = balance.get("binance_global", {}) if is_dual else (balance if tenant.get("exchange_id") != "binancetr" else {})
 
-                send_message(chat_id, msg_text)
-                return
+            # 🇹🇷 TR Varlıkları
+            free_try = float(bal_tr.get("free_try") or (bal_tr.get("holdings_details", {}).get("TRY", {}).get("amount", 0.0) if isinstance(bal_tr.get("holdings_details"), dict) else 0.0))
+            tot_tr_try = float(bal_tr.get("total_try", 0.0))
+            tot_tr_usd = float(bal_tr.get("total_usdt", 0.0))
+            if tot_tr_usd > 0 and tot_tr_try <= 0:
+                tot_tr_try = tot_tr_usd * usd_try_rate
+            elif tot_tr_try > 0 and tot_tr_usd <= 0:
+                tot_tr_usd = tot_tr_try / usd_try_rate
 
-            # 🌍 Tek Borsa Hesabı (Sadece Binance Global veya Sadece Binance TR)
-            details = balance.get("holdings_details", {})
-            free_usdt = float(balance.get("free_usdt", 0.0))
-            tot_usd = float(balance.get("total_usdt", 0.0))
-            tot_try = float(balance.get("total_try", 0.0)) or (tot_usd * usd_try_rate)
-            
-            bnb_amt = 0.0
-            bnb_val = 0.0
-            holdings_str = ""
-            if details:
-                bnb_info = details.get("BNB", {})
-                bnb_amt = float(bnb_info.get("amount", 0.0))
-                bnb_val = float(bnb_info.get("val_usd", 0.0))
-                
-                for a, info in details.items():
-                    amt = float(info.get("amount", 0.0))
-                    val = float(info.get("val_usd", 0.0))
-                    if a not in ["USDT", "TRY", "BNB"] and val >= 0.50:
-                        curr_unit_p = val / amt if amt > 0 else 0.0
-                        entry_info = saved_pos_gl.get(a) or saved_pos_gl.get(f"{a}/USDT") or saved_pos_tr.get(a) or saved_pos_tr.get(f"{a}/TRY") or {}
+            tr_holdings_str = ""
+            tr_details = bal_tr.get("holdings_details", {})
+            if tr_details:
+                for a, info in tr_details.items():
+                    amt = float(info["amount"])
+                    val_try = float(info.get("val_try", 0.0)) or (float(info.get("val_usd", 0.0)) * usd_try_rate)
+                    if a != "TRY" and val_try >= 20.0:
+                        curr_unit_p = val_try / amt if amt > 0 else 0.0
+                        entry_info = saved_pos_tr.get(a) or saved_pos_tr.get(f"{a}/TRY") or {}
                         entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
                         if entry_p <= 0:
                             entry_p = curr_unit_p
-                        
+                        gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
+                        pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
+                        pnl_fiat = val_try - (amt * entry_p) - (val_try * 0.002 if gross_pct > 0 else 0.0)
+                        pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+₺{pnl_fiat:,.2f} TL)" if pnl_pct >= 0 else f" | 📉 -%{abs(pnl_pct):.2f} Net (-₺{abs(pnl_fiat):,.2f} TL)"
+                        tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{val_try:,.2f} TL{pnl_str})\n"
+            if not tr_holdings_str:
+                tr_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
+
+            # 🌍 Global Varlıkları
+            free_usdt = float(bal_gl.get("free_usdt", 0.0))
+            tot_gl_usd = float(bal_gl.get("total_usdt", 0.0))
+            gl_details = bal_gl.get("holdings_details", {})
+            gl_holdings_str = ""
+            bnb_amt = 0.0
+            bnb_val = 0.0
+            if gl_details:
+                bnb_info = gl_details.get("BNB", {})
+                bnb_amt = float(bnb_info.get("amount", 0.0))
+                bnb_val = float(bnb_info.get("val_usd", 0.0))
+                for a, info in gl_details.items():
+                    amt = float(info["amount"])
+                    val = float(info["val_usd"])
+                    if a not in ["USDT", "BNB"] and val >= 0.50:
+                        curr_unit_p = val / amt if amt > 0 else 0.0
+                        entry_info = saved_pos_gl.get(a) or saved_pos_gl.get(f"{a}/USDT") or {}
+                        entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
+                        if entry_p <= 0:
+                            entry_p = curr_unit_p
                         gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
                         pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
                         pnl_fiat = val - (amt * entry_p) - (val * 0.002 if gross_pct > 0 else 0.0)
-                        if pnl_pct >= 0:
-                            pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+${pnl_fiat:,.2f} USD)"
-                        else:
-                            pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} Net (-${abs(pnl_fiat):,.2f} USD)"
-                        holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{pnl_str})\n"
-            
-            if not holdings_str:
-                holdings_str = " • _(Açık coin pozisyonu yok)_\n"
-            
-            bnb_line_tr = f"🪙 Komisyon Havuzu (BNB): *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.10 else ""
-            bnb_line_en = f"🪙 BNB Fee Reserve: *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.10 else ""
-            err_info = f"\n⚠️ Binance Error: {balance['api_error']}\n" if balance.get("api_error") else ""
+                        pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+${pnl_fiat:,.2f} USD)" if pnl_pct >= 0 else f" | 📉 -%{abs(pnl_pct):.2f} Net (-${abs(pnl_fiat):,.2f} USD)"
+                        gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{pnl_str})\n"
+            if not gl_holdings_str:
+                gl_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
 
-            if is_en:
-                msg_text = (
-                    f"📊 *LIVE PORTFOLIO STATUS*\n\n"
-                    f"👤 User: {tenant.get('tenant_name', 'User')}\n"
-                    f"💵 Free USDT: *${free_usdt:,.2f} USD*\n"
-                    f"{bnb_line_en}"
-                    f"📦 *Open Positions:*\n"
-                    f"{holdings_str}\n"
-                    f"💰 *Total Portfolio Value:* *${tot_usd:,.2f} USD* (~₺{tot_try:,.2f} TL)\n"
-                    f"🏢 Exchange: {balance.get('exchange', 'BINANCE').upper()} 🌍\n"
-                    f"🧪 Mode: {'Paper Trading' if balance.get('is_paper_trading') else 'REAL LIVE TRADING ✅'}"
-                    f"{err_info}"
-                )
-            else:
-                msg_text = (
-                    f"📊 *CANLI PORTFÖY DURUMUNUZ*\n\n"
-                    f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n"
-                    f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
-                    f"{bnb_line_tr}"
-                    f"📦 *Açık Pozisyonlar:*\n"
-                    f"{holdings_str}\n"
-                    f"💰 *Toplam Portföy Değeri:* *${tot_usd:,.2f} USD* (~₺{tot_try:,.2f} TL)\n"
-                    f"🏢 Borsa: {balance.get('exchange', 'BINANCE').upper()} 🌍\n"
-                    f"🧪 Mod: {'Paper Trading' if balance.get('is_paper_trading') else 'GERÇEK HESAP CANLI ✅'}"
-                    f"{err_info}"
-                )
+            tot_combined_usd = tot_tr_usd + tot_gl_usd
+            tot_combined_try = (tot_tr_try) + (tot_gl_usd * usd_try_rate)
+
+            bnb_line = f"🪙 Komisyon Havuzu (BNB): *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.10 else ""
+
+            msg_text = (
+                f"📊 *CANLI ÇİFT BORSA PORTFÖY DURUMUNUZ*\n\n"
+                f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n\n"
+                f"🇹🇷 *[BİNANCE TR HESABINIZ]*\n"
+                f"💵 Serbest Nakit: *₺{free_try:,.2f} TL*\n"
+                f"📦 *Açık Pozisyonlar:*\n"
+                f"{tr_holdings_str}"
+                f"💰 Toplam TR Portföyü: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
+                f"🌍 *[BİNANCE GLOBAL HESABINIZ]*\n"
+                f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
+                f"{bnb_line}"
+                f"📦 *Açık Pozisyonlar:*\n"
+                f"{gl_holdings_str}"
+                f"💰 Toplam Global Portföyü: *${tot_gl_usd:,.2f} USD*\n\n"
+                f"🏆 *TOPLAM BİRLEŞİK PORTFÖYÜNÜZ:* *${tot_combined_usd:,.2f} USD* (~₺{tot_combined_try:,.2f} TL)\n"
+                f"🧪 Mod: CANLI GERÇEK HESAP ✅"
+            )
 
             # Snapshot güncelle (Kasa Farkı için referans)
             try:
@@ -767,10 +640,10 @@ def handle_update(update: dict):
                     "state_data": {
                         "timestamp": c_ts,
                         "time_str": time.strftime("%H:%M:%S", time.localtime(c_ts)),
-                        "tr_try": float(balance.get("total_try", 0.0)) if is_tr else 0.0,
-                        "gl_usd": tot_usd if is_gl else 0.0,
-                        "tot_usd": tot_usd,
-                        "tot_try": tot_try
+                        "tr_try": tot_tr_try,
+                        "gl_usd": tot_gl_usd,
+                        "tot_usd": tot_combined_usd,
+                        "tot_try": tot_combined_try
                     }
                 }).execute()
             except Exception:
