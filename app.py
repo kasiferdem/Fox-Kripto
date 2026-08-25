@@ -866,6 +866,12 @@ def get_dashboard_html():
     logs_ssr_html = ""
     try:
         if client:
+            tenants_res = client.table("user_tenants").select("id, tenant_name, telegram_chat_id").execute()
+            tenant_map = {str(t["id"]): t.get("tenant_name") for t in (tenants_res.data or [])}
+            for t in (tenants_res.data or []):
+                if t.get("telegram_chat_id"):
+                    tenant_map[str(t["telegram_chat_id"])] = t.get("tenant_name")
+
             res_l = client.table("crypto_trade_logs").select("*").order("created_at", desc=True).limit(25).execute()
             logs_list = res_l.data or []
             if not logs_list:
@@ -877,7 +883,8 @@ def get_dashboard_html():
                     is_buy = str(l.get("direction", "BUY")).upper() == "BUY"
                     dir_badge = '<span style="color: var(--success); font-weight: bold;">🛒 ALIM (BUY)</span>' if is_buy else '<span style="color: var(--danger); font-weight: bold;">🎯 SATIM (SELL)</span>'
                     score = float(l.get("sentiment_score") or 0.0)
-                    is_failed = l.get("status") == "FAILED" or (l.get("execution_details", {}) or {}).get("status") == "FAILED"
+                    det = l.get("execution_details") or {}
+                    is_failed = l.get("status") == "FAILED" or det.get("status") == "FAILED"
                     is_exec = l.get("status") in ["SUCCESS", "EXECUTED"] or bool(l.get("order_id"))
                     if is_exec:
                         badge = '<span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--success);">✅ Canlı İnfaz</span>'
@@ -890,9 +897,12 @@ def get_dashboard_html():
                     price_str = f"${price:.6f}" if price < 0.001 else f"${price:.4f}"
                     amt_usd = float(l.get("amount_usd") or 0.0)
                     
+                    t_id = str(det.get("tenant_id") or l.get("tenant_id") or "")
+                    t_name = det.get("tenant_name") or tenant_map.get(t_id) or "S"
+                    
                     rows += f"""
                     <tr style="border-bottom: 1px solid var(--border); font-size: 13px;">
-                        <td style="padding: 10px;"><strong>{l.get('tenant_name') or 'S'}</strong></td>
+                        <td style="padding: 10px;"><strong>{t_name}</strong></td>
                         <td style="padding: 10px;">{dir_badge} <code>{l.get('symbol', '—')}</code></td>
                         <td style="padding: 10px;">${amt_usd:.2f}</td>
                         <td style="padding: 10px;">{price_str}</td>
