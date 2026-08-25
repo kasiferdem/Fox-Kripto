@@ -612,21 +612,35 @@ def handle_update(update: dict):
 
             bnb_line = f"🪙 Komisyon Havuzu (BNB): *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.10 else ""
 
+            # Binance TR Kapalıysa Listede Gösterme
+            show_tr = is_dual and (tot_tr_try > 10.0 or free_try > 10.0)
+            if show_tr:
+                header_title = "📊 *CANLI ÇİFT BORSA PORTFÖY DURUMUNUZ*"
+                tr_section = (
+                    f"🇹🇷 *[BİNANCE TR HESABINIZ]*\n"
+                    f"💵 Serbest Nakit: *₺{free_try:,.2f} TL*\n"
+                    f"📦 *Açık Pozisyonlar:*\n"
+                    f"{tr_holdings_str}"
+                    f"💰 Toplam TR Portföyü: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
+                )
+                tot_line = f"🏆 *TOPLAM BİRLEŞİK PORTFÖYÜNÜZ:* *${tot_combined_usd:,.2f} USD* (~₺{tot_combined_try:,.2f} TL)"
+            else:
+                header_title = "📊 *CANLI PORTFÖY DURUMUNUZ*"
+                tr_section = ""
+                tot_line = f"💰 *Toplam Portföy Değeri:* *${tot_gl_usd:,.2f} USD* (~₺{tot_combined_try:,.2f} TL)"
+
             msg_text = (
-                f"📊 *CANLI ÇİFT BORSA PORTFÖY DURUMUNUZ*\n\n"
+                f"{header_title}\n\n"
                 f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n\n"
-                f"🇹🇷 *[BİNANCE TR HESABINIZ]*\n"
-                f"💵 Serbest Nakit: *₺{free_try:,.2f} TL*\n"
-                f"📦 *Açık Pozisyonlar:*\n"
-                f"{tr_holdings_str}"
-                f"💰 Toplam TR Portföyü: *₺{tot_tr_try:,.2f} TL* (~${tot_tr_usd:,.2f} USD)\n\n"
+                f"{tr_section}"
                 f"🌍 *[BİNANCE GLOBAL HESABINIZ]*\n"
                 f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
                 f"{bnb_line}"
                 f"📦 *Açık Pozisyonlar:*\n"
                 f"{gl_holdings_str}"
                 f"💰 Toplam Global Portföyü: *${tot_gl_usd:,.2f} USD*\n\n"
-                f"🏆 *TOPLAM BİRLEŞİK PORTFÖYÜNÜZ:* *${tot_combined_usd:,.2f} USD* (~₺{tot_combined_try:,.2f} TL)\n"
+                f"{tot_line}\n"
+                f"🏢 Borsa: BINANCE GLOBAL 🌍\n"
                 f"🧪 Mod: CANLI GERÇEK HESAP ✅"
             )
 
