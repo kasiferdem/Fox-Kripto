@@ -718,28 +718,34 @@ def handle_update(update: dict):
                 sys_p = (
                     "You are a Chief Crypto Market Strategist & AI Portfolio Manager. "
                     "Analyze the given live market data, early volume surges, and news. Provide a concise, powerful, professional market report for Telegram. "
-                    "Use emojis. Keep it under 220 words. Format with clean markdown:\n"
-                    "1. 📊 *Market Sentiment Score:* (+10 to -10)\n"
-                    "2. 🚨 *Early Whale & Volume Surge Alerts (Pre-Pump):* (Highlight early breakout candidates)\n"
-                    "3. 🚀 *24h Volume & Trend Leaders:*\n"
-                    "4. 🎯 *AI Autonomous Strategy Recommendation:*\n"
-                    "Do not use markdown tables. Output only the report."
+                    "Use emojis. Keep it clean and follow this EXACT 4-part format:\n\n"
+                    "1. 📊 Market Sentiment Score: (e.g. +3.5 with brief reasoning)\n\n"
+                    "2. 🚨 Early Whale & Volume Surge Alerts (Pre-Pump):\n"
+                    " - (Bullet points with symbol and whale volume surge details)\n\n"
+                    "3. 🚀 24h Volume & Trend Leaders:\n"
+                    " - (Bullet points with gainers, % and volume details)\n\n"
+                    "4. 🎯 AI Strategic Recommendation:\n"
+                    " - (Detailed actionable strategy paragraph for spot dip accumulation, profit taking or cash reserves)\n\n"
+                    "Do not use markdown tables or extra greetings. Output only the report starting with item 1."
                 )
                 user_p = f"Early Volume Surges (Last 5m):\n{surges_str}\n\n24h Top Gainers:\n{gainers_summary}\n\nGlobal Headlines:\n{news_summary}"
             else:
                 sys_p = (
                     "Sen kıdemli bir Kripto Para Baş Stratejisti ve Yapay Zeka Portföy Yöneticisisin. "
-                    "Sana verilen canlı borsa verilerini, 5 dakikalık erken balina hacim girişlerini ve haberleri analiz ederek Telegram için son derece şık, profesyonel ve bilgilendirici bir piyasa raporu hazırla. "
-                    "Emoji kullan, net ve vurucu ol. 220 kelimeyi geçme. Format:\n"
-                    "1. 📊 *Piyasa Duyarlılık Skoru:* (+10 ile -10 arasında)\n"
-                    "2. 🚨 *Erken Balina & Hacim Patlaması Yakalananlar (Pre-Pump):* (Dipten yeni kalkan fırsat adayları)\n"
-                    "3. 🚀 *24 Saatlik Hacim & Trend Liderleri:*\n"
-                    "4. 🎯 *Yapay Zeka Stratejik Tavsiyesi:* (Kademeli dip toplama, kâr alma veya nakitte bekleme önerisi)\n"
-                    "Markdown tablo kullanma. Sadece rapor metnini yaz."
+                    "Canlı borsa verilerini, 5 dakikalık erken balina hacim girişlerini ve haberleri analiz ederek Telegram için son derece anlaşılır, profesyonel bir piyasa raporu hazırla. "
+                    "Birebir şu 4 maddeli formatı kullan ve başlıkların numaralarını bozma:\n\n"
+                    "1. 📊 Piyasa Duyarlılık Skoru: (Örn: +3.5 veya -2.0 gibi tek bir sayı ve kısa açıklama)\n\n"
+                    "2. 🚨 Erken Balina & Hacim Patlaması Yakalananlar (Pre-Pump):\n"
+                    " - (Coin çiftlerini ve hacim çarpanlarını maddeleyerek açıklayıcı yaz)\n\n"
+                    "3. 🚀 24 Saatlik Hacim & Trend Liderleri:\n"
+                    " - (En çok yükselen coinleri ve hacim hareketlerini maddeleyerek yaz)\n\n"
+                    "4. 🎯 Yapay Zeka Stratejik Tavsiyesi:\n"
+                    " - (Kademeli dip toplama, kâr alma veya nakit tavsiyeni akıcı bir paragraf olarak yaz)\n\n"
+                    "Markdown tablo, ek başlık veya süsleme kullanma. Doğrudan 1. maddeden başlayarak raporu yaz."
                 )
                 user_p = f"Erken Hacim Patlamaları (Son 5dk):\n{surges_str}\n\n24s En Çok Yükselenler:\n{gainers_summary}\n\nKüresel Haber Akışı:\n{news_summary}"
                 
-            report_body = call_gpt4o(sys_p, user_p)
+            report_body = call_gpt4o(sys_p, user_p, max_tokens=1500)
             if not report_body or len(report_body.strip()) < 20:
                 report_body = (
                     "📊 *Piyasa Duyarlılık Skoru:* `+7.8 / +10` (Pozitif Alım İştahı)\n\n"
