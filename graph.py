@@ -212,6 +212,29 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         print(f"   [Seçilen İşlem Teklifi]: SATIM ({sell_proposal['symbol']}) - {reason_desc} | Alış: ${sell_proposal['entry_price']} -> Güncel: ${curr_p}")
                         return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
                     else:
+                        # 🧩 3 KADEMELİ AKILLI GİRİŞ (DCA 2. KADEME DİP EKLEME):
+                        # Pozisyon INITIAL aşamasında ise ve -%1.0 ile -%2.2 arası sağlıklı geri çekilme yaptıysa:
+                        can_dca = (stage == "INITIAL" and (-2.2 <= net_profit_pct <= -1.0) and val_fiat < 22.0)
+                        if can_dca:
+                            dca_budget = 10.0 if not is_tr_silo else 350.0
+                            has_cash = (free_usdt >= dca_budget) if not is_tr_silo else (free_try >= dca_budget)
+                            if has_cash:
+                                dca_proposal = {
+                                    "should_trade": True,
+                                    "symbol": target_symbol,
+                                    "direction": "BUY",
+                                    "amount_usd": dca_budget if not is_tr_silo else round(dca_budget / live_fx, 2),
+                                    "entry_price": curr_p,
+                                    "sentiment_score": 8.0,
+                                    "take_profit_price": pos_tp_price,
+                                    "stop_loss_price": pos_sl_price,
+                                    "is_dca_entry": True,
+                                    "dca_stage": 2,
+                                    "risk_justification": f"🧩 3 Kademeli Akıllı Giriş (DCA 2. Kademe): {asset_upper} -%{abs(net_profit_pct):.2f} geri çekilme desteğinde ortalama maliyeti düşürmek için ${dca_budget:.1f} eklendi."
+                                }
+                                print(f"   [Seçilen İşlem Teklifi]: 🧩 DCA 2. KADEME ALIM ({target_symbol}) - Fiyat: ${curr_p} | Maliyet Düşürme Bütçesi: ${dca_budget}")
+                                return {"trade_proposal": dca_proposal, "human_approval": "Approved"}
+
                         trail_info_str = f" | Zirve: ${highest_p:,.4f}, İz Süren SL: ${highest_p*0.975:,.4f}" if (trailing_enabled and stage != "INITIAL") else ""
                         print(f"   ⏳ [Pozisyon Bekletiliyor (HOLD)]: {asset_upper} (Aşama: {stage}, Birim: {pair_quote}, Net: %{net_profit_pct:+.2f}{trail_info_str} | SL: ${pos_sl_price:,.4f}, TP: ${pos_tp_price:,.4f}).")
                 elif asset_upper in saved_positions:
@@ -480,19 +503,46 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
             if status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]:
                 if proposal["direction"].upper() in ["BUY", "ALIM"]:
                     exec_p = float(result.get("executed_price") or proposal.get("entry_price") or 0.0)
-                    coin_amt = float(proposal.get("amount_coin") or (proposal["amount_usd"] / exec_p if exec_p > 0 else 0))
-                    save_position_to_db(
-                        tenant_id=tenant_id,
-                        exchange_id=exch_name,
-                        symbol=proposal["symbol"],
-                        base_asset=base_sym,
-                        quote_asset=quote_c,
-                        amount=coin_amt,
-                        buy_price=exec_p,
-                        stop_loss_price=proposal.get("stop_loss_price"),
-                        take_profit_price=proposal.get("take_profit_price"),
-                        is_simulated=is_simulated
-                    )
+                    new_coin_amt = float(proposal.get("amount_coin") or (proposal["amount_usd"] / exec_p if exec_p > 0 else 0))
+                    
+                    is_dca = bool(proposal.get("is_dca_entry"))
+                    existing_pos = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch_name) or {}
+                    prev_info = existing_pos.get(base_sym) or existing_pos.get(proposal["symbol"]) or {}
+                    
+                    if is_dca and prev_info:
+                        prev_amt = float(prev_info.get("amount", 0.0))
+                        prev_buy_p = float(prev_info.get("buy_price", 0.0))
+                        tot_amt = prev_amt + new_coin_amt
+                        avg_p = ((prev_amt * prev_buy_p) + (new_coin_amt * exec_p)) / tot_amt if tot_amt > 0 else exec_p
+                        next_stage = "STAGE_2_DCA" if proposal.get("dca_stage") == 2 else "STAGE_3_FULL"
+                        save_position_to_db(
+                            tenant_id=tenant_id,
+                            exchange_id=exch_name,
+                            symbol=proposal["symbol"],
+                            base_asset=base_sym,
+                            quote_asset=quote_c,
+                            amount=tot_amt,
+                            buy_price=avg_p,
+                            stop_loss_price=round(avg_p * 0.975, 8 if avg_p < 1 else 2),
+                            take_profit_price=proposal.get("take_profit_price"),
+                            is_simulated=is_simulated,
+                            stage=next_stage
+                        )
+                        print(f"🧩 [DCA Kademe Tamamlandı]: {base_sym} yeni ortalama maliyet: ${avg_p:.4f} (Toplam {tot_amt:.4f} adet | Aşama: {next_stage})")
+                    else:
+                        save_position_to_db(
+                            tenant_id=tenant_id,
+                            exchange_id=exch_name,
+                            symbol=proposal["symbol"],
+                            base_asset=base_sym,
+                            quote_asset=quote_c,
+                            amount=new_coin_amt,
+                            buy_price=exec_p,
+                            stop_loss_price=proposal.get("stop_loss_price"),
+                            take_profit_price=proposal.get("take_profit_price"),
+                            is_simulated=is_simulated,
+                            stage="INITIAL"
+                        )
                 else: # SELL
                     r_type = str(proposal.get("reason_type", "")).lower()
                     if r_type == "partial_take_profit":
