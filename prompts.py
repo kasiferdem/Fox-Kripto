@@ -14,7 +14,7 @@ def _get_api_key():
 # -----------------------------------------
 # OPENROUTER / OPENAI GPT-4O ÇAĞRI YARDIMCISI
 # -----------------------------------------
-def call_gpt4o(system_prompt: str, user_content: str) -> str:
+def call_gpt4o(system_prompt: str, user_content: str, max_tokens: int = 1500) -> str:
     """Gemini 3.7 Flash / OpenAI modeline doğrudan güvenli HTTP çağrısı yapar."""
     url = "https://openrouter.ai/api/v1/chat/completions"
     key = _get_api_key()
@@ -29,18 +29,18 @@ def call_gpt4o(system_prompt: str, user_content: str) -> str:
             {"role": "user", "content": user_content}
         ],
         "temperature": 0.2,
-        "max_tokens": 400
+        "max_tokens": max_tokens
     }
     try:
-        res = requests.post(url, json=payload, headers=headers, timeout=20)
+        res = requests.post(url, json=payload, headers=headers, timeout=30)
         if res.status_code == 200:
             data = res.json()
             return data["choices"][0]["message"]["content"]
         else:
-            print(f"⚠️ GPT-4o Yanıt Uyarısı (Status {res.status_code}): {res.text}")
+            print(f"⚠️ LLM Yanıt Uyarısı (Status {res.status_code}): {res.text}")
             return ""
     except Exception as e:
-        print(f"❌ GPT-4o Çağrı Hatası: {e}")
+        print(f"❌ LLM Çağrı Hatası: {e}")
         return ""
 
 # -----------------------------------------
