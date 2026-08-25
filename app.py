@@ -1791,7 +1791,7 @@ __SSR_TENANTS_HTML__
                     const data = await res.json();
                     if (data.status === 'success') {
                         updateStrategyBadge(preset, spike);
-                        alert('✅ Strateji Profili Başarıyla Kaydedildi!\n\nSeçili Profil: ' + preset + '\nHacim Çarpanı: ' + spike + 'x\nMin Hacim: $' + minvol + '\n24s Tavan: %' + maxgain);
+                        alert('✅ Strateji Profili Başarıyla Kaydedildi!\\n\\nSeçili Profil: ' + preset + ' (' + spike + 'x)\\nMin Hacim: $' + minvol + '\\n24s Tavan: %' + maxgain);
                         loadStrategyConfig();
                     } else {
                         alert('❌ Kaydetme Başarısız!');
