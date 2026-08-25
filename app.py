@@ -1159,8 +1159,9 @@ __SSR_TENANTS_HTML__
                     thMb: "💵 Bütçe %",
                     thExch: "🏛️ Borsa Seçimi",
                     thLang: "🌐 Dil / Lang",
-                    thStatus: "Durum",
-                    thAction: "İşlem",
+                    thStatus: "⚡ Durum",
+                    thWallet: "💼 Cüzdan",
+                    thAction: "⚙️ İşlem",
                     addUser: "➕ Yeni Kullanıcı Ekle",
                     lblName: "Kullanıcı Adı",
                     lblTg: "Telegram Chat ID",
@@ -1197,8 +1198,9 @@ __SSR_TENANTS_HTML__
                     thMb: "💵 Budget %",
                     thExch: "🏛️ Exchange Selection",
                     thLang: "🌐 Language",
-                    thStatus: "Status",
-                    thAction: "Action",
+                    thStatus: "⚡ Status",
+                    thWallet: "💼 Wallet",
+                    thAction: "⚙️ Action",
                     addUser: "➕ Add New User",
                     lblName: "User Name",
                     lblTg: "Telegram Chat ID",
@@ -1243,6 +1245,7 @@ __SSR_TENANTS_HTML__
                 if (document.getElementById('i18n-th-exch')) document.getElementById('i18n-th-exch').innerText = t.thExch;
                 document.getElementById('i18n-th-lang').innerText = t.thLang;
                 document.getElementById('i18n-th-status').innerText = t.thStatus;
+                if (document.getElementById('i18n-th-wallet')) document.getElementById('i18n-th-wallet').innerText = t.thWallet;
                 document.getElementById('i18n-th-action').innerText = t.thAction;
                 document.getElementById('i18n-card-add').innerText = t.addUser;
                 document.getElementById('i18n-lbl-name').innerText = t.lblName;
