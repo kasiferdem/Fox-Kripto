@@ -351,14 +351,14 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         symbol=fresh_coin, entry_price=real_entry_price, user_tp_override=user_tp, user_sl_override=user_sl
     )
     
-    # 1. Kademe Giriş Bütçesi
-    exec_amount_usd = max(10.0, round(safe_budget_usd * 0.55, 2)) if shield_active else safe_budget_usd
+    # Kullanıcının tablodaki net Bütçe % oranı doğrudan işleme alınır
+    exec_amount_usd = safe_budget_usd
     
     proposal = {
         "should_trade": True,
         "symbol": fresh_coin,
         "direction": "BUY",
-        "amount_usd": min(exec_amount_usd, safe_budget_usd),
+        "amount_usd": exec_amount_usd,
         "entry_price": real_entry_price,
         "sentiment_score": state.get("sentiment_score", 8.0),
         "take_profit_price": tp_price,
@@ -366,7 +366,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         "take_profit_percent": dynamic_tp_pct,
         "stop_loss_percent": dynamic_sl_pct,
         "stage": "INITIAL",
-        "risk_justification": f"GLM-5.2 & OX Alpha Onaylı Alım: Bütçe ${exec_amount_usd:.1f} (Slot Max: ${safe_budget_usd:.1f}) | ATR TP: +%{dynamic_tp_pct:.1f} | ATR SL: -%{dynamic_sl_pct:.1f}"
+        "risk_justification": f"GLM-5.2 & OX Alpha Onaylı Alım: Bütçe %{user_max_pct:.0f} (${exec_amount_usd:.2f}) | ATR TP: +%{dynamic_tp_pct:.1f} | ATR SL: -%{dynamic_sl_pct:.1f}"
     }
     print(f"   ✅ [Risk Engine Onayı]: ALIM ({fresh_coin}) - Fiyat: ${real_entry_price} | Bütçe: ${proposal['amount_usd']}")
     return {"trade_proposal": proposal, "policy_check_passed": True, "human_approval": "Approved"}
