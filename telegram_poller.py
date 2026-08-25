@@ -357,20 +357,25 @@ def handle_update(update: dict):
             
             curr_bal = fetch_portfolio_balance(tenant)
             curr_ts = time.time()
+            usd_try_rate = get_live_usd_try_rate()
+            if usd_try_rate <= 0:
+                usd_try_rate = 48.0
+            
+            is_dual = bool(curr_bal.get("is_dual"))
+            is_tr = (tenant.get("exchange_id") == "binancetr")
+            is_gl = (tenant.get("exchange_id") == "binance" or (not is_dual and not is_tr))
             
             # Güncel Değerler
-            curr_tr_try = float(curr_bal.get("binance_tr", {}).get("total_try", 0.0))
-            curr_tr_usd = float(curr_bal.get("binance_tr", {}).get("total_usdt", 0.0))
-            curr_gl_usd = float(curr_bal.get("binance_global", {}).get("total_usdt", 0.0))
+            curr_tr_try = float(curr_bal.get("binance_tr", {}).get("total_try", 0.0)) if is_dual else (float(curr_bal.get("total_try", 0.0)) if is_tr else 0.0)
+            curr_gl_usd = float(curr_bal.get("binance_global", {}).get("total_usdt", 0.0)) if is_dual else (float(curr_bal.get("total_usdt", 0.0)) if is_gl else 0.0)
             curr_tot_usd = float(curr_bal.get("total_usdt", 0.0))
-            curr_tot_try = float(curr_bal.get("total_try", 0.0))
+            curr_tot_try = float(curr_bal.get("total_try", 0.0)) or (curr_tot_usd * usd_try_rate)
             
             # Yeni durumu kaydet
             new_snap = {
                 "timestamp": curr_ts,
                 "time_str": time.strftime("%H:%M:%S", time.localtime(curr_ts)),
                 "tr_try": curr_tr_try,
-                "tr_usd": curr_tr_usd,
                 "gl_usd": curr_gl_usd,
                 "tot_usd": curr_tot_usd,
                 "tot_try": curr_tot_try
@@ -379,13 +384,21 @@ def handle_update(update: dict):
             
             if not prev_data:
                 # İlk kez çalıştırıldıysa
+                if is_gl and not is_dual:
+                    exch_line = f"🌍 *Binance Global Kasa:* `${curr_gl_usd:,.2f} USD` (~₺{curr_tot_try:,.2f} TL)\n"
+                elif is_tr:
+                    exch_line = f"🇹🇷 *Binance TR Kasa:* `₺{curr_tr_try:,.2f} TL` (~${curr_tot_usd:,.2f} USD)\n"
+                else:
+                    exch_line = (
+                        f"🇹🇷 *Binance TR:* `₺{curr_tr_try:,.2f} TL`\n"
+                        f"🌍 *Binance Global:* `${curr_gl_usd:,.2f} USD`\n"
+                        f"🏆 *Toplam Birleşik Kasa:* `${curr_tot_usd:,.2f} USD` (~₺{curr_tot_try:,.2f} TL)\n"
+                    )
                 msg_init = (
                     f"📌 *KASA FARKI REFERANS NOKTASI OLUŞTURULDU*\n\n"
                     f"⏰ *Kayıt Saati:* `{new_snap['time_str']}`\n"
-                    f"🇹🇷 *Binance TR:* `₺{curr_tr_try:,.2f} TL` (~${curr_tr_usd:,.2f} USD)\n"
-                    f"🌍 *Binance Global:* `${curr_gl_usd:,.2f} USD`\n"
-                    f"🏆 *Toplam Birleşik Kasa:* `${curr_tot_usd:,.2f} USD` (~₺{curr_tot_try:,.2f} TL)\n\n"
-                    f"💡 _Bundan sonraki her `kasa fark` veya `durum` sorgunuzda aradaki kâr/zarar farkı milimetrik olarak bu noktayla karşılaştırılacaktır._"
+                    f"{exch_line}\n"
+                    f"💡 _Bundan sonraki her `fark` veya `durum` sorgunuzda aradaki kâr/zarar farkı bu referans noktasıyla kuruşu kuruşuna karşılaştırılacaktır._"
                 )
                 send_message(chat_id, msg_init)
                 return
@@ -413,16 +426,31 @@ def handle_update(update: dict):
             sign_tot = "+" if diff_tot_usd >= 0 else ""
             emoji_tot = "📈" if diff_tot_usd >= 0 else "📉"
             
+            if is_gl and not is_dual:
+                breakdown_text = (
+                    f"🌍 *BINANCE GLOBAL:* `${prev_gl_usd:,.2f}` ➔ `${curr_gl_usd:,.2f} USD`\n"
+                    f"   └ Net Değişim: *{sign_gl}${diff_gl_usd:,.2f} USD* ({sign_tot}₺{diff_tot_try:,.2f} TL)\n"
+                )
+            elif is_tr:
+                breakdown_text = (
+                    f"🇹🇷 *BINANCE TR:* `₺{prev_tr_try:,.2f}` ➔ `₺{curr_tr_try:,.2f} TL`\n"
+                    f"   └ Net Değişim: *{sign_tr}₺{diff_tr_try:,.2f} TL* ({sign_tot}${diff_tot_usd:,.2f} USD)\n"
+                )
+            else:
+                breakdown_text = (
+                    f"🇹🇷 *BINANCE TR:* `₺{prev_tr_try:,.2f}` ➔ `₺{curr_tr_try:,.2f} TL`\n"
+                    f"   └ Fark: *{sign_tr}₺{diff_tr_try:,.2f} TL*\n\n"
+                    f"🌍 *BINANCE GLOBAL:* `${prev_gl_usd:,.2f}` ➔ `${curr_gl_usd:,.2f} USD`\n"
+                    f"   └ Fark: *{sign_gl}${diff_gl_usd:,.2f} USD*\n"
+                )
+            
             msg_diff = (
                 f"⚖️ *SON DURUM İLE GÜNCEL KASA FARKI RAPORU*\n\n"
-                f"⏱️ *Önceki Sorgu:* `{prev_time_str}` _({time_ago_str})_\n"
+                f"⏱️ *Önceki Referans:* `{prev_time_str}` _({time_ago_str})_\n"
                 f"⏱️ *Şu Anki Saat:* `{new_snap['time_str']}`\n\n"
-                f"🇹🇷 *BINANCE TR:* `₺{prev_tr_try:,.2f}` ➔ `₺{curr_tr_try:,.2f} TL`\n"
-                f"   └ Fark: *{sign_tr}₺{diff_tr_try:,.2f} TL*\n\n"
-                f"🌍 *BINANCE GLOBAL:* `${prev_gl_usd:,.2f}` ➔ `${curr_gl_usd:,.2f} USD`\n"
-                f"   └ Fark: *{sign_gl}${diff_gl_usd:,.2f} USD*\n\n"
+                f"{breakdown_text}\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"{emoji_tot} *BİRLEŞİK TOPLAM KASA DEĞİŞİMİ:*\n"
+                f"{emoji_tot} *TOPLAM PORTFÖY DEĞİŞİMİ:*\n"
                 f"• Önceki: `${prev_tot_usd:,.2f} USD` (~₺{prev_tot_try:,.2f} TL)\n"
                 f"• Güncel: `${curr_tot_usd:,.2f} USD` (~₺{curr_tot_try:,.2f} TL)\n"
                 f"• *Net Fark:* *{sign_tot}${diff_tot_usd:,.2f} USD* ({sign_tot}₺{diff_tot_try:,.2f} TL)\n"
@@ -662,39 +690,92 @@ def handle_update(update: dict):
                 send_message(chat_id, msg_text)
                 return
 
-            holdings_text = ""
+            # 🌍 Tek Borsa Hesabı (Sadece Binance Global veya Sadece Binance TR)
             details = balance.get("holdings_details", {})
+            free_usdt = float(balance.get("free_usdt", 0.0))
+            tot_usd = float(balance.get("total_usdt", 0.0))
+            tot_try = float(balance.get("total_try", 0.0)) or (tot_usd * usd_try_rate)
+            
+            bnb_amt = 0.0
+            bnb_val = 0.0
+            holdings_str = ""
             if details:
-                for asset, info in details.items():
+                bnb_info = details.get("BNB", {})
+                bnb_amt = float(bnb_info.get("amount", 0.0))
+                bnb_val = float(bnb_info.get("val_usd", 0.0))
+                
+                for a, info in details.items():
                     amt = float(info.get("amount", 0.0))
                     val = float(info.get("val_usd", 0.0))
-                    if val >= 0.05:
-                        holdings_text += f"🪙 {asset}: {amt:,.6f} (~${val:,.2f} USD)\n"
-
+                    if a not in ["USDT", "TRY", "BNB"] and val >= 0.50:
+                        curr_unit_p = val / amt if amt > 0 else 0.0
+                        entry_info = saved_pos_gl.get(a) or saved_pos_gl.get(f"{a}/USDT") or saved_pos_tr.get(a) or saved_pos_tr.get(f"{a}/TRY") or {}
+                        entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
+                        if entry_p <= 0:
+                            entry_p = curr_unit_p
+                        
+                        gross_pct = ((curr_unit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
+                        pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
+                        pnl_fiat = val - (amt * entry_p) - (val * 0.002 if gross_pct > 0 else 0.0)
+                        if pnl_pct >= 0:
+                            pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+${pnl_fiat:,.2f} USD)"
+                        else:
+                            pnl_str = f" | 📉 -%{abs(pnl_pct):.2f} Net (-${abs(pnl_fiat):,.2f} USD)"
+                        holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{pnl_str})\n"
+            
+            if not holdings_str:
+                holdings_str = " • _(Açık coin pozisyonu yok)_\n"
+            
+            bnb_line_tr = f"🪙 Komisyon Havuzu (BNB): *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.10 else ""
+            bnb_line_en = f"🪙 BNB Fee Reserve: *{bnb_amt:.5f} BNB (${bnb_val:,.2f} USD)*\n" if bnb_val >= 0.10 else ""
             err_info = f"\n⚠️ Binance Error: {balance['api_error']}\n" if balance.get("api_error") else ""
 
             if is_en:
                 msg_text = (
-                    f"📊 LIVE PORTFOLIO STATUS\n\n"
+                    f"📊 *LIVE PORTFOLIO STATUS*\n\n"
                     f"👤 User: {tenant.get('tenant_name', 'User')}\n"
-                    f"💵 Free USDT: ${balance['free_usdt']:,.2f}\n"
-                    f"{holdings_text}"
-                    f"💰 Total Portfolio Value: ~${balance['total_usdt']:,.2f} USD\n"
-                    f"🏢 Exchange: {balance['exchange'].upper()}\n"
-                    f"🧪 Mode: {'Paper Trading' if balance['is_paper_trading'] else 'REAL LIVE ACCOUNT ✅'}"
+                    f"💵 Free USDT: *${free_usdt:,.2f} USD*\n"
+                    f"{bnb_line_en}"
+                    f"📦 *Open Positions:*\n"
+                    f"{holdings_str}\n"
+                    f"💰 *Total Portfolio Value:* *${tot_usd:,.2f} USD* (~₺{tot_try:,.2f} TL)\n"
+                    f"🏢 Exchange: {balance.get('exchange', 'BINANCE').upper()} 🌍\n"
+                    f"🧪 Mode: {'Paper Trading' if balance.get('is_paper_trading') else 'REAL LIVE TRADING ✅'}"
                     f"{err_info}"
                 )
             else:
                 msg_text = (
-                    f"📊 CANLI PORTFÖY DURUMUNUZ\n\n"
+                    f"📊 *CANLI PORTFÖY DURUMUNUZ*\n\n"
                     f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n"
-                    f"💵 Serbest USDT: ${balance['free_usdt']:,.2f}\n"
-                    f"{holdings_text}"
-                    f"💰 Toplam Portföy Değeri: ~${balance['total_usdt']:,.2f} USD\n"
-                    f"🏢 Borsa: {balance['exchange'].upper()}\n"
-                    f"🧪 Mod: {'Paper Trading' if balance['is_paper_trading'] else 'GERÇEK HESAP CANLI ✅'}"
+                    f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
+                    f"{bnb_line_tr}"
+                    f"📦 *Açık Pozisyonlar:*\n"
+                    f"{holdings_str}\n"
+                    f"💰 *Toplam Portföy Değeri:* *${tot_usd:,.2f} USD* (~₺{tot_try:,.2f} TL)\n"
+                    f"🏢 Borsa: {balance.get('exchange', 'BINANCE').upper()} 🌍\n"
+                    f"🧪 Mod: {'Paper Trading' if balance.get('is_paper_trading') else 'GERÇEK HESAP CANLI ✅'}"
                     f"{err_info}"
                 )
+
+            # Snapshot güncelle (Kasa Farkı için referans)
+            try:
+                client = get_supabase()
+                state_key = f"last_queried_balance_{chat_id}"
+                c_ts = time.time()
+                client.table("crypto_agent_states").upsert({
+                    "session_id": state_key,
+                    "state_data": {
+                        "timestamp": c_ts,
+                        "time_str": time.strftime("%H:%M:%S", time.localtime(c_ts)),
+                        "tr_try": float(balance.get("total_try", 0.0)) if is_tr else 0.0,
+                        "gl_usd": tot_usd if is_gl else 0.0,
+                        "tot_usd": tot_usd,
+                        "tot_try": tot_try
+                    }
+                }).execute()
+            except Exception:
+                pass
+
             send_message(chat_id, msg_text)
             return
         except Exception as de:
