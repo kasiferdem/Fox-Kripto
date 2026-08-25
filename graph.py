@@ -182,6 +182,9 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                     recorded_buy_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else 0.0
                     pos_sl_price = float(entry_info.get("stop_loss_price") or 0.0) if isinstance(entry_info, dict) else 0.0
                     pos_tp_price = float(entry_info.get("take_profit_price") or 0.0) if isinstance(entry_info, dict) else 0.0
+                    stage = str(entry_info.get("stage") or "INITIAL")
+                    highest_p = float(entry_info.get("highest_price") or recorded_buy_p or curr_p)
+
                     # Eğer DB'de alış fiyatı yoksa, doğrudan borsanın resmi işlem defterinden (/myTrades) çek:
                     if recorded_buy_p <= 0.0:
                         kd = tenant_config.get("keys_data") or {}
@@ -199,19 +202,25 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                                     buys = [t for t in r_h.json() if t.get("isBuyer")]
                                     if buys:
                                         recorded_buy_p = float(buys[-1]["price"])
+                                        pos_sl_price = round(recorded_buy_p * (1 - (user_sl/100.0)), 6)
+                                        pos_tp_price = round(recorded_buy_p * (1 + (user_tp/100.0)), 6)
+                                        highest_p = max(recorded_buy_p, curr_p)
                                         save_position_to_db(
                                             tenant_id=tenant_id, exchange_id=exch_name, symbol=target_symbol,
                                             base_asset=asset_upper, quote_asset=pair_quote, amount=coin_amount,
-                                            buy_price=recorded_buy_p, stop_loss_price=round(recorded_buy_p * (1 - (user_sl/100.0)), 6),
-                                            take_profit_price=round(recorded_buy_p * (1 + (user_tp/100.0)), 6),
-                                            highest_price=max(recorded_buy_p, curr_p), stage="INITIAL"
+                                            buy_price=recorded_buy_p, stop_loss_price=pos_sl_price,
+                                            take_profit_price=pos_tp_price,
+                                            highest_price=highest_p, stage="INITIAL"
                                         )
                                         print(f"📖 [Binance Defteri]: {asset_upper} son gerçek alış fiyatı borsadan senkronize edildi: ${recorded_buy_p:,.4f}")
                             except Exception as e_hist:
                                 print(f"⚠️ myTrades okuma uyarısı ({asset_upper}): {e_hist}")
                                 
                     if recorded_buy_p <= 0.0:
-                        continue
+                        recorded_buy_p = curr_p
+                        pos_sl_price = round(curr_p * (1 - (user_sl/100.0)), 6)
+                        pos_tp_price = round(curr_p * (1 + (user_tp/100.0)), 6)
+                        highest_p = curr_p
                         
                     gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
                     net_profit_pct = gross_change_pct - 0.20
@@ -243,12 +252,8 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                                 reason_desc = f"Stop-Loss (%{net_profit_pct:.2f} Net)"
                             elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
                                 is_take_profit = True
-                                if (not is_tr_silo and val_fiat < 15.0) or (is_tr_silo and val_fiat < 500.0):
-                                    reason_desc = f"🏆 Tam Kâr Alma (%100 Satıldı @ +%{net_profit_pct:.2f} Net)"
-                                    sell_fraction = 1.0
-                                else:
-                                    reason_desc = f"1. Aşama Kademeli Kâr (%50 Satıldı @ +%{net_profit_pct:.2f} Net)"
-                                    sell_fraction = 0.5
+                                reason_desc = f"🏆 Tam Kâr Alma (%100 Satıldı @ +%{net_profit_pct:.2f} Net)"
+                                sell_fraction = 1.0
                         else: # RUNNER
                             trail_sl_price = highest_p * 0.975
                             if curr_p <= recorded_buy_p:
