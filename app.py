@@ -830,10 +830,10 @@ def get_dashboard_html():
                         <input type="number" step="1" class="input-inline" id="mb_{idx}" value="{mb}">
                     </td>
                     <td>
-                        <select class="input-inline" style="width: 110px;" id="exch_{idx}">
-                            <option value="dual" {sel_dual}>⚡ Çift Borsa</option>
-                            <option value="binancetr" {sel_tr}>🇹🇷 Binance TR</option>
-                            <option value="binance" {sel_gl}>🌍 Global</option>
+                        <select class="input-inline" style="width: 140px;" id="exch_{idx}">
+                            <option value="binance" {sel_gl}>🌍 Sadece Global</option>
+                            <option value="dual" {sel_dual}>⚡ Çift (TR + Global)</option>
+                            <option value="binancetr" {sel_tr}>🇹🇷 Sadece TR</option>
                         </select>
                     </td>
                     <td>
@@ -1286,10 +1286,10 @@ __SSR_TENANTS_HTML__
                                 <input type="number" step="1" class="input-inline" id="mb_${idx}" value="${mb}">
                             </td>
                             <td>
-                                <select class="input-inline" style="width: 110px;" id="exch_${idx}">
-                                    <option value="dual" ${exch === 'dual' ? 'selected' : ''}>⚡ Çift Borsa</option>
-                                    <option value="binancetr" ${exch === 'binancetr' ? 'selected' : ''}>🇹🇷 Binance TR</option>
-                                    <option value="binance" ${exch === 'binance' ? 'selected' : ''}>🌍 Global</option>
+                                <select class="input-inline" style="width: 140px;" id="exch_${idx}">
+                                    <option value="binance" ${exch === 'binance' ? 'selected' : ''}>🌍 Sadece Global</option>
+                                    <option value="dual" ${exch === 'dual' ? 'selected' : ''}>⚡ Çift (TR + Global)</option>
+                                    <option value="binancetr" ${exch === 'binancetr' ? 'selected' : ''}>🇹🇷 Sadece TR</option>
                                 </select>
                             </td>
                             <td>
@@ -1541,17 +1541,22 @@ __SSR_TENANTS_HTML__
                     const posTr = data.saved_positions_tr || {};
                     const posGl = data.saved_positions_gl || {};
                     
-                    const freeTry = Number(bTr.free_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                    const totalTry = Number(bTr.total_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                    const freeUsdt = Number(bGl.free_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                    const totalUsdt = Number(bGl.total_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const isTrActive = (data.exchange_id === 'dual' || data.exchange_id === 'binancetr');
+                    const isGlActive = (data.exchange_id === 'dual' || data.exchange_id === 'binance');
+
+                    const freeTry = isTrActive ? Number(bTr.free_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
+                    const totalTry = isTrActive ? Number(bTr.total_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
+                    const freeUsdt = isGlActive ? Number(bGl.free_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
+                    const totalUsdt = isGlActive ? Number(bGl.total_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
                     const grandUsd = Number(p.total_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                     const grandTry = Number(p.total_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                     
                     // TR Pozisyonları HTML
                     let trCoinsHtml = '';
                     const trKeys = Object.keys(posTr);
-                    if (trKeys.length === 0) {
+                    if (!isTrActive) {
+                        trCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 20px; font-weight: 500;">⚪ Bu hesap için Binance TR devre dışı bırakılmıştır. (Sadece Binance Global Aktif).</td></tr>`;
+                    } else if (trKeys.length === 0) {
                         trCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 16px; font-weight: 500;">✅ Şu an açık coin pozisyonu yok (Kasa %100 Serbest TRY Nakitte).</td></tr>`;
                     } else {
                         trCoinsHtml = trKeys.map(sym => {
@@ -1575,7 +1580,9 @@ __SSR_TENANTS_HTML__
                     // Global Pozisyonları HTML
                     let glCoinsHtml = '';
                     const glKeys = Object.keys(posGl);
-                    if (glKeys.length === 0) {
+                    if (!isGlActive) {
+                        glCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 20px; font-weight: 500;">⚪ Bu hesap için Binance Global devre dışı bırakılmıştır. (Sadece Binance TR Aktif).</td></tr>`;
+                    } else if (glKeys.length === 0) {
                         glCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 16px; font-weight: 500;">✅ Şu an açık coin pozisyonu yok (Kasa %100 Serbest USDT Nakitte).</td></tr>`;
                     } else {
                         glCoinsHtml = glKeys.map(sym => {
@@ -1604,15 +1611,15 @@ __SSR_TENANTS_HTML__
                                 <div style="font-size: 22px; font-weight: bold; color: #60a5fa; margin-top: 4px;">$${grandUsd} USD</div>
                                 <small style="color: var(--text-muted);">~₺${grandTry} TL</small>
                             </div>
-                            <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; padding: 14px; text-align: center;">
+                            <div style="background: ${isTrActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)'}; border: 1px solid ${isTrActive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(100, 116, 139, 0.3)'}; border-radius: 12px; padding: 14px; text-align: center;">
                                 <div style="color: var(--text-muted); font-size: 12px; font-weight: 600;">🇹🇷 BİNANCE TR NAKİT</div>
-                                <div style="font-size: 20px; font-weight: bold; color: var(--success); margin-top: 4px;">₺${freeTry} TL</div>
-                                <small style="color: var(--text-muted);">Toplam TR: ₺${totalTry} TL</small>
+                                <div style="font-size: 20px; font-weight: bold; color: ${isTrActive ? 'var(--success)' : '#94a3b8'}; margin-top: 4px;">₺${freeTry} TL</div>
+                                <small style="color: var(--text-muted);">${isTrActive ? `Toplam TR: ₺${totalTry} TL` : '⚪ Devre Dışı (Pasif)'}</small>
                             </div>
-                            <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 14px; text-align: center;">
+                            <div style="background: ${isGlActive ? 'rgba(245, 158, 11, 0.15)' : 'rgba(100, 116, 139, 0.15)'}; border: 1px solid ${isGlActive ? 'rgba(245, 158, 11, 0.4)' : 'rgba(100, 116, 139, 0.3)'}; border-radius: 12px; padding: 14px; text-align: center;">
                                 <div style="color: var(--text-muted); font-size: 12px; font-weight: 600;">🌍 BİNANCE GLOBAL NAKİT</div>
-                                <div style="font-size: 20px; font-weight: bold; color: #fbbf24; margin-top: 4px;">$${freeUsdt} USDT</div>
-                                <small style="color: var(--text-muted);">Toplam Global: $${totalUsdt} USD</small>
+                                <div style="font-size: 20px; font-weight: bold; color: ${isGlActive ? '#fbbf24' : '#94a3b8'}; margin-top: 4px;">$${freeUsdt} USDT</div>
+                                <small style="color: var(--text-muted);">${isGlActive ? `Toplam Global: $${totalUsdt} USD` : '⚪ Devre Dışı (Pasif)'}</small>
                             </div>
                         </div>
 
@@ -1620,7 +1627,9 @@ __SSR_TENANTS_HTML__
                         <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                                 <h3 style="font-size: 15px; color: #f8fafc;">🇹🇷 Binance TR Cüzdanı ve Eldeki Coinler</h3>
-                                <span class="badge badge-active">${trKeys.length} Açık Pozisyon</span>
+                                <span class="badge ${isTrActive ? 'badge-active' : ''}" style="${!isTrActive ? 'background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid #64748b;' : ''}">
+                                    ${isTrActive ? `${trKeys.length} Açık Pozisyon` : '⚪ Devre Dışı'}
+                                </span>
                             </div>
                             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                                 <thead>
@@ -1640,7 +1649,9 @@ __SSR_TENANTS_HTML__
                         <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 12px; padding: 16px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                                 <h3 style="font-size: 15px; color: #f8fafc;">🌍 Binance Global Cüzdanı ve Eldeki Coinler</h3>
-                                <span class="badge badge-active">${glKeys.length} Açık Pozisyon</span>
+                                <span class="badge ${isGlActive ? 'badge-active' : ''}" style="${!isGlActive ? 'background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid #64748b;' : ''}">
+                                    ${isGlActive ? `${glKeys.length} Açık Pozisyon` : '⚪ Devre Dışı'}
+                                </span>
                             </div>
                             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                                 <thead>

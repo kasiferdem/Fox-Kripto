@@ -821,10 +821,10 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
             "holdings_details": holdings_details
         }
 
-    # 1. ÇİFT BORSA KONTROLÜ
+    # 1. ÇİFT BORSA KONTROLÜ (Yalnızca exchange_id 'dual' veya 'both' ise)
     api_k = str((tenant_config or {}).get("exchange_api_key", ""))
     exch_id = str((tenant_config or {}).get("exchange_id", "")).lower()
-    if (api_k.startswith("{") and "binancetr" in api_k) or exch_id in ["dual", "both"]:
+    if exch_id in ["dual", "both"]:
         try:
             import json
             keys_dict = json.loads(api_k) if api_k.startswith("{") else {}
