@@ -12,18 +12,20 @@ def _get_api_key():
     raise ValueError("CRITICAL: OPENROUTER_API_KEY is not configured in environment variables.")
 
 # -----------------------------------------
-# OPENROUTER / OPENAI GPT-4O ÇAĞRI YARDIMCISI
+# OPENROUTER ÇOKLU MODEL ÇAĞRI YARDIMCISI
 # -----------------------------------------
-def call_gpt4o(system_prompt: str, user_content: str, max_tokens: int = 1500) -> str:
-    """Gemini 3.7 Flash / OpenAI modeline doğrudan güvenli HTTP çağrısı yapar."""
+def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens: int = 1500) -> str:
+    """Belirtilen modele (Gemini, GLM-5.2, OX Alpha) OpenRouter üzerinden güvenli çağrı yapar."""
     url = "https://openrouter.ai/api/v1/chat/completions"
     key = _get_api_key()
     headers = {
         "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://fox-kripto.internal",
+        "X-Title": "Fox Multi-Agent Council"
     }
     payload = {
-        "model": "google/gemini-3.7-flash",
+        "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content}
@@ -32,16 +34,20 @@ def call_gpt4o(system_prompt: str, user_content: str, max_tokens: int = 1500) ->
         "max_tokens": max_tokens
     }
     try:
-        res = requests.post(url, json=payload, headers=headers, timeout=30)
+        res = requests.post(url, json=payload, headers=headers, timeout=35)
         if res.status_code == 200:
             data = res.json()
             return data["choices"][0]["message"]["content"]
         else:
-            print(f"⚠️ LLM Yanıt Uyarısı (Status {res.status_code}): {res.text}")
+            print(f"⚠️ LLM Yanıt Uyarısı ({model} - Status {res.status_code}): {res.text[:200]}")
             return ""
     except Exception as e:
-        print(f"❌ LLM Çağrı Hatası: {e}")
+        print(f"❌ LLM Çağrı Hatası ({model}): {e}")
         return ""
+
+def call_gpt4o(system_prompt: str, user_content: str, max_tokens: int = 1500) -> str:
+    """Gemini 3.7 Flash modeline doğrudan güvenli HTTP çağrısı yapar."""
+    return call_llm_model("google/gemini-3.7-flash", system_prompt, user_content, max_tokens=max_tokens)
 
 # -----------------------------------------
 # 1. HABER ANALİZ AJANI (NEWS AGENT)
