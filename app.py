@@ -1137,6 +1137,12 @@ __SSR_TENANTS_HTML__
         </div>
 
         <script>
+            function getAuthHeaders() {
+                return {
+                    'Authorization': 'Basic ' + btoa('admin:foxkripto2026')
+                };
+            }
+
             let currentLang = localStorage.getItem('fox_crypto_lang') || 'tr';
 
             const dict = {
