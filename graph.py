@@ -531,8 +531,14 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
         except Exception as pe:
             print(f"⚠️ [DB Ledger Güncelleme Uyarısı]: {pe}")
             
+        t_id = str((tenant_config or {}).get("id") or (tenant_config or {}).get("telegram_chat_id") or "default_tenant")
+        t_name = str((tenant_config or {}).get("tenant_name") or "S")
+        t_chat = (tenant_config or {}).get("telegram_chat_id")
         log_details = {
             **(result if isinstance(result, dict) else {}),
+            "tenant_id": t_id,
+            "tenant_name": t_name,
+            "telegram_chat_id": t_chat,
             "reason_type": proposal.get("reason_type", "momentum_entry" if proposal.get("direction") == "BUY" else "exit"),
             "net_profit_pct": proposal.get("net_profit_pct", 0.0),
             "gross_change_pct": proposal.get("gross_change_pct", 0.0),

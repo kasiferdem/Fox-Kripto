@@ -999,6 +999,7 @@ def get_dashboard_html():
                     <button id="btn-tr" class="lang-btn active" onclick="changeLang('tr')">🇹🇷 Türkçe</button>
                     <button id="btn-en" class="lang-btn" onclick="changeLang('en')">🇬🇧 English</button>
                 </div>
+                <button class="btn btn-primary" onclick="triggerManualScan()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; display: flex; align-items: center; gap: 6px;">⚡ Piyasayı Şimdi Tara</button>
                 <button id="i18n-btn-refresh" class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
             </div>
         </div>
@@ -1007,32 +1008,32 @@ def get_dashboard_html():
         <div class="card" style="margin-bottom: 24px; border: 1px solid rgba(59, 130, 246, 0.35); background: linear-gradient(180deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95)); box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
             <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>⚡ <strong>Strateji & Risk Profili Seçici (Al-Sat Çeviklik Motoru)</strong></span>
-                <span id="active-strategy-badge" class="badge" style="background: rgba(59, 130, 246, 0.25); color: #60a5fa; border: 1px solid #3b82f6; font-size: 13px; padding: 6px 12px;">🚀 21 Ağustos Profili Aktif</span>
+                <span id="active-strategy-badge" class="badge" style="background: rgba(59, 130, 246, 0.25); color: #60a5fa; border: 1px solid #3b82f6; font-size: 13px; padding: 6px 12px;">__STRAT_BADGE__</span>
             </div>
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr auto; gap: 14px; align-items: end; margin-top: 10px;">
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 Hazır Strateji Profili</label>
                     <select id="strategy-preset-select" onchange="onPresetChange(this.value)" style="width: 100%; padding: 9px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 13px;">
-                        <option value="agile_21_august">🚀 Agresif & Çevik (21 Ağustos Profili)</option>
-                        <option value="defensive_22_august">🛡️ Defansif & Koruma (22 Ağustos Profili)</option>
-                        <option value="custom">⚙️ Özel Profil (Custom)</option>
+                        <option value="agile_21_august" __STRAT_SEL_AGILE__>🚀 Agresif & Çevik (21 Ağustos Profili)</option>
+                        <option value="defensive_22_august" __STRAT_SEL_DEF__>🛡️ Defansif & Koruma (22 Ağustos Profili)</option>
+                        <option value="custom" __STRAT_SEL_CUST__>⚙️ Özel Profil (Custom)</option>
                     </select>
                 </div>
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">⚡ Hacim Çarpanı</label>
-                    <input type="number" id="strat-spike" step="0.1" value="1.3" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                    <input type="number" id="strat-spike" step="0.1" value="__STRAT_SPIKE__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
                 </div>
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">💵 Min 5dk Hacim ($)</label>
-                    <input type="number" id="strat-minvol" step="1000" value="8000" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                    <input type="number" id="strat-minvol" step="1000" value="__STRAT_MINVOL__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
                 </div>
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">📈 24s Tavan Prim %</label>
-                    <input type="number" id="strat-maxgain" step="0.5" value="15.0" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                    <input type="number" id="strat-maxgain" step="0.5" value="__STRAT_MAXGAIN__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
                 </div>
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🧠 Min AI Skoru</label>
-                    <input type="number" id="strat-minscore" step="0.5" value="5.0" min="1.0" max="10.0" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                    <input type="number" id="strat-minscore" step="0.5" value="__STRAT_MINSCORE__" min="1.0" max="10.0" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
                 </div>
                 <div>
                     <button class="btn btn-primary" onclick="saveStrategySettings()" style="height: 38px; white-space: nowrap; font-weight: 600;">💾 Profili Uygula</button>
@@ -1762,6 +1763,22 @@ __SSR_TENANTS_HTML__
                 }
             }
 
+            async function triggerManualScan() {
+                if (!confirm('⚡ Tüm aktif kullanıcılar için piyasa taraması ve alım-satım analizi hemen başlatılsın mı?')) return;
+                try {
+                    const res = await fetch('/run-graph', {
+                        method: 'POST',
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({session_id: 'manual_' + Date.now()})
+                    });
+                    const data = await res.json();
+                    alert('🚀 ' + (data.message || 'Piyasa taraması ve otonom analiz başlatıldı!'));
+                    setTimeout(loadData, 4000);
+                } catch(e) {
+                    alert('Hata: ' + e);
+                }
+            }
+
             applyLang(currentLang);
             loadSystemSettings();
             loadStrategyConfig();
@@ -1783,11 +1800,23 @@ __SSR_TENANTS_HTML__
     </body>
     </html>
     """
-    from db import get_system_setting
+    from db import get_system_setting, get_strategy_config
     trailing_stop_enabled = bool(get_system_setting("trailing_stop_enabled", True))
     trailing_checked = "checked" if trailing_stop_enabled else ""
     trailing_status = "AÇIK" if trailing_stop_enabled else "KAPALI"
     trailing_color = "var(--success)" if trailing_stop_enabled else "var(--danger)"
+
+    strat_cfg = get_strategy_config()
+    active_preset = strat_cfg.get("active_preset", "agile_21_august")
+    strat_spike = float(strat_cfg.get("volume_spike_multiplier", 1.3))
+    strat_minvol = float(strat_cfg.get("min_volume_usd", 8000.0))
+    strat_maxgain = float(strat_cfg.get("max_recent_gain_24h", 15.0))
+    strat_minscore = float(strat_cfg.get("min_ai_score", 5.0))
+
+    sel_agile = "selected" if active_preset == "agile_21_august" else ""
+    sel_def = "selected" if active_preset == "defensive_22_august" else ""
+    sel_cust = "selected" if active_preset == "custom" else ""
+    strat_badge_text = f"🚀 21 Ağustos Profili ({strat_spike}x) Aktif" if active_preset == "agile_21_august" else (f"🛡️ 22 Ağustos Defansif ({strat_spike}x) Aktif" if active_preset == "defensive_22_august" else f"⚙️ Özel Profil ({strat_spike}x) Aktif")
 
     res_html = (
         html_content
@@ -1798,6 +1827,14 @@ __SSR_TENANTS_HTML__
         .replace("__TRAILING_CHECKED__", trailing_checked)
         .replace("__TRAILING_STATUS__", trailing_status)
         .replace("__TRAILING_COLOR__", trailing_color)
+        .replace("__STRAT_BADGE__", strat_badge_text)
+        .replace("__STRAT_SEL_AGILE__", sel_agile)
+        .replace("__STRAT_SEL_DEF__", sel_def)
+        .replace("__STRAT_SEL_CUST__", sel_cust)
+        .replace("__STRAT_SPIKE__", str(strat_spike))
+        .replace("__STRAT_MINVOL__", str(int(strat_minvol)))
+        .replace("__STRAT_MAXGAIN__", str(strat_maxgain))
+        .replace("__STRAT_MINSCORE__", str(strat_minscore))
     )
     return HTMLResponse(content=res_html)
 
