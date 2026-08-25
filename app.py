@@ -1563,22 +1563,24 @@ __SSR_TENANTS_HTML__
                     }
                     
                     const p = data.portfolio || {};
-                    const bTr = p.binance_tr || {};
-                    const bGl = p.binance_global || {};
-                    const posTr = data.saved_positions_tr || {};
-                    const posGl = data.saved_positions_gl || {};
-                    
+                    const isDual = (data.exchange_id === 'dual' || data.exchange_id === 'both');
                     const isTrActive = (data.exchange_id === 'dual' || data.exchange_id === 'binancetr');
-                    const isGlActive = (data.exchange_id === 'dual' || data.exchange_id === 'binance');
+                    const isGlActive = (data.exchange_id === 'dual' || data.exchange_id === 'binance' || !data.exchange_id);
+                    
+                    const freeTryVal = isDual ? (p.binance_tr?.free_try || 0) : (data.exchange_id === 'binancetr' ? (p.free_try || 0) : 0);
+                    const totalTryVal = isDual ? (p.binance_tr?.total_try || 0) : (data.exchange_id === 'binancetr' ? (p.total_try || 0) : 0);
+                    const freeUsdtVal = isDual ? (p.binance_global?.free_usdt || 0) : (isGlActive ? (p.free_usdt || 0) : 0);
+                    const totalUsdtVal = isDual ? (p.binance_global?.total_usdt || 0) : (isGlActive ? (p.total_usdt || 0) : 0);
 
-                    const freeTry = isTrActive ? Number(bTr.free_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
-                    const totalTry = isTrActive ? Number(bTr.total_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
-                    const freeUsdt = isGlActive ? Number(bGl.free_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
-                    const totalUsdt = isGlActive ? Number(bGl.total_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
-                    const grandUsd = Number(p.total_usdt || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                    const grandTry = Number(p.total_try || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const freeTry = isTrActive ? Number(freeTryVal).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
+                    const totalTry = isTrActive ? Number(totalTryVal).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
+                    const freeUsdt = isGlActive ? Number(freeUsdtVal).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
+                    const totalUsdt = isGlActive ? Number(totalUsdtVal).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00';
+                    const grandUsd = Number(p.total_usdt || totalUsdtVal || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    const grandTry = Number(p.total_try || (totalUsdtVal * (data.usd_try_rate || 48.0)) || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                     
                     // TR Pozisyonları HTML
+                    const posTr = data.saved_positions_tr || {};
                     let trCoinsHtml = '';
                     const trKeys = Object.keys(posTr);
                     if (!isTrActive) {
@@ -1604,27 +1606,36 @@ __SSR_TENANTS_HTML__
                         }).join('');
                     }
                     
-                    // Global Pozisyonları HTML
+                    // Global Canlı Varlıklar & Pozisyonlar HTML
+                    const holdings = p.holdings_details || {};
+                    const savedGl = data.saved_positions_gl || {};
+                    const coinSymbols = Object.keys(holdings);
+                    
                     let glCoinsHtml = '';
-                    const glKeys = Object.keys(posGl);
                     if (!isGlActive) {
                         glCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 20px; font-weight: 500;">⚪ Bu hesap için Binance Global devre dışı bırakılmıştır. (Sadece Binance TR Aktif).</td></tr>`;
-                    } else if (glKeys.length === 0) {
-                        glCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 16px; font-weight: 500;">✅ Şu an açık coin pozisyonu yok (Kasa %100 Serbest USDT Nakitte).</td></tr>`;
+                    } else if (coinSymbols.length === 0) {
+                        glCoinsHtml = `<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 20px; font-weight: 500;">✅ Cüzdanda açık coin bulunmamaktadır (Kasa %100 Serbest $${freeUsdt} USDT Nakitte).</td></tr>`;
                     } else {
-                        glCoinsHtml = glKeys.map(sym => {
-                            const coin = posGl[sym];
-                            const buyPrice = Number(coin.buy_price || coin.entry_price || 0);
-                            const currentPrice = Number(coin.current_price || coin.highest_price || buyPrice);
-                            const pnl = buyPrice > 0 ? (((currentPrice - buyPrice) / buyPrice) * 100) : (coin.pnl_percent || 0);
-                            const pnlColor = pnl >= 0 ? 'var(--success)' : 'var(--danger)';
+                        glCoinsHtml = coinSymbols.map(sym => {
+                            const coin = holdings[sym] || {};
+                            const amt = Number(coin.amount || 0);
+                            const price = Number(coin.price || 0);
+                            const valUsd = Number(coin.val_usd || (amt * price));
+                            const valTry = Number(coin.val_try || (valUsd * (data.usd_try_rate || 48.0)));
+                            
+                            const botPos = savedGl[sym] || savedGl[sym + 'USDT'] || {};
+                            const buyP = Number(botPos.buy_price || botPos.entry_price || price);
+                            const pnl = buyP > 0 ? (((price - buyP) / buyP) * 100) : 0;
+                            const pnlBadge = botPos.buy_price ? `<span style="color: ${pnl >= 0 ? 'var(--success)' : 'var(--danger)'}; font-weight: bold;">${pnl >= 0 ? '+' : ''}%${pnl.toFixed(2)}</span>` : `<span style="color: #60a5fa; font-weight: 600;">🟢 Canlı Binance Bakiyesi</span>`;
+                            
                             return `
-                                <tr style="border-bottom: 1px solid var(--border);">
+                                <tr style="border-bottom: 1px solid var(--border); font-size: 13px;">
                                     <td style="padding: 10px;"><strong>🪙 ${sym}</strong></td>
-                                    <td style="padding: 10px;">${coin.amount}</td>
-                                    <td style="padding: 10px;">$${buyPrice.toFixed(4)}</td>
-                                    <td style="padding: 10px;">$${currentPrice.toFixed(4)}</td>
-                                    <td style="padding: 10px; font-weight: bold; color: ${pnlColor};">${pnl >= 0 ? '+' : ''}%${Number(pnl).toFixed(2)}</td>
+                                    <td style="padding: 10px;">${amt < 0.001 ? amt.toFixed(6) : amt.toFixed(4)}</td>
+                                    <td style="padding: 10px;">$${price < 0.001 ? price.toFixed(6) : price.toFixed(4)}</td>
+                                    <td style="padding: 10px; font-weight: bold; color: #60a5fa;">$${valUsd.toFixed(2)} <small style="color: var(--text-muted); display: block;">~₺${valTry.toFixed(2)} TL</small></td>
+                                    <td style="padding: 10px;">${pnlBadge}</td>
                                 </tr>
                             `;
                         }).join('');
@@ -1675,19 +1686,19 @@ __SSR_TENANTS_HTML__
                         <!-- Binance Global Tablosu -->
                         <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 12px; padding: 16px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                <h3 style="font-size: 15px; color: #f8fafc;">🌍 Binance Global Cüzdanı ve Eldeki Coinler</h3>
+                                <h3 style="font-size: 15px; color: #f8fafc;">🌍 Binance Global Canlı Cüzdan ve Varlıklar</h3>
                                 <span class="badge ${isGlActive ? 'badge-active' : ''}" style="${!isGlActive ? 'background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid #64748b;' : ''}">
-                                    ${isGlActive ? `${glKeys.length} Açık Pozisyon` : '⚪ Devre Dışı'}
+                                    ${isGlActive ? `${coinSymbols.length} Canlı Varlık` : '⚪ Devre Dışı'}
                                 </span>
                             </div>
                             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                                 <thead>
                                     <tr style="border-bottom: 2px solid var(--border); color: var(--text-muted); text-align: left;">
                                         <th style="padding: 8px;">Coin</th>
-                                        <th style="padding: 8px;">Adet</th>
-                                        <th style="padding: 8px;">Giriş Fiyatı</th>
-                                        <th style="padding: 8px;">Anlık Fiyat</th>
-                                        <th style="padding: 8px;">Kâr / Zarar %</th>
+                                        <th style="padding: 8px;">Miktar (Adet)</th>
+                                        <th style="padding: 8px;">Birim Fiyat</th>
+                                        <th style="padding: 8px;">Toplam Değer ($ / ₺)</th>
+                                        <th style="padding: 8px;">Durum & Kâr %</th>
                                     </tr>
                                 </thead>
                                 <tbody>${glCoinsHtml}</tbody>
