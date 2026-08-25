@@ -1044,6 +1044,7 @@ def get_dashboard_html():
                     <button id="btn-tr" class="lang-btn active" onclick="changeLang('tr')">🇹🇷 Türkçe</button>
                     <button id="btn-en" class="lang-btn" onclick="changeLang('en')">🇬🇧 English</button>
                 </div>
+                <button class="btn" onclick="openRulesModal()" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border: none; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);">📜 Aktif Kurallar & Versiyon (v2.1)</button>
                 <button class="btn btn-primary" onclick="triggerManualScan()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; display: flex; align-items: center; gap: 6px;">⚡ Piyasayı Şimdi Tara</button>
                 <button class="btn" onclick="triggerDustClean()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer;">🧹 Kırıntıları BNB'ye Dönüştür</button>
                 <button id="i18n-btn-refresh" class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
@@ -1873,11 +1874,105 @@ __SSR_TENANTS_HTML__
                 }
             }
 
+            function openRulesModal() {
+                document.getElementById('rules-manifest-modal').style.display = 'flex';
+            }
+            function closeRulesModal() {
+                document.getElementById('rules-manifest-modal').style.display = 'none';
+            }
+
             applyLang(currentLang);
             loadSystemSettings();
             loadStrategyConfig();
             loadData();
         </script>
+
+        <!-- AKTİF KURALLAR & VERSİYON GEÇMİŞİ MODALI -->
+        <div id="rules-manifest-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); justify-content: center; align-items: center; z-index: 10000;" onclick="if(event.target===this) closeRulesModal()">
+            <div style="background: #1e293b; border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 16px; width: 92%; max-width: 900px; max-height: 90vh; overflow-y: auto; padding: 26px; box-shadow: 0 25px 60px rgba(0,0,0,0.6);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 18px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <h2 style="font-size: 20px; color: #f8fafc; font-weight: 800; margin: 0;">📜 Fox AI Kurumsal Trading & Risk Kuralları</h2>
+                        <span class="badge" style="background: rgba(99, 102, 241, 0.25); color: #818cf8; border: 1px solid #6366f1; font-weight: bold; padding: 4px 10px; border-radius: 6px; font-size: 13px;">🟢 Versiyon: v2.1 (Canlı)</span>
+                    </div>
+                    <button onclick="closeRulesModal()" style="background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-weight: bold; font-size: 14px;">✕ Kapat</button>
+                </div>
+
+                <!-- KURALLAR LİSTESİ -->
+                <div style="display: grid; gap: 14px; margin-bottom: 24px;">
+                    <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 10px; padding: 14px 18px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span style="font-weight: 700; color: #60a5fa; font-size: 14px;">🛡️ KURAL 1: Katı Pozisyon Büyüklüğü & Kasa Koruması</span>
+                            <span style="font-size: 11px; background: rgba(59, 130, 246, 0.15); color: #93c5fd; padding: 2px 8px; border-radius: 4px;">Zorunlu Limit</span>
+                        </div>
+                        <p style="margin: 0; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
+                            Tek bir pozisyona toplam kasanın <strong>maksimum %15'i</strong> veya <strong>en fazla $30 USD (₺1.200 TL)</strong> ayrılabilir. Kasa en az 4-5 slota bölünür. Olası bir %2 stop durumunda kasadan yalnızca ~$0.50 cent eksilir.
+                        </p>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 14px 18px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span style="font-weight: 700; color: #fbbf24; font-size: 14px;">🎯 KURAL 2: Anti-FOMO & Tepe Alım Kalkanı</span>
+                            <span style="font-size: 11px; background: rgba(245, 158, 11, 0.15); color: #fde68a; padding: 2px 8px; border-radius: 4px;">Filtre</span>
+                        </div>
+                        <p style="margin: 0; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
+                            Son 5 dakikada %3.5'ten fazla fırlamış coinlere piyasa emriyle (Market Order) girilmez. Mum üst fitil oranı (satıcı baskısı) <strong>&le; 0.35</strong> olmalıdır. Yalnızca dip kırılımları ve sağlıklı konsolidasyonlar işleme alınır.
+                        </p>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 14px 18px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span style="font-weight: 700; color: #f87171; font-size: 14px;">🛑 KURAL 3: BTC Makro Rejim & RSI Kalkanı</span>
+                            <span style="font-size: 11px; background: rgba(239, 68, 68, 0.15); color: #fca5a5; padding: 2px 8px; border-radius: 4px;">Piyasa Kilidi</span>
+                        </div>
+                        <p style="margin: 0; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
+                            Bitcoin 1 saatlik grafikte <strong>RSI &lt; 42</strong> ise, EMA200 altındaysa veya 15 dakikalık ani düşüş (-%1.0+) varsa altcoinlerde yeni alımlar otomatik olarak kilitlenir ve serbest nakit (%85+) korunur.
+                        </p>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 14px 18px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span style="font-weight: 700; color: #34d399; font-size: 14px;">📊 KURAL 4: Kesin Borsa İşlem Defteri & Net Kâr/Zarar</span>
+                            <span style="font-size: 11px; background: rgba(16, 185, 129, 0.15); color: #a7f3d0; padding: 2px 8px; border-radius: 4px;">Şeffaf Muhasebe</span>
+                        </div>
+                        <p style="margin: 0; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
+                            Pozisyon maliyetleri hafıza kaybından etkilenmemesi için doğrudan Binance resmi işlem defterinden (<code>/myTrades</code>) son gerçek alış fiyatıyla senkronize edilir. Kâr ve zararlar %0.20 komisyon düşülerek net hesaplanır.
+                        </p>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 10px; padding: 14px 18px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span style="font-weight: 700; color: #c084fc; font-size: 14px;">🤖 KURAL 5: Yeni Nesil 3'lü Ajan Konseyi</span>
+                            <span style="font-size: 11px; background: rgba(168, 85, 247, 0.15); color: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Yapay Zeka Mimarisi</span>
+                        </div>
+                        <p style="margin: 0; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
+                            • 🎯 <strong>Moderatör:</strong> <code>google/gemini-3.7-flash</code> (Yıldırım hızında analiz)<br>
+                            • 🛠️ <strong>Kodlama & Mimari:</strong> <code>stealth/ox-alpha</code> (İleri seviye algoritmik infaz)<br>
+                            • 🛡️ <strong>Risk Denetçisi:</strong> <code>z-ai/glm-5.2</code> (Bağımsız güvenlik ve sermaye denetimi)
+                        </p>
+                    </div>
+                </div>
+
+                <!-- VERSİYON TARİHÇESİ (CHANGELOG) -->
+                <div style="border-top: 1px solid var(--border); padding-top: 18px;">
+                    <h3 style="font-size: 15px; color: #94a3b8; margin-bottom: 12px;">📅 Versiyon Geçmişi & Değişiklik Günlüğü:</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+                        <div style="display: flex; gap: 10px; align-items: baseline;">
+                            <span style="color: #22c55e; font-weight: 700; min-width: 85px;">v2.1 (25 Ağu)</span>
+                            <span style="color: #cbd5e1;">4 Kurumsal Borsacı kuralı devreye alındı, pozisyon bütçesi max $30 / %15 ile sınırlandı, BTC RSI & Anti-FOMO kalkanı eklendi, Gemini 3.7 Flash + OX ALPHA + GLM 5.2 ajan konseyi aktif edildi.</span>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: baseline;">
+                            <span style="color: #60a5fa; font-weight: 700; min-width: 85px;">v2.0 (22 Ağu)</span>
+                            <span style="color: #cbd5e1;">Binance TR + Binance Global çift borsa altyapısı, 24 saatlik otomatik BNB toz bakiyeleri temizleme motoru.</span>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: baseline;">
+                            <span style="color: #94a3b8; font-weight: 700; min-width: 85px;">v1.0 (21 Ağu)</span>
+                            <span style="color: #cbd5e1;">İlk otonom LangGraph al-sat mimarisi, Telegram botu ve gerçek zamanlı bakiye takip modülü.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- KULLANICI CÜZDAN DETAY MODAL HTML -->
         <div id="user-portfolio-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 10000;" onclick="if(event.target===this) closeUserPortfolioModal()">
