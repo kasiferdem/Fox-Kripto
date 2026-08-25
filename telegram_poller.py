@@ -666,12 +666,10 @@ def handle_update(update: dict):
             details = balance.get("holdings_details", {})
             if details:
                 for asset, info in details.items():
-                    amt = info["amount"]
-                    val = info["val_usd"]
-                    if val > 0:
+                    amt = float(info.get("amount", 0.0))
+                    val = float(info.get("val_usd", 0.0))
+                    if val >= 0.05:
                         holdings_text += f"🪙 {asset}: {amt:,.6f} (~${val:,.2f} USD)\n"
-                    else:
-                        holdings_text += f"🪙 {asset}: {amt:,.6f}\n"
 
             err_info = f"\n⚠️ Binance Error: {balance['api_error']}\n" if balance.get("api_error") else ""
 
