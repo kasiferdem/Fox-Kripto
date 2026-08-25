@@ -312,9 +312,14 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     free_try = float(bal_tr.get("free_try", 0.0))
     tot_val_usd = float(bal_gl.get("total_usdt", 0.0)) or 100.0
     
-    adaptive_slots = get_adaptive_max_slots(tot_val_usd)
-    target_slots = max(4, adaptive_slots) if shield_active else max(1, adaptive_slots)
-    user_max_pct = float(tenant_config.get("max_budget_percent") or 15.0)
+    from db import get_strategy_config
+    strat_cfg = get_strategy_config(use_cache=True)
+    cfg_max_pct = float(strat_cfg.get("max_budget_percent") or 25.0)
+    user_max_pct = float(tenant_config.get("max_budget_percent") or cfg_max_pct)
+    
+    # Hedef slot sayısı bütçe yüzdesine göre dinamik belirlenir (%33 -> 3 slot, %25 -> 4 slot, %15 -> 6 slot)
+    calculated_slots = max(1, int(100.0 / user_max_pct))
+    target_slots = max(calculated_slots, 1) if shield_active else max(1, adaptive_slots)
     
     is_quote_try = c_sym.endswith("TRY")
     cand_quote = "TRY" if is_quote_try else "USDT"
@@ -323,18 +328,18 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     if is_quote_try:
         tot_tr_try = float(bal_tr.get("total_try", 0.0)) or (tot_val_usd * live_fx)
         max_cap_tl = round(tot_tr_try * (user_max_pct / 100.0), 2)
-        slot_budget_tl = min(round(tot_tr_try / target_slots, 2), max_cap_tl, 1200.0) if shield_active else round(tot_tr_try / target_slots, 2)
+        slot_budget_tl = min(round(tot_tr_try / target_slots, 2), max_cap_tl) if shield_active else round(tot_tr_try / target_slots, 2)
         trade_budget_tl = min(slot_budget_tl, free_try * 0.95)
         safe_budget_usd = round(trade_budget_tl / live_fx, 2)
         if free_try < 100.0 or trade_budget_tl < 100.0:
-            print(f"   ⏳ [Bütçe Yetersiz]: Serbest TL (₺{free_try:.2f}) slot için yetersiz.")
+            print(f"   ⏳ [Bütçe Yetersiz]: Serbest TL (₺{free_try:.2f}) slot (₺{slot_budget_tl:.2f}) için yetersiz.")
             return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
     else:
-        max_cap_usd = min(round(tot_val_usd * (user_max_pct / 100.0), 2), 30.0)
+        max_cap_usd = round(tot_val_usd * (user_max_pct / 100.0), 2)
         slot_budget_usd = min(round(tot_val_usd / target_slots, 2), max_cap_usd) if shield_active else round(tot_val_usd / target_slots, 2)
         safe_budget_usd = round(min(slot_budget_usd, free_usdt * 0.95), 2)
         if free_usdt < 10.0 or safe_budget_usd < 10.0:
-            print(f"   ⏳ [Bütçe Yetersiz]: Serbest USDT (${free_usdt:.2f}) slot için yetersiz.")
+            print(f"   ⏳ [Bütçe Yetersiz]: Serbest USDT (${free_usdt:.2f}) slot (${slot_budget_usd:.2f}) için yetersiz.")
             return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
             
     real_ticker = fetch_ticker_price(fresh_coin)

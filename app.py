@@ -528,6 +528,7 @@ class StrategyConfigRequest(BaseModel):
     min_volume_usd: float
     max_recent_gain_24h: float
     min_ai_score: float
+    max_budget_percent: float = 25.0
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -543,7 +544,8 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "volume_spike_multiplier": req.volume_spike_multiplier,
         "min_volume_usd": req.min_volume_usd,
         "max_recent_gain_24h": req.max_recent_gain_24h,
-        "min_ai_score": req.min_ai_score
+        "min_ai_score": req.min_ai_score,
+        "max_budget_percent": req.max_budget_percent
     }
     ok = save_strategy_config(payload)
     return {"status": "success" if ok else "error", "config": payload}
@@ -1075,7 +1077,7 @@ def get_dashboard_html():
                 <span>⚡ <strong>v2.1 Strateji & Hacim Hassasiyet Seçici (Al-Sat Çeviklik Motoru)</strong></span>
                 <span id="active-strategy-badge" class="badge" style="background: rgba(99, 102, 241, 0.25); color: #818cf8; border: 1px solid #6366f1; font-size: 13px; padding: 6px 12px;">__STRAT_BADGE__</span>
             </div>
-            <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr auto; gap: 14px; align-items: end; margin-top: 10px;">
+            <div style="display: grid; grid-template-columns: 1.4fr 0.8fr 0.9fr 0.9fr 0.8fr 1fr auto; gap: 12px; align-items: end; margin-top: 10px;">
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 v2.1 Hazır Strateji Profili</label>
                     <select id="strategy-preset-select" onchange="onPresetChange(this.value)" style="width: 100%; padding: 9px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 13px;">
@@ -1094,19 +1096,23 @@ def get_dashboard_html():
                     <input type="number" id="strat-minvol" step="1000" value="__STRAT_MINVOL__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
                 </div>
                 <div>
-                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">📈 24s Tavan Prim %</label>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">📈 24s Tavan %</label>
                     <input type="number" id="strat-maxgain" step="0.5" value="__STRAT_MAXGAIN__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
                 </div>
                 <div>
-                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🧠 Min AI Skoru</label>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🧠 Min AI Skor</label>
                     <input type="number" id="strat-minscore" step="0.5" value="__STRAT_MINSCORE__" min="1.0" max="10.0" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: #60a5fa; display: block; margin-bottom: 5px; font-weight: 600;">💰 Max Pozisyon %</label>
+                    <input type="number" id="strat-maxbudget" step="1.0" min="5.0" max="100.0" value="__STRAT_MAXBUDGET__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #60a5fa; font-weight: 700; border: 1px solid #3b82f6;">
                 </div>
                 <div>
                     <button class="btn btn-primary" onclick="saveStrategySettings()" style="height: 38px; white-space: nowrap; font-weight: 600;">💾 Profili Uygula</button>
                 </div>
             </div>
             <div id="strat-desc" style="font-size: 12px; color: #94a3b8; margin-top: 10px;">
-                💡 <em>Açıklama: v2.1 Kurumsal Motor: %15 max bütçe, 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile çalışır.</em>
+                💡 <em>Açıklama: v2.1 Kurumsal Motor: %25 max bütçe (4 slot), 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile çalışır.</em>
             </div>
         </div>
 
@@ -1816,6 +1822,7 @@ __SSR_TENANTS_HTML__
                         document.getElementById('strat-minvol').value = cfg.min_volume_usd || 10000;
                         document.getElementById('strat-maxgain').value = cfg.max_recent_gain_24h || 12.0;
                         document.getElementById('strat-minscore').value = cfg.min_ai_score || 6.0;
+                        document.getElementById('strat-maxbudget').value = cfg.max_budget_percent || 25.0;
                         updateStrategyBadge(p, cfg.volume_spike_multiplier || 1.3);
                     }
                 } catch (e) {
@@ -1830,21 +1837,24 @@ __SSR_TENANTS_HTML__
                     document.getElementById('strat-minvol').value = 10000;
                     document.getElementById('strat-maxgain').value = 12.0;
                     document.getElementById('strat-minscore').value = 6.0;
-                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Kurumsal Motor: %15 max bütçe, 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile dengeli çalışır. (Önerilen)</em>';
+                    document.getElementById('strat-maxbudget').value = 25.0;
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Kurumsal Motor: %25 max bütçe (4 slot), 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile dengeli çalışır. (Önerilen)</em>';
                 } else if (preset === 'v21_agile') {
                     document.getElementById('strat-spike').value = 1.2;
                     document.getElementById('strat-minvol').value = 6000;
                     document.getElementById('strat-maxgain').value = 15.0;
                     document.getElementById('strat-minscore').value = 5.0;
-                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Hızlı Momentum: Dipten kalkan pariteleri 1.2x ile anında yakalar, sıkı stop ve 3 kademeli DCA uygular.</em>';
+                    document.getElementById('strat-maxbudget').value = 33.0;
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Hızlı Momentum: Yüksek sermaye kullanımı (%33 max bütçe / 3 slot), dipten kalkan fırsatları 1.2x erken hacimle yakalar.</em>';
                 } else if (preset === 'v21_defensive' || preset === 'defensive_22_august') {
                     document.getElementById('strat-spike').value = 1.8;
                     document.getElementById('strat-minvol').value = 20000;
                     document.getElementById('strat-maxgain').value = 8.0;
                     document.getElementById('strat-minscore').value = 7.0;
-                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Yüksek Güvenlik: Yalnızca teyitli büyük balina kırılımlarında (%8 tavan altı) devreye girer.</em>';
+                    document.getElementById('strat-maxbudget').value = 15.0;
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Yüksek Güvenlik: Maksimum nakit koruma (%15 bütçe / 6-7 slot), yalnızca 1.8x büyük balina girişlerinde devreye girer.</em>';
                 } else {
-                    desc.innerHTML = '💡 <em>Açıklama: v2.1 kuralları altında serbest özel parametreler belirleyebilirsiniz.</em>';
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 kuralları altında serbest bütçe ve özel parametreler belirleyebilirsiniz.</em>';
                 }
             }
 
@@ -1875,6 +1885,7 @@ __SSR_TENANTS_HTML__
                 const minvol = parseFloat(document.getElementById('strat-minvol').value) || 10000;
                 const maxgain = parseFloat(document.getElementById('strat-maxgain').value) || 12.0;
                 const minscore = parseFloat(document.getElementById('strat-minscore').value) || 6.0;
+                const maxbudget = parseFloat(document.getElementById('strat-maxbudget').value) || 25.0;
 
                 try {
                     const res = await fetch('/api/strategy-config', {
@@ -1885,13 +1896,14 @@ __SSR_TENANTS_HTML__
                             volume_spike_multiplier: spike,
                             min_volume_usd: minvol,
                             max_recent_gain_24h: maxgain,
-                            min_ai_score: minscore
+                            min_ai_score: minscore,
+                            max_budget_percent: maxbudget
                         })
                     });
                     const data = await res.json();
                     if (data.status === 'success') {
                         updateStrategyBadge(preset, spike);
-                        alert('✅ v2.1 Strateji Profili Başarıyla Kaydedildi!\\n\\nSeçili Profil: ' + preset + ' (' + spike + 'x)\\nMin Hacim: $' + minvol + '\\n24s Tavan: %' + maxgain);
+                        alert('✅ v2.1 Strateji Profili Başarıyla Kaydedildi!\\n\\nSeçili Profil: ' + preset + ' (' + spike + 'x)\\nMax Pozisyon Bütçesi: %' + maxbudget + '\\nMin Hacim: $' + minvol + '\\n24s Tavan: %' + maxgain);
                         loadStrategyConfig();
                     } else {
                         alert('❌ Kaydetme Başarısız!');
@@ -2077,6 +2089,7 @@ __SSR_TENANTS_HTML__
     strat_minvol = float(strat_cfg.get("min_volume_usd", 10000.0))
     strat_maxgain = float(strat_cfg.get("max_recent_gain_24h", 12.0))
     strat_minscore = float(strat_cfg.get("min_ai_score", 6.0))
+    strat_maxbudget = float(strat_cfg.get("max_budget_percent", 25.0))
 
     sel_balanced = "selected" if active_preset == "v21_balanced" else ""
     sel_agile = "selected" if active_preset == "v21_agile" else ""
@@ -2113,6 +2126,7 @@ __SSR_TENANTS_HTML__
         .replace("__STRAT_MINVOL__", str(int(strat_minvol)))
         .replace("__STRAT_MAXGAIN__", str(strat_maxgain))
         .replace("__STRAT_MINSCORE__", str(strat_minscore))
+        .replace("__STRAT_MAXBUDGET__", str(strat_maxbudget))
     )
     return HTMLResponse(content=res_html)
 

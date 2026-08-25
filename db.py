@@ -594,21 +594,32 @@ def get_system_constitution_rules() -> Dict[str, Any]:
         return DEFAULT_SYSTEM_RULES
 
 STRATEGY_PRESETS = {
-    "agile_21_august": {
-        "name": "🚀 Agresif & Çevik Mod (21 Ağustos Profili)",
+    "v21_balanced": {
+        "name": "🛡️ v2.1 Kurumsal & Dengeli (Önerilen)",
         "volume_spike_multiplier": 1.3,
-        "min_volume_usd": 8000.0,
+        "min_volume_usd": 10000.0,
+        "max_recent_gain_24h": 12.0,
+        "min_ai_score": 6.0,
+        "max_budget_percent": 25.0,
+        "description": "v2.1 Kurumsal Motor: %25 max bütçe (4 slot), 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile çalışır."
+    },
+    "v21_agile": {
+        "name": "🚀 v2.1 Hızlı Momentum (Scalp Modu)",
+        "volume_spike_multiplier": 1.2,
+        "min_volume_usd": 6000.0,
         "max_recent_gain_24h": 15.0,
         "min_ai_score": 5.0,
-        "description": "Yüksek işlem sıklığı, dipten yeni kalkan altcoinleri 1.3x hacimle anında yakalar."
+        "max_budget_percent": 33.0,
+        "description": "Yüksek sermaye kullanımı: %33 max bütçe (3 slot), dipten kalkan fırsatları 1.2x erken hacimle yakalar."
     },
-    "defensive_22_august": {
-        "name": "🛡️ Defansif & Koruma Modu (22 Ağustos Profili)",
+    "v21_defensive": {
+        "name": "🏰 v2.1 Yüksek Güvenlik (Defansif)",
         "volume_spike_multiplier": 1.8,
-        "min_volume_usd": 25000.0,
-        "max_recent_gain_24h": 8.5,
-        "min_ai_score": 6.0,
-        "description": "Düşük işlem sıklığı, yalnızca devasa balina patlamalarında (%8.5 altı) devreye girer."
+        "min_volume_usd": 20000.0,
+        "max_recent_gain_24h": 8.0,
+        "min_ai_score": 7.0,
+        "max_budget_percent": 15.0,
+        "description": "Maksimum nakit koruma: %15 bütçe (6-7 slot), yalnızca 1.8x büyük balina girişlerinde devreye girer."
     }
 }
 
@@ -633,13 +644,14 @@ def get_strategy_config(use_cache: bool = True) -> dict:
         except Exception:
             pass
             
-    # Varsayılan profil: 21 Ağustos Agresif & Çevik Mod
+    # Varsayılan profil: v2.1 Kurumsal & Dengeli
     _cached_strategy_config = {
-        "active_preset": "agile_21_august",
+        "active_preset": "v21_balanced",
         "volume_spike_multiplier": 1.3,
-        "min_volume_usd": 8000.0,
-        "max_recent_gain_24h": 15.0,
-        "min_ai_score": 5.0,
+        "min_volume_usd": 10000.0,
+        "max_recent_gain_24h": 12.0,
+        "min_ai_score": 6.0,
+        "max_budget_percent": 25.0,
         "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     }
     _cached_strategy_config_ts = now
