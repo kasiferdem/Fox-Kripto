@@ -493,14 +493,15 @@ class TriggerGraphRequest(BaseModel):
     symbol: str = "BTC/USDT"
 
 class SystemSettingsRequest(BaseModel):
-    trailing_stop_enabled: bool = True
+    trailing_stop_enabled: Optional[bool] = None
+    v21_security_shield_enabled: Optional[bool] = None
 
 class StrategyConfigRequest(BaseModel):
-    active_preset: str = "agile_21_august"
+    active_preset: str = "v21_balanced"
     volume_spike_multiplier: float = 1.3
-    min_volume_usd: float = 8000.0
-    max_recent_gain_24h: float = 15.0
-    min_ai_score: float = 5.0
+    min_volume_usd: float = 10000.0
+    max_recent_gain_24h: float = 12.0
+    min_ai_score: float = 6.0
 
 # -----------------------------------------
 # API ROTALARI (KULLANICI EKLE / SİL / LİSTELE)
@@ -514,9 +515,11 @@ def health_check():
 def get_settings_endpoint():
     from db import get_system_setting
     ts_enabled = bool(get_system_setting("trailing_stop_enabled", True))
+    shield_enabled = bool(get_system_setting("v21_security_shield_enabled", True))
     return {
         "status": "success",
-        "trailing_stop_enabled": ts_enabled
+        "trailing_stop_enabled": ts_enabled,
+        "v21_security_shield_enabled": shield_enabled
     }
 
 class StrategyConfigRequest(BaseModel):
@@ -547,12 +550,19 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
 
 @app_api.post("/api/settings", dependencies=[Depends(authenticate_admin)])
 def update_settings_endpoint(req: SystemSettingsRequest):
-    from db import set_system_setting
-    ok = set_system_setting("trailing_stop_enabled", req.trailing_stop_enabled)
+    from db import set_system_setting, get_system_setting
+    if req.trailing_stop_enabled is not None:
+        set_system_setting("trailing_stop_enabled", req.trailing_stop_enabled)
+    if req.v21_security_shield_enabled is not None:
+        set_system_setting("v21_security_shield_enabled", req.v21_security_shield_enabled)
+        
+    ts_val = bool(get_system_setting("trailing_stop_enabled", True))
+    shield_val = bool(get_system_setting("v21_security_shield_enabled", True))
     return {
-        "status": "success" if ok else "error",
-        "trailing_stop_enabled": req.trailing_stop_enabled,
-        "message": f"Dinamik İz Süren Stop (Trailing Stop) Modu: {'AÇIK' if req.trailing_stop_enabled else 'KAPALI'}"
+        "status": "success",
+        "trailing_stop_enabled": ts_val,
+        "v21_security_shield_enabled": shield_val,
+        "message": f"Ayarlar Güncellendi (İz Süren: {'AÇIK' if ts_val else 'KAPALI'}, v2.1 Güvenlik Zırhı: {'AÇIK' if shield_val else 'KAPALI'})"
     }
 
 @app_api.get("/api/my-ip")
@@ -1032,6 +1042,14 @@ def get_dashboard_html():
                 <p id="i18n-subtitle" style="color: var(--text-muted); font-size: 14px;">Otonom Yapay Zeka Kripto Ticaret, Risk ve Kullanıcı Yönetimi</p>
             </div>
             <div class="header-right">
+                <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 10px; padding: 6px 14px;">
+                    <span id="i18n-lbl-shield" style="font-size: 13px; font-weight: 600; color: #818cf8;">🛡️ v2.1 Güvenlik Zırhı:</span>
+                    <label class="switch">
+                        <input type="checkbox" id="security-shield-toggle" __SHIELD_CHECKED__ onchange="toggleSecurityShield(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                    <span id="shield-status-text" style="font-size: 12px; font-weight: bold; color: __SHIELD_COLOR__;">__SHIELD_STATUS__</span>
+                </div>
                 <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px;">
                     <span id="i18n-lbl-trailing" style="font-size: 13px; font-weight: 600; color: #60a5fa;">🚀 İz Süren Stop (Trailing SL):</span>
                     <label class="switch">
@@ -1543,15 +1561,49 @@ __SSR_TENANTS_HTML__
                 try {
                     const res = await fetch('/api/settings', { headers: getAuthHeaders() });
                     const data = await res.json();
+                    const isEn = (currentLang === 'en');
+                    
                     const toggle = document.getElementById('trailing-stop-toggle');
                     const statusTxt = document.getElementById('trailing-status-text');
                     if (toggle && statusTxt) {
-                        const isEn = (currentLang === 'en');
                         toggle.checked = Boolean(data.trailing_stop_enabled);
                         statusTxt.innerText = data.trailing_stop_enabled ? (isEn ? 'ACTIVE' : 'AÇIK') : (isEn ? 'DISABLED' : 'KAPALI');
                         statusTxt.style.color = data.trailing_stop_enabled ? 'var(--success)' : 'var(--danger)';
                     }
+                    
+                    const shieldToggle = document.getElementById('security-shield-toggle');
+                    const shieldTxt = document.getElementById('shield-status-text');
+                    if (shieldToggle && shieldTxt) {
+                        const s_active = (data.v21_security_shield_enabled !== false);
+                        shieldToggle.checked = Boolean(s_active);
+                        shieldTxt.innerText = s_active ? (isEn ? 'ACTIVE' : 'AÇIK') : (isEn ? 'DISABLED' : 'KAPALI');
+                        shieldTxt.style.color = s_active ? 'var(--success)' : 'var(--danger)';
+                    }
                 } catch(e) { console.error('Settings load error:', e); }
+            }
+
+            async function toggleSecurityShield(enabled) {
+                const shieldTxt = document.getElementById('shield-status-text');
+                const isEn = (currentLang === 'en');
+                if (shieldTxt) {
+                    shieldTxt.innerText = isEn ? 'UPDATING...' : 'GÜNCELLENİYOR...';
+                    shieldTxt.style.color = 'var(--warning)';
+                }
+                try {
+                    const res = await fetch('/api/settings', {
+                        method: 'POST',
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ v21_security_shield_enabled: enabled })
+                    });
+                    const data = await res.json();
+                    if (shieldTxt) {
+                        shieldTxt.innerText = enabled ? (isEn ? 'ACTIVE' : 'AÇIK') : (isEn ? 'DISABLED' : 'KAPALI');
+                        shieldTxt.style.color = enabled ? 'var(--success)' : 'var(--danger)';
+                    }
+                } catch(e) {
+                    console.error('Shield update error:', e);
+                    loadSystemSettings();
+                }
             }
 
             async function toggleTrailingStop(enabled) {
@@ -2009,6 +2061,11 @@ __SSR_TENANTS_HTML__
     trailing_status = "AÇIK" if trailing_stop_enabled else "KAPALI"
     trailing_color = "var(--success)" if trailing_stop_enabled else "var(--danger)"
 
+    shield_enabled = bool(get_system_setting("v21_security_shield_enabled", True))
+    shield_checked = "checked" if shield_enabled else ""
+    shield_status = "AÇIK" if shield_enabled else "KAPALI"
+    shield_color = "var(--success)" if shield_enabled else "var(--danger)"
+
     strat_cfg = get_strategy_config(use_cache=False)
     active_preset = strat_cfg.get("active_preset", "v21_balanced")
     if active_preset == "agile_21_august":
@@ -2044,6 +2101,9 @@ __SSR_TENANTS_HTML__
         .replace("__TRAILING_CHECKED__", trailing_checked)
         .replace("__TRAILING_STATUS__", trailing_status)
         .replace("__TRAILING_COLOR__", trailing_color)
+        .replace("__SHIELD_CHECKED__", shield_checked)
+        .replace("__SHIELD_STATUS__", shield_status)
+        .replace("__SHIELD_COLOR__", shield_color)
         .replace("__STRAT_BADGE__", strat_badge_text)
         .replace("__STRAT_SEL_BALANCED__", sel_balanced)
         .replace("__STRAT_SEL_AGILE__", sel_agile)

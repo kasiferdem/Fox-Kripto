@@ -213,8 +213,10 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
                         return {"trade_proposal": sell_proposal, "human_approval": "Approved"}
                     else:
                         # 🧩 3 KADEMELİ AKILLI GİRİŞ (DCA 2. KADEME DİP EKLEME):
-                        # Pozisyon INITIAL aşamasında ise ve -%1.0 ile -%2.2 arası sağlıklı geri çekilme yaptıysa:
-                        can_dca = (stage == "INITIAL" and (-2.2 <= net_profit_pct <= -1.0) and val_fiat < 22.0)
+                        # Pozisyon INITIAL aşamasında ise, zırh aktifse ve -%1.0 ile -%2.2 arası sağlıklı geri çekilme yaptıysa:
+                        from db import get_system_setting
+                        shield_active = bool(get_system_setting("v21_security_shield_enabled", True))
+                        can_dca = (shield_active and stage == "INITIAL" and (-2.2 <= net_profit_pct <= -1.0) and val_fiat < 22.0)
                         if can_dca:
                             dca_budget = 10.0 if not is_tr_silo else 350.0
                             has_cash = (free_usdt >= dca_budget) if not is_tr_silo else (free_try >= dca_budget)
@@ -393,17 +395,19 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         if ai_conviction_score < 5.0:
             continue
             
-        # 🎯 KURUMSAL BORSACI KASA YÖNETİMİ (MAX %15 / MAX $30 / 4-5 SLOT):
-        # Tek pozisyona asla kasanın %15'inden veya $30 USD'den fazla yatırılmaz!
+        # 🎯 KURUMSAL BORSACI KASA YÖNETİMİ & v2.1 GÜVENLİK ZIRHI KONTROLÜ:
+        from db import get_system_setting
+        shield_active = bool(get_system_setting("v21_security_shield_enabled", True))
+        
         user_max_budget_pct = float(tenant_config.get("max_budget_percent") or 15.0)
         cand_quote = "TRY" if (c_sym.upper().endswith("TRY") or c_sym.upper().endswith("_TRY")) else "USDT"
         is_quote_try = (cand_quote == "TRY")
-        target_slots = max(4, adaptive_max_slots)
+        target_slots = max(4, adaptive_max_slots) if shield_active else max(1, adaptive_max_slots)
         
         if is_quote_try:
             tot_tr_try = float(portfolio_state.get("binance_tr", {}).get("total_try", 0.0)) or (tot_val_usd * live_fx)
             max_cap_tl = round(tot_tr_try * (user_max_budget_pct / 100.0), 2)
-            slot_budget_tl = min(round(tot_tr_try / target_slots, 2), max_cap_tl, 1200.0)
+            slot_budget_tl = min(round(tot_tr_try / target_slots, 2), max_cap_tl, 1200.0) if shield_active else round(tot_tr_try / target_slots, 2)
             trade_budget_tl = min(slot_budget_tl, free_try * 0.95)
             safe_budget_usd = round(trade_budget_tl / live_fx, 2)
             if free_try < 100.0 or trade_budget_tl < 100.0:
@@ -413,7 +417,7 @@ def node_formulate_strategy(state: CryptoAgentState) -> Dict[str, Any]:
         else:
             tot_gl_usd = float(portfolio_state.get("binance_global", {}).get("total_usdt", 0.0)) or tot_val_usd
             max_cap_usd = min(round(tot_gl_usd * (user_max_budget_pct / 100.0), 2), 30.0) # Maksimum $30 / %15 katı tavan
-            slot_budget_usd = min(round(tot_gl_usd / target_slots, 2), max_cap_usd)
+            slot_budget_usd = min(round(tot_gl_usd / target_slots, 2), max_cap_usd) if shield_active else round(tot_gl_usd / target_slots, 2)
             safe_budget_usd = round(min(slot_budget_usd, free_usdt * 0.95), 2)
             if free_usdt < 10.0 or safe_budget_usd < 10.0:
                 user_label = (tenant_config or {}).get("tenant_name", "Kullanıcı")
