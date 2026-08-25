@@ -1051,19 +1051,20 @@ def get_dashboard_html():
             </div>
         </div>
 
-        <!-- ⚡ STRATEJİ VE RİSK PROFİLİ SEÇİCİ KARTI -->
-        <div class="card" style="margin-bottom: 24px; border: 1px solid rgba(59, 130, 246, 0.35); background: linear-gradient(180deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95)); box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+        <!-- ⚡ v2.1 STRATEJİ VE HACİM HASSASİYET SEÇİCİ KARTI -->
+        <div class="card" style="margin-bottom: 24px; border: 1px solid rgba(99, 102, 241, 0.4); background: linear-gradient(180deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95)); box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
             <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>⚡ <strong>Strateji & Risk Profili Seçici (Al-Sat Çeviklik Motoru)</strong></span>
-                <span id="active-strategy-badge" class="badge" style="background: rgba(59, 130, 246, 0.25); color: #60a5fa; border: 1px solid #3b82f6; font-size: 13px; padding: 6px 12px;">__STRAT_BADGE__</span>
+                <span>⚡ <strong>v2.1 Strateji & Hacim Hassasiyet Seçici (Al-Sat Çeviklik Motoru)</strong></span>
+                <span id="active-strategy-badge" class="badge" style="background: rgba(99, 102, 241, 0.25); color: #818cf8; border: 1px solid #6366f1; font-size: 13px; padding: 6px 12px;">__STRAT_BADGE__</span>
             </div>
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr auto; gap: 14px; align-items: end; margin-top: 10px;">
                 <div>
-                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 Hazır Strateji Profili</label>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 v2.1 Hazır Strateji Profili</label>
                     <select id="strategy-preset-select" onchange="onPresetChange(this.value)" style="width: 100%; padding: 9px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 13px;">
-                        <option value="agile_21_august" __STRAT_SEL_AGILE__>🚀 Agresif & Çevik (21 Ağustos Profili)</option>
-                        <option value="defensive_22_august" __STRAT_SEL_DEF__>🛡️ Defansif & Koruma (22 Ağustos Profili)</option>
-                        <option value="custom" __STRAT_SEL_CUST__>⚙️ Özel Profil (Custom)</option>
+                        <option value="v21_balanced" __STRAT_SEL_BALANCED__>🛡️ v2.1 Kurumsal & Dengeli (Önerilen)</option>
+                        <option value="v21_agile" __STRAT_SEL_AGILE__>🚀 v2.1 Hızlı Momentum (Scalp Modu)</option>
+                        <option value="v21_defensive" __STRAT_SEL_DEF__>🏰 v2.1 Yüksek Güvenlik (Defansif)</option>
+                        <option value="custom" __STRAT_SEL_CUST__>⚙️ Özel Yapılandırma (Custom)</option>
                     </select>
                 </div>
                 <div>
@@ -1087,7 +1088,7 @@ def get_dashboard_html():
                 </div>
             </div>
             <div id="strat-desc" style="font-size: 12px; color: #94a3b8; margin-top: 10px;">
-                💡 <em>Açıklama: Yüksek işlem sıklığı, dipten yeni kalkan altcoinleri 1.3x hacimle anında yakalar.</em>
+                💡 <em>Açıklama: v2.1 Kurumsal Motor: %15 max bütçe, 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile çalışır.</em>
             </div>
         </div>
 
@@ -1755,12 +1756,15 @@ __SSR_TENANTS_HTML__
                     if (data.status === 'success' && data.config) {
                         const cfg = data.config;
                         const sel = document.getElementById('strategy-preset-select');
-                        sel.value = cfg.active_preset || 'agile_21_august';
+                        let p = cfg.active_preset || 'v21_balanced';
+                        if (p === 'agile_21_august') p = 'v21_balanced';
+                        if (p === 'defensive_22_august') p = 'v21_defensive';
+                        sel.value = p;
                         document.getElementById('strat-spike').value = cfg.volume_spike_multiplier || 1.3;
-                        document.getElementById('strat-minvol').value = cfg.min_volume_usd || 8000;
-                        document.getElementById('strat-maxgain').value = cfg.max_recent_gain_24h || 15.0;
-                        document.getElementById('strat-minscore').value = cfg.min_ai_score || 5.0;
-                        updateStrategyBadge(cfg.active_preset, cfg.volume_spike_multiplier);
+                        document.getElementById('strat-minvol').value = cfg.min_volume_usd || 10000;
+                        document.getElementById('strat-maxgain').value = cfg.max_recent_gain_24h || 12.0;
+                        document.getElementById('strat-minscore').value = cfg.min_ai_score || 6.0;
+                        updateStrategyBadge(p, cfg.volume_spike_multiplier || 1.3);
                     }
                 } catch (e) {
                     console.error('Strateji yükleme hatası:', e);
@@ -1769,35 +1773,45 @@ __SSR_TENANTS_HTML__
 
             function onPresetChange(preset) {
                 const desc = document.getElementById('strat-desc');
-                if (preset === 'agile_21_august') {
+                if (preset === 'v21_balanced' || preset === 'agile_21_august') {
                     document.getElementById('strat-spike').value = 1.3;
-                    document.getElementById('strat-minvol').value = 8000;
+                    document.getElementById('strat-minvol').value = 10000;
+                    document.getElementById('strat-maxgain').value = 12.0;
+                    document.getElementById('strat-minscore').value = 6.0;
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Kurumsal Motor: %15 max bütçe, 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile dengeli çalışır. (Önerilen)</em>';
+                } else if (preset === 'v21_agile') {
+                    document.getElementById('strat-spike').value = 1.2;
+                    document.getElementById('strat-minvol').value = 6000;
                     document.getElementById('strat-maxgain').value = 15.0;
                     document.getElementById('strat-minscore').value = 5.0;
-                    desc.innerHTML = '💡 <em>Açıklama: Yüksek işlem sıklığı, dipten yeni kalkan altcoinleri 1.3x hacimle anında yakalar. (21 Ağustos kârlı modu)</em>';
-                } else if (preset === 'defensive_22_august') {
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Hızlı Momentum: Dipten kalkan pariteleri 1.2x ile anında yakalar, sıkı stop ve 3 kademeli DCA uygular.</em>';
+                } else if (preset === 'v21_defensive' || preset === 'defensive_22_august') {
                     document.getElementById('strat-spike').value = 1.8;
-                    document.getElementById('strat-minvol').value = 25000;
-                    document.getElementById('strat-maxgain').value = 8.5;
-                    document.getElementById('strat-minscore').value = 6.0;
-                    desc.innerHTML = '💡 <em>Açıklama: Düşük işlem sıklığı, sadece devasa balina patlamalarında (%8.5 altı) devreye girer.</em>';
+                    document.getElementById('strat-minvol').value = 20000;
+                    document.getElementById('strat-maxgain').value = 8.0;
+                    document.getElementById('strat-minscore').value = 7.0;
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Yüksek Güvenlik: Yalnızca teyitli büyük balina kırılımlarında (%8 tavan altı) devreye girer.</em>';
                 } else {
-                    desc.innerHTML = '💡 <em>Açıklama: Serbest özel parametreler belirleyebilirsiniz.</em>';
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 kuralları altında serbest özel parametreler belirleyebilirsiniz.</em>';
                 }
             }
 
             function updateStrategyBadge(preset, spike) {
                 const badge = document.getElementById('active-strategy-badge');
-                if (preset === 'agile_21_august') {
-                    badge.innerHTML = '🚀 21 Ağustos Çevik Mod (' + spike + 'x) Aktif';
+                if (preset === 'v21_balanced' || preset === 'agile_21_august') {
+                    badge.innerHTML = '🛡️ v2.1 Kurumsal Dengeli (' + spike + 'x) Aktif';
+                    badge.style.borderColor = '#6366f1';
+                    badge.style.color = '#818cf8';
+                } else if (preset === 'v21_agile') {
+                    badge.innerHTML = '🚀 v2.1 Hızlı Momentum (' + spike + 'x) Aktif';
                     badge.style.borderColor = '#3b82f6';
                     badge.style.color = '#60a5fa';
-                } else if (preset === 'defensive_22_august') {
-                    badge.innerHTML = '🛡️ 22 Ağustos Defansif Mod (' + spike + 'x) Aktif';
+                } else if (preset === 'v21_defensive' || preset === 'defensive_22_august') {
+                    badge.innerHTML = '🏰 v2.1 Yüksek Güvenlik (' + spike + 'x) Aktif';
                     badge.style.borderColor = '#10b981';
                     badge.style.color = '#34d399';
                 } else {
-                    badge.innerHTML = '⚙️ Özel Mod (' + spike + 'x) Aktif';
+                    badge.innerHTML = '⚙️ v2.1 Özel Mod (' + spike + 'x) Aktif';
                     badge.style.borderColor = '#f59e0b';
                     badge.style.color = '#fbbf24';
                 }
@@ -1806,9 +1820,9 @@ __SSR_TENANTS_HTML__
             async function saveStrategySettings() {
                 const preset = document.getElementById('strategy-preset-select').value;
                 const spike = parseFloat(document.getElementById('strat-spike').value) || 1.3;
-                const minvol = parseFloat(document.getElementById('strat-minvol').value) || 8000;
-                const maxgain = parseFloat(document.getElementById('strat-maxgain').value) || 15.0;
-                const minscore = parseFloat(document.getElementById('strat-minscore').value) || 5.0;
+                const minvol = parseFloat(document.getElementById('strat-minvol').value) || 10000;
+                const maxgain = parseFloat(document.getElementById('strat-maxgain').value) || 12.0;
+                const minscore = parseFloat(document.getElementById('strat-minscore').value) || 6.0;
 
                 try {
                     const res = await fetch('/api/strategy-config', {
@@ -1825,13 +1839,15 @@ __SSR_TENANTS_HTML__
                     const data = await res.json();
                     if (data.status === 'success') {
                         updateStrategyBadge(preset, spike);
-                        alert('✅ Strateji Profili Başarıyla Kaydedildi!\\n\\nSeçili Profil: ' + preset + ' (' + spike + 'x)\\nMin Hacim: $' + minvol + '\\n24s Tavan: %' + maxgain);
+                        alert('✅ v2.1 Strateji Profili Başarıyla Kaydedildi!\\n\\nSeçili Profil: ' + preset + ' (' + spike + 'x)\\nMin Hacim: $' + minvol + '\\n24s Tavan: %' + maxgain);
                         loadStrategyConfig();
                     } else {
                         alert('❌ Kaydetme Başarısız!');
                     }
                 } catch (e) {
                     alert('Hata: ' + e);
+                }
+            }
                 }
             }
 
@@ -1996,16 +2012,30 @@ __SSR_TENANTS_HTML__
     trailing_color = "var(--success)" if trailing_stop_enabled else "var(--danger)"
 
     strat_cfg = get_strategy_config(use_cache=False)
-    active_preset = strat_cfg.get("active_preset", "agile_21_august")
-    strat_spike = float(strat_cfg.get("volume_spike_multiplier", 1.3))
-    strat_minvol = float(strat_cfg.get("min_volume_usd", 8000.0))
-    strat_maxgain = float(strat_cfg.get("max_recent_gain_24h", 15.0))
-    strat_minscore = float(strat_cfg.get("min_ai_score", 5.0))
+    active_preset = strat_cfg.get("active_preset", "v21_balanced")
+    if active_preset == "agile_21_august":
+        active_preset = "v21_balanced"
+    elif active_preset == "defensive_22_august":
+        active_preset = "v21_defensive"
 
-    sel_agile = "selected" if active_preset == "agile_21_august" else ""
-    sel_def = "selected" if active_preset == "defensive_22_august" else ""
+    strat_spike = float(strat_cfg.get("volume_spike_multiplier", 1.3))
+    strat_minvol = float(strat_cfg.get("min_volume_usd", 10000.0))
+    strat_maxgain = float(strat_cfg.get("max_recent_gain_24h", 12.0))
+    strat_minscore = float(strat_cfg.get("min_ai_score", 6.0))
+
+    sel_balanced = "selected" if active_preset == "v21_balanced" else ""
+    sel_agile = "selected" if active_preset == "v21_agile" else ""
+    sel_def = "selected" if active_preset == "v21_defensive" else ""
     sel_cust = "selected" if active_preset == "custom" else ""
-    strat_badge_text = f"🚀 21 Ağustos Profili ({strat_spike}x) Aktif" if active_preset == "agile_21_august" else (f"🛡️ 22 Ağustos Defansif ({strat_spike}x) Aktif" if active_preset == "defensive_22_august" else f"⚙️ Özel Profil ({strat_spike}x) Aktif")
+    
+    if active_preset == "v21_balanced":
+        strat_badge_text = f"🛡️ v2.1 Kurumsal Dengeli ({strat_spike}x) Aktif"
+    elif active_preset == "v21_agile":
+        strat_badge_text = f"🚀 v2.1 Hızlı Momentum ({strat_spike}x) Aktif"
+    elif active_preset == "v21_defensive":
+        strat_badge_text = f"🏰 v2.1 Yüksek Güvenlik ({strat_spike}x) Aktif"
+    else:
+        strat_badge_text = f"⚙️ v2.1 Özel Profil ({strat_spike}x) Aktif"
 
     res_html = (
         html_content
@@ -2017,6 +2047,7 @@ __SSR_TENANTS_HTML__
         .replace("__TRAILING_STATUS__", trailing_status)
         .replace("__TRAILING_COLOR__", trailing_color)
         .replace("__STRAT_BADGE__", strat_badge_text)
+        .replace("__STRAT_SEL_BALANCED__", sel_balanced)
         .replace("__STRAT_SEL_AGILE__", sel_agile)
         .replace("__STRAT_SEL_DEF__", sel_def)
         .replace("__STRAT_SEL_CUST__", sel_cust)
