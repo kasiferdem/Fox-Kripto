@@ -15,7 +15,7 @@ def _get_api_key():
 # OPENROUTER / OPENAI GPT-4O ÇAĞRI YARDIMCISI
 # -----------------------------------------
 def call_gpt4o(system_prompt: str, user_content: str) -> str:
-    """GPT-4o modeline doğrudan güvenli HTTP çağrısı yapar."""
+    """Gemini 3.7 Flash / OpenAI modeline doğrudan güvenli HTTP çağrısı yapar."""
     url = "https://openrouter.ai/api/v1/chat/completions"
     key = _get_api_key()
     headers = {
@@ -23,7 +23,7 @@ def call_gpt4o(system_prompt: str, user_content: str) -> str:
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "openai/gpt-4o",
+        "model": "google/gemini-3.7-flash",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content}

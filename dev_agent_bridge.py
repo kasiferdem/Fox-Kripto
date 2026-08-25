@@ -24,8 +24,8 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPE
 
 # 3'lü Ajan Modelleri
 MODEL_MODERATOR = "google/gemini-3.7-flash"
-MODEL_CODER = "openai/gpt-5.6-sol"
-MODEL_AUDITOR = "z-ai/glm-5.3"
+MODEL_CODER = "stealth/ox-alpha"
+MODEL_AUDITOR = "z-ai/glm-5.2"
 
 BASE_TELEGRAM_URL = f"https://api.telegram.org/bot{DEV_BOT_TOKEN}"
 BASE_PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -209,7 +209,8 @@ def call_openrouter(model: str, messages: List[Dict[str, Any]], tools: Optional[
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
-        "temperature": 0.2
+        "temperature": 0.2,
+        "max_tokens": 2048
     }
     if tools:
         payload["tools"] = tools
