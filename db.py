@@ -595,31 +595,31 @@ def get_system_constitution_rules() -> Dict[str, Any]:
 
 STRATEGY_PRESETS = {
     "v21_balanced": {
-        "name": "🛡️ v2.1 Kurumsal & Dengeli (Önerilen)",
-        "volume_spike_multiplier": 1.3,
-        "min_volume_usd": 10000.0,
-        "max_recent_gain_24h": 12.0,
-        "min_ai_score": 6.0,
-        "max_budget_percent": 25.0,
-        "description": "v2.1 Kurumsal Motor: %25 max bütçe (4 slot), 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile çalışır."
+        "name": "🛡️ v2.1 Kurumsal Dengeli (Önerilen)",
+        "volume_spike_multiplier": 1.2,
+        "min_volume_usd": 4000.0,
+        "max_recent_gain_24h": 15.0,
+        "min_ai_score": 5.5,
+        "max_budget_percent": 33.0,
+        "description": "v2.1 Dengeli Motor: %33 max bütçe (3 slot), erken balina girişlerini $4.000 hacim ve 1.2x teyidi ile yakalar."
     },
     "v21_agile": {
         "name": "🚀 v2.1 Hızlı Momentum (Scalp Modu)",
-        "volume_spike_multiplier": 1.2,
-        "min_volume_usd": 6000.0,
-        "max_recent_gain_24h": 15.0,
-        "min_ai_score": 5.0,
-        "max_budget_percent": 33.0,
-        "description": "Yüksek sermaye kullanımı: %33 max bütçe (3 slot), dipten kalkan fırsatları 1.2x erken hacimle yakalar."
+        "volume_spike_multiplier": 1.15,
+        "min_volume_usd": 2500.0,
+        "max_recent_gain_24h": 20.0,
+        "min_ai_score": 4.5,
+        "max_budget_percent": 50.0,
+        "description": "Yüksek çeviklik: %50 max bütçe (2 slot), taze dip fırsatlarını $2.500 hacim ve 1.15x erken ivmeyle yakalar."
     },
     "v21_defensive": {
         "name": "🏰 v2.1 Yüksek Güvenlik (Defansif)",
-        "volume_spike_multiplier": 1.8,
-        "min_volume_usd": 20000.0,
-        "max_recent_gain_24h": 8.0,
+        "volume_spike_multiplier": 1.5,
+        "min_volume_usd": 10000.0,
+        "max_recent_gain_24h": 10.0,
         "min_ai_score": 7.0,
-        "max_budget_percent": 15.0,
-        "description": "Maksimum nakit koruma: %15 bütçe (6-7 slot), yalnızca 1.8x büyük balina girişlerinde devreye girer."
+        "max_budget_percent": 20.0,
+        "description": "Maksimum nakit koruma: %20 bütçe (5 slot), yalnızca 1.5x büyük balina girişlerinde devreye girer."
     }
 }
 

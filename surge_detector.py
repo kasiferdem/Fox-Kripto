@@ -118,7 +118,7 @@ def get_active_trading_symbols():
         pass
     return _cached_active_symbols
 
-def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 8000.0, max_recent_gain: float = 15.0) -> List[Dict[str, Any]]:
+def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 4000.0, max_recent_gain: float = 15.0) -> List[Dict[str, Any]]:
     """
     Tüm Binance USDT veya TRY tahtasını paralel tarayarak taze hacim kırılımlarını tespit eder.
     """
@@ -132,11 +132,11 @@ def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 8
             from db import get_strategy_config
             strat = get_strategy_config(use_cache=True)
             max_24h_req = float(strat.get("max_recent_gain_24h", max_recent_gain))
-            min_spike_req = float(strat.get("volume_spike_multiplier", 1.3))
+            min_spike_req = float(strat.get("volume_spike_multiplier", 1.2))
             min_vol_req = float(strat.get("min_volume_usd", min_volume_usd))
         except Exception:
             max_24h_req = max_recent_gain
-            min_spike_req = 1.3
+            min_spike_req = 1.2
             min_vol_req = min_volume_usd
 
         sess = get_http_session()
@@ -146,8 +146,8 @@ def detect_early_volume_breakouts(quote: str = "USDT", min_volume_usd: float = 8
             
         tickers = r.json()
         target_tickers = []
-        # KATI LİKİDİTE BARAJI: USDT için en az $300,000 USD, TRY için en az ₺10,000,000 TL 24s hacim şartı
-        min_24h_quote_vol = 300000.0 if quote_upper == "USDT" else 10000000.0
+        # LİKİDİTE BARAJI: USDT için en az $150,000 USD, TRY için en az ₺5,000,000 TL 24s hacim şartı
+        min_24h_quote_vol = 150000.0 if quote_upper == "USDT" else 5000000.0
         
         for t in tickers:
             sym = t.get("symbol", "")
