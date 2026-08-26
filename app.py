@@ -529,6 +529,7 @@ class StrategyConfigRequest(BaseModel):
     max_recent_gain_24h: float
     min_ai_score: float
     max_budget_percent: float = 25.0
+    trailing_callback_pct: float = 0.8
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -545,7 +546,8 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "min_volume_usd": req.min_volume_usd,
         "max_recent_gain_24h": req.max_recent_gain_24h,
         "min_ai_score": req.min_ai_score,
-        "max_budget_percent": req.max_budget_percent
+        "max_budget_percent": req.max_budget_percent,
+        "trailing_callback_pct": req.trailing_callback_pct
     }
     ok = save_strategy_config(payload)
     return {"status": "success" if ok else "error", "config": payload}
@@ -1077,9 +1079,9 @@ def get_dashboard_html():
                 <span>⚡ <strong>v2.1 Strateji & Hacim Hassasiyet Seçici (Al-Sat Çeviklik Motoru)</strong></span>
                 <span id="active-strategy-badge" class="badge" style="background: rgba(99, 102, 241, 0.25); color: #818cf8; border: 1px solid #6366f1; font-size: 13px; padding: 6px 12px;">__STRAT_BADGE__</span>
             </div>
-            <div style="display: grid; grid-template-columns: 1.4fr 0.8fr 0.9fr 0.9fr 0.8fr 1fr auto; gap: 12px; align-items: end; margin-top: 10px;">
+            <div style="display: grid; grid-template-columns: 1.3fr 0.7fr 0.8fr 0.7fr 0.7fr 0.9fr 0.8fr auto; gap: 10px; align-items: end; margin-top: 10px;">
                 <div>
-                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 v2.1 Hazır Strateji Profili</label>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 Hazır Strateji & Sürüm</label>
                     <select id="strategy-preset-select" onchange="onPresetChange(this.value)" style="width: 100%; padding: 9px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 13px;">
                         <option value="v21_balanced" __STRAT_SEL_BALANCED__>🛡️ v2.1 Kurumsal Dengeli (Önerilen)</option>
                         <option value="v21_agile" __STRAT_SEL_AGILE__>🚀 v2.1 Hızlı Momentum (Scalp Modu)</option>
@@ -1091,11 +1093,11 @@ def get_dashboard_html():
                 </div>
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">⚡ Hacim Çarpanı</label>
-                    <input type="number" id="strat-spike" step="0.1" value="__STRAT_SPIKE__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                    <input type="number" id="strat-spike" step="0.05" value="__STRAT_SPIKE__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
                 </div>
                 <div>
-                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">💵 Min 5dk Hacim ($)</label>
-                    <input type="number" id="strat-minvol" step="1000" value="__STRAT_MINVOL__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">💵 Min Hacim ($)</label>
+                    <input type="number" id="strat-minvol" step="500" value="__STRAT_MINVOL__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
                 </div>
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">📈 24s Tavan %</label>
@@ -1106,8 +1108,12 @@ def get_dashboard_html():
                     <input type="number" id="strat-minscore" step="0.5" value="__STRAT_MINSCORE__" min="1.0" max="10.0" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border);">
                 </div>
                 <div>
-                    <label style="font-size: 12px; color: #60a5fa; display: block; margin-bottom: 5px; font-weight: 600;">💰 Max Pozisyon %</label>
+                    <label style="font-size: 12px; color: #60a5fa; display: block; margin-bottom: 5px; font-weight: 600;">💰 Max Bütçe %</label>
                     <input type="number" id="strat-maxbudget" step="1.0" min="5.0" max="100.0" value="__STRAT_MAXBUDGET__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #60a5fa; font-weight: 700; border: 1px solid #3b82f6;">
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: #34d399; display: block; margin-bottom: 5px; font-weight: 600;">🪜 Zirve Çekilme %</label>
+                    <input type="number" id="strat-trailcallback" step="0.1" min="0.2" max="3.0" value="__STRAT_TRAILCALLBACK__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #34d399; font-weight: 700; border: 1px solid #10b981;">
                 </div>
                 <div>
                     <button class="btn btn-primary" onclick="saveStrategySettings()" style="height: 38px; white-space: nowrap; font-weight: 600;">💾 Profili Uygula</button>
@@ -1820,12 +1826,13 @@ __SSR_TENANTS_HTML__
                         if (p === 'agile_21_august') p = 'v21_balanced';
                         if (p === 'defensive_22_august') p = 'v21_defensive';
                         sel.value = p;
-                        document.getElementById('strat-spike').value = cfg.volume_spike_multiplier || 1.3;
-                        document.getElementById('strat-minvol').value = cfg.min_volume_usd || 10000;
-                        document.getElementById('strat-maxgain').value = cfg.max_recent_gain_24h || 12.0;
-                        document.getElementById('strat-minscore').value = cfg.min_ai_score || 6.0;
-                        document.getElementById('strat-maxbudget').value = cfg.max_budget_percent || 25.0;
-                        updateStrategyBadge(p, cfg.volume_spike_multiplier || 1.3);
+                        document.getElementById('strat-spike').value = cfg.volume_spike_multiplier || 1.2;
+                        document.getElementById('strat-minvol').value = cfg.min_volume_usd || 4000;
+                        document.getElementById('strat-maxgain').value = cfg.max_recent_gain_24h || 15.0;
+                        document.getElementById('strat-minscore').value = cfg.min_ai_score || 5.5;
+                        document.getElementById('strat-maxbudget').value = cfg.max_budget_percent || 33.0;
+                        document.getElementById('strat-trailcallback').value = cfg.trailing_callback_pct || 0.8;
+                        updateStrategyBadge(p, cfg.volume_spike_multiplier || 1.2);
                     }
                 } catch (e) {
                     console.error('Strateji yükleme hatası:', e);
@@ -1897,11 +1904,12 @@ __SSR_TENANTS_HTML__
 
             async function saveStrategySettings() {
                 const preset = document.getElementById('strategy-preset-select').value;
-                const spike = parseFloat(document.getElementById('strat-spike').value) || 1.3;
-                const minvol = parseFloat(document.getElementById('strat-minvol').value) || 10000;
-                const maxgain = parseFloat(document.getElementById('strat-maxgain').value) || 12.0;
-                const minscore = parseFloat(document.getElementById('strat-minscore').value) || 6.0;
-                const maxbudget = parseFloat(document.getElementById('strat-maxbudget').value) || 25.0;
+                const spike = parseFloat(document.getElementById('strat-spike').value) || 1.2;
+                const minvol = parseFloat(document.getElementById('strat-minvol').value) || 4000;
+                const maxgain = parseFloat(document.getElementById('strat-maxgain').value) || 15.0;
+                const minscore = parseFloat(document.getElementById('strat-minscore').value) || 5.5;
+                const maxbudget = parseFloat(document.getElementById('strat-maxbudget').value) || 33.0;
+                const trailcallback = parseFloat(document.getElementById('strat-trailcallback').value) || 0.8;
 
                 try {
                     const res = await fetch('/api/strategy-config', {
@@ -1913,13 +1921,14 @@ __SSR_TENANTS_HTML__
                             min_volume_usd: minvol,
                             max_recent_gain_24h: maxgain,
                             min_ai_score: minscore,
-                            max_budget_percent: maxbudget
+                            max_budget_percent: maxbudget,
+                            trailing_callback_pct: trailcallback
                         })
                     });
                     const data = await res.json();
                     if (data.status === 'success') {
                         updateStrategyBadge(preset, spike);
-                        alert('✅ v2.1 Strateji Profili Başarıyla Kaydedildi!\\n\\nSeçili Profil: ' + preset + ' (' + spike + 'x)\\nMax Pozisyon Bütçesi: %' + maxbudget + '\\nMin Hacim: $' + minvol + '\\n24s Tavan: %' + maxgain);
+                        alert('✅ Strateji ve Sürüm Profili Başarıyla Kaydedildi!\n\nSeçili Sürüm: ' + preset + ' (' + spike + 'x)\nMax Pozisyon Bütçesi: %' + maxbudget + '\nMin Hacim: $' + minvol + '\n24s Tavan: %' + maxgain + '\nZirve Geri Çekilme Kilidi: %' + trailcallback);
                         loadStrategyConfig();
                     } else {
                         alert('❌ Kaydetme Başarısız!');
@@ -2101,11 +2110,12 @@ __SSR_TENANTS_HTML__
     elif active_preset == "defensive_22_august":
         active_preset = "v21_defensive"
 
-    strat_spike = float(strat_cfg.get("volume_spike_multiplier", 1.3))
-    strat_minvol = float(strat_cfg.get("min_volume_usd", 10000.0))
-    strat_maxgain = float(strat_cfg.get("max_recent_gain_24h", 12.0))
-    strat_minscore = float(strat_cfg.get("min_ai_score", 6.0))
-    strat_maxbudget = float(strat_cfg.get("max_budget_percent", 25.0))
+    strat_spike = float(strat_cfg.get("volume_spike_multiplier", 1.2))
+    strat_minvol = float(strat_cfg.get("min_volume_usd", 4000.0))
+    strat_maxgain = float(strat_cfg.get("max_recent_gain_24h", 15.0))
+    strat_minscore = float(strat_cfg.get("min_ai_score", 5.5))
+    strat_maxbudget = float(strat_cfg.get("max_budget_percent", 33.0))
+    strat_trailcallback = float(strat_cfg.get("trailing_callback_pct", 0.8))
 
     sel_balanced = "selected" if active_preset == "v21_balanced" else ""
     sel_agile = "selected" if active_preset == "v21_agile" else ""
@@ -2151,6 +2161,7 @@ __SSR_TENANTS_HTML__
         .replace("__STRAT_MAXGAIN__", str(strat_maxgain))
         .replace("__STRAT_MINSCORE__", str(strat_minscore))
         .replace("__STRAT_MAXBUDGET__", str(strat_maxbudget))
+        .replace("__STRAT_TRAILCALLBACK__", str(strat_trailcallback))
     )
     return HTMLResponse(content=res_html)
 

@@ -246,14 +246,20 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                     if trailing_enabled:
                         peak_gain_pct = ((highest_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
                         
+                        from db import get_strategy_config
+                        strat_cfg = get_strategy_config(use_cache=True)
+                        trail_callback = float(strat_cfg.get("trailing_callback_pct") or 0.8)
+                        callback_mult_20 = 1.0 - (trail_callback / 100.0)
+                        callback_mult_14 = 1.0 - (min(trail_callback, 0.6) / 100.0)
+                        
                         # 🏆 1. ZİRVEDEN GERİ ÇEKİLME KÂR KİLİTLEME (Asla kârlı coinin zarara dönmesine izin vermez):
-                        if peak_gain_pct >= 2.0 and curr_p <= (highest_p * 0.992):
-                            # +%2.0+ görmüş coin zirveden %0.8 gerilediğinde hemen kârla çık:
+                        if peak_gain_pct >= 2.0 and curr_p <= (highest_p * callback_mult_20):
+                            # +%2.0+ görmüş coin zirveden kullanıcının belirlediği geri çekilme olduğunda kârla çık:
                             is_take_profit = True
                             reason_desc = f"🏆 Zirve Kâr Koruma (+%{net_profit_pct:.2f} Net Kâr Cebe Kilitlendi / Zirve: +%{peak_gain_pct:.2f})"
                             sell_fraction = 1.0
-                        elif peak_gain_pct >= 1.4 and curr_p <= (highest_p * 0.994):
-                            # +%1.4+ görmüş coin zirveden %0.6 gerilediğinde hemen kârla çık:
+                        elif peak_gain_pct >= 1.4 and curr_p <= (highest_p * callback_mult_14):
+                            # +%1.4+ görmüş coin zirveden gerilediğinde hemen kârla çık:
                             is_take_profit = True
                             reason_desc = f"🛡️ Erken Kâr Sigortası (+%{net_profit_pct:.2f} Net Kâr Cebe Kilitlendi / Zirve: +%{peak_gain_pct:.2f})"
                             sell_fraction = 1.0
