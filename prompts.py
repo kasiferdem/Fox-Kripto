@@ -14,8 +14,8 @@ def _get_api_key():
 # -----------------------------------------
 # OPENROUTER ÇOKLU MODEL ÇAĞRI YARDIMCISI
 # -----------------------------------------
-def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens: int = 1500) -> str:
-    """Belirtilen modele (Gemini, GLM-5.2, OX Alpha) OpenRouter üzerinden güvenli çağrı yapar."""
+def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens: int = 250) -> str:
+    """Belirtilen modele OpenRouter üzerinden güvenli çağrı yapar. Hata durumunda otomatik yedek modellere (Gemini 2.5 Flash / Llama 3.3) geçer."""
     url = "https://openrouter.ai/api/v1/chat/completions"
     key = _get_api_key()
     headers = {
@@ -24,26 +24,35 @@ def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens
         "HTTP-Referer": "https://fox-kripto.internal",
         "X-Title": "Fox Multi-Agent Council"
     }
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content}
-        ],
-        "temperature": 0.2,
-        "max_tokens": max_tokens
-    }
-    try:
-        res = requests.post(url, json=payload, headers=headers, timeout=35)
-        if res.status_code == 200:
-            data = res.json()
-            return data["choices"][0]["message"]["content"]
-        else:
-            print(f"⚠️ LLM Yanıt Uyarısı ({model} - Status {res.status_code}): {res.text[:200]}")
-            return ""
-    except Exception as e:
-        print(f"❌ LLM Çağrı Hatası ({model}): {e}")
-        return ""
+    
+    # Model Çağrı Sırası (Otomatik Yedekleme Zinciri)
+    target_models = [model]
+    if "gemini" in model.lower():
+        target_models.extend(["google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct"])
+    else:
+        target_models.extend(["google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct"])
+        
+    for m in target_models:
+        payload = {
+            "model": m,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            "temperature": 0.2,
+            "max_tokens": min(max_tokens, 300)
+        }
+        try:
+            res = requests.post(url, json=payload, headers=headers, timeout=12)
+            if res.status_code == 200:
+                data = res.json()
+                return data["choices"][0]["message"]["content"]
+            else:
+                print(f"⚠️ LLM Yanıt Uyarısı ({m} - Status {res.status_code}), sonraki modele geçiliyor...")
+        except Exception as e:
+            print(f"❌ LLM Çağrı Hatası ({m}): {e}")
+            
+    return ""
 
 def call_gpt4o(system_prompt: str, user_content: str, max_tokens: int = 1500) -> str:
     """Gemini 3.7 Flash modeline doğrudan güvenli HTTP çağrısı yapar."""

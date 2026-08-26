@@ -77,11 +77,13 @@ def node_glm_technical_analysis(state: CryptoAgentState) -> Dict[str, Any]:
         '{"approved": true, "symbol": "COIN/USDT", "entry_reason": "Hacim kırılımı ve dip formasyonu teyitli.", "confidence": 8.5}'
     )
     user_p = f"Aday Coin Verisi: {json.dumps(top_cand)}"
-    raw = call_llm_model("z-ai/glm-5.2", sys_prompt, user_p, max_tokens=500)
+    raw = call_llm_model("z-ai/glm-5.2", sys_prompt, user_p, max_tokens=250)
     try:
-        clean = raw.strip("` \n").replace("json", "").strip()
+        clean = raw
+        if "{" in raw and "}" in raw:
+            clean = raw[raw.find("{"):raw.rfind("}")+1]
         data = json.loads(clean)
-        print(f"   [GLM-5.2 Kararı]: {data.get('symbol')} - Onay: {data.get('approved')} ({data.get('entry_reason')})")
+        print(f"   [GLM-5.2 / Llama Kararı]: {data.get('symbol', top_cand['symbol'])} - Onay: {data.get('approved')} ({data.get('entry_reason')})")
         return {"glm_technical": data}
     except Exception:
         fallback = {"approved": True, "symbol": top_cand["symbol"], "entry_reason": "Hacim ve momentum kırılımı onaylandı.", "confidence": 8.0}
@@ -102,11 +104,13 @@ def node_ox_shadow_analysis(state: CryptoAgentState) -> Dict[str, Any]:
         '{"shadow_approved": true, "symbol": "COIN/USDT", "shadow_note": "Likidite ve tahta derinliği sağlıklı.", "liquidity_score": 9.0}'
     )
     user_p = f"Aday Coin: {json.dumps(top_cand)}"
-    raw = call_llm_model("stealth/ox-alpha", sys_prompt, user_p, max_tokens=500)
+    raw = call_llm_model("stealth/ox-alpha", sys_prompt, user_p, max_tokens=250)
     try:
-        clean = raw.strip("` \n").replace("json", "").strip()
+        clean = raw
+        if "{" in raw and "}" in raw:
+            clean = raw[raw.find("{"):raw.rfind("}")+1]
         data = json.loads(clean)
-        print(f"   [OX Alpha Shadow]: {data.get('symbol')} - Gölge Onay: {data.get('shadow_approved')} ({data.get('shadow_note')})")
+        print(f"   [OX Alpha Shadow]: {data.get('symbol', top_cand['symbol'])} - Gölge Onay: {data.get('shadow_approved')} ({data.get('shadow_note')})")
         return {"ox_shadow": data}
     except Exception:
         fallback = {"shadow_approved": True, "symbol": top_cand["symbol"], "shadow_note": "Tahta derinliği ve emir defteri dengeli.", "liquidity_score": 8.5}
