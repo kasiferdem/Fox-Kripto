@@ -244,28 +244,29 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                     sell_fraction = 1.0
                     
                     if trailing_enabled:
-                        if stage == "INITIAL":
-                            if highest_p >= recorded_buy_p * 1.020 and curr_p <= recorded_buy_p * 1.002:
-                                is_stop_loss = True
-                                reason_desc = f"🛡️ Erken Maliyet Sigortası (0 Zararla Kapatıldı @ ${recorded_buy_p:,.4f})"
-                            elif highest_p >= recorded_buy_p * 1.030 and curr_p <= highest_p * 0.982:
-                                is_take_profit = True
-                                reason_desc = f"🏆 Zirve Kâr Koruma Satışı (+%{net_profit_pct:.2f} Net Cebe Kilitlendi)"
-                            elif (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
-                                is_stop_loss = True
-                                reason_desc = f"Stop-Loss (%{net_profit_pct:.2f} Net)"
-                            elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
-                                is_take_profit = True
-                                reason_desc = f"🏆 Tam Kâr Alma (%100 Satıldı @ +%{net_profit_pct:.2f} Net)"
-                                sell_fraction = 1.0
-                        else: # RUNNER
-                            trail_sl_price = highest_p * 0.975
-                            if curr_p <= recorded_buy_p:
-                                is_stop_loss = True
-                                reason_desc = f"Maliyet Koruma (Breakeven @ ${recorded_buy_p:,.4f})"
-                            elif curr_p <= trail_sl_price:
-                                is_take_profit = True
-                                reason_desc = f"İz Süren Stop Zirve Çıkışı (+%{net_profit_pct:.2f})"
+                        peak_gain_pct = ((highest_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
+                        
+                        # 🏆 1. ZİRVEDEN GERİ ÇEKİLME KÂR KİLİTLEME (Asla kârlı coinin zarara dönmesine izin vermez):
+                        if peak_gain_pct >= 2.0 and curr_p <= (highest_p * 0.992):
+                            # +%2.0+ görmüş coin zirveden %0.8 gerilediğinde hemen kârla çık:
+                            is_take_profit = True
+                            reason_desc = f"🏆 Zirve Kâr Koruma (+%{net_profit_pct:.2f} Net Kâr Cebe Kilitlendi / Zirve: +%{peak_gain_pct:.2f})"
+                            sell_fraction = 1.0
+                        elif peak_gain_pct >= 1.4 and curr_p <= (highest_p * 0.994):
+                            # +%1.4+ görmüş coin zirveden %0.6 gerilediğinde hemen kârla çık:
+                            is_take_profit = True
+                            reason_desc = f"🛡️ Erken Kâr Sigortası (+%{net_profit_pct:.2f} Net Kâr Cebe Kilitlendi / Zirve: +%{peak_gain_pct:.2f})"
+                            sell_fraction = 1.0
+                        elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
+                            # Kullanıcının belirlediği ana TP hedefine ulaşıldı:
+                            is_take_profit = True
+                            reason_desc = f"🎯 Hedef Kâr Alma (+%{net_profit_pct:.2f} Net Kâr Kasaya Alındı)"
+                            sell_fraction = 1.0
+                        elif (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
+                            # Kullanıcının belirlediği Stop-Loss sınırı:
+                            is_stop_loss = True
+                            reason_desc = f"🛡️ Stop-Loss (%{net_profit_pct:.2f} Net Zarar Kesildi)"
+                            sell_fraction = 1.0
                     else:
                         if (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
                             is_stop_loss = True
