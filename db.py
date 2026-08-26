@@ -620,6 +620,24 @@ STRATEGY_PRESETS = {
         "min_ai_score": 7.0,
         "max_budget_percent": 20.0,
         "description": "Maksimum nakit koruma: %20 bütçe (5 slot), yalnızca 1.5x büyük balina girişlerinde devreye girer."
+    },
+    "v20_classic": {
+        "name": "⚡ v2.0 Klasik Serbest Motor (Kısıtlamasız)",
+        "volume_spike_multiplier": 1.1,
+        "min_volume_usd": 2000.0,
+        "max_recent_gain_24h": 25.0,
+        "min_ai_score": 4.0,
+        "max_budget_percent": 50.0,
+        "description": "v2.0 Eski Hızlı Sürüm: Kısıtlamasız alım, $2.000 min hacim ve 1.1x erken balina girişi."
+    },
+    "v10_legacy": {
+        "name": "🏛️ v1.0 Orijinal Klasik Motor (İlk Sürüm)",
+        "volume_spike_multiplier": 1.5,
+        "min_volume_usd": 15000.0,
+        "max_recent_gain_24h": 10.0,
+        "min_ai_score": 7.0,
+        "max_budget_percent": 25.0,
+        "description": "v1.0 İlk Sürüm: Standart hacim ve tekli model filtreleri ile çalışır."
     }
 }
 

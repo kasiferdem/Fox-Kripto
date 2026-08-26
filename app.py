@@ -1081,9 +1081,11 @@ def get_dashboard_html():
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 v2.1 Hazır Strateji Profili</label>
                     <select id="strategy-preset-select" onchange="onPresetChange(this.value)" style="width: 100%; padding: 9px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 13px;">
-                        <option value="v21_balanced" __STRAT_SEL_BALANCED__>🛡️ v2.1 Kurumsal & Dengeli (Önerilen)</option>
+                        <option value="v21_balanced" __STRAT_SEL_BALANCED__>🛡️ v2.1 Kurumsal Dengeli (Önerilen)</option>
                         <option value="v21_agile" __STRAT_SEL_AGILE__>🚀 v2.1 Hızlı Momentum (Scalp Modu)</option>
                         <option value="v21_defensive" __STRAT_SEL_DEF__>🏰 v2.1 Yüksek Güvenlik (Defansif)</option>
+                        <option value="v20_classic" __STRAT_SEL_V20__>⚡ v2.0 Klasik Serbest Motor (Kısıtlamasız)</option>
+                        <option value="v10_legacy" __STRAT_SEL_V10__>🏛️ v1.0 Orijinal Klasik Motor (İlk Sürüm)</option>
                         <option value="custom" __STRAT_SEL_CUST__>⚙️ Özel Yapılandırma (Custom)</option>
                     </select>
                 </div>
@@ -1833,28 +1835,42 @@ __SSR_TENANTS_HTML__
             function onPresetChange(preset) {
                 const desc = document.getElementById('strat-desc');
                 if (preset === 'v21_balanced' || preset === 'agile_21_august') {
-                    document.getElementById('strat-spike').value = 1.3;
-                    document.getElementById('strat-minvol').value = 10000;
-                    document.getElementById('strat-maxgain').value = 12.0;
-                    document.getElementById('strat-minscore').value = 6.0;
-                    document.getElementById('strat-maxbudget').value = 25.0;
-                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Kurumsal Motor: %25 max bütçe (4 slot), 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile dengeli çalışır. (Önerilen)</em>';
-                } else if (preset === 'v21_agile') {
                     document.getElementById('strat-spike').value = 1.2;
-                    document.getElementById('strat-minvol').value = 6000;
+                    document.getElementById('strat-minvol').value = 4000;
                     document.getElementById('strat-maxgain').value = 15.0;
-                    document.getElementById('strat-minscore').value = 5.0;
+                    document.getElementById('strat-minscore').value = 5.5;
                     document.getElementById('strat-maxbudget').value = 33.0;
-                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Hızlı Momentum: Yüksek sermaye kullanımı (%33 max bütçe / 3 slot), dipten kalkan fırsatları 1.2x erken hacimle yakalar.</em>';
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Dengeli Motor: %33 max bütçe (3 slot), $4.000 min hacim ve 1.2x erken balina teyidi ile çalışır. (Önerilen)</em>';
+                } else if (preset === 'v21_agile') {
+                    document.getElementById('strat-spike').value = 1.15;
+                    document.getElementById('strat-minvol').value = 2500;
+                    document.getElementById('strat-maxgain').value = 20.0;
+                    document.getElementById('strat-minscore').value = 4.5;
+                    document.getElementById('strat-maxbudget').value = 50.0;
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Hızlı Momentum: %50 max bütçe (2 slot), $2.500 min hacim ve 1.15x erken ivmeyle çalışır.</em>';
                 } else if (preset === 'v21_defensive' || preset === 'defensive_22_august') {
-                    document.getElementById('strat-spike').value = 1.8;
-                    document.getElementById('strat-minvol').value = 20000;
-                    document.getElementById('strat-maxgain').value = 8.0;
+                    document.getElementById('strat-spike').value = 1.5;
+                    document.getElementById('strat-minvol').value = 10000;
+                    document.getElementById('strat-maxgain').value = 10.0;
                     document.getElementById('strat-minscore').value = 7.0;
-                    document.getElementById('strat-maxbudget').value = 15.0;
-                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Yüksek Güvenlik: Maksimum nakit koruma (%15 bütçe / 6-7 slot), yalnızca 1.8x büyük balina girişlerinde devreye girer.</em>';
+                    document.getElementById('strat-maxbudget').value = 20.0;
+                    desc.innerHTML = '💡 <em>Açıklama: v2.1 Yüksek Güvenlik: Maksimum nakit koruma (%20 bütçe / 5 slot), 1.5x büyük balina girişlerinde devreye girer.</em>';
+                } else if (preset === 'v20_classic') {
+                    document.getElementById('strat-spike').value = 1.1;
+                    document.getElementById('strat-minvol').value = 2000;
+                    document.getElementById('strat-maxgain').value = 25.0;
+                    document.getElementById('strat-minscore').value = 4.0;
+                    document.getElementById('strat-maxbudget').value = 50.0;
+                    desc.innerHTML = '💡 <em>Açıklama: v2.0 Klasik Serbest Motor: Kısıtlamasız alım, $2.000 min hacim ve 1.1x erken balina girişi.</em>';
+                } else if (preset === 'v10_legacy') {
+                    document.getElementById('strat-spike').value = 1.5;
+                    document.getElementById('strat-minvol').value = 15000;
+                    document.getElementById('strat-maxgain').value = 10.0;
+                    document.getElementById('strat-minscore').value = 7.0;
+                    document.getElementById('strat-maxbudget').value = 25.0;
+                    desc.innerHTML = '💡 <em>Açıklama: v1.0 Orijinal Klasik Motor: İlk sürüm kuralları ve standart hacim filtresi ile çalışır.</em>';
                 } else {
-                    desc.innerHTML = '💡 <em>Açıklama: v2.1 kuralları altında serbest bütçe ve özel parametreler belirleyebilirsiniz.</em>';
+                    desc.innerHTML = '💡 <em>Açıklama: Özel Profil: Kendi belirlediğiniz parametreler ile çalışır.</em>';
                 }
             }
 
@@ -2094,6 +2110,8 @@ __SSR_TENANTS_HTML__
     sel_balanced = "selected" if active_preset == "v21_balanced" else ""
     sel_agile = "selected" if active_preset == "v21_agile" else ""
     sel_def = "selected" if active_preset == "v21_defensive" else ""
+    sel_v20 = "selected" if active_preset == "v20_classic" else ""
+    sel_v10 = "selected" if active_preset == "v10_legacy" else ""
     sel_cust = "selected" if active_preset == "custom" else ""
     
     if active_preset == "v21_balanced":
@@ -2102,6 +2120,10 @@ __SSR_TENANTS_HTML__
         strat_badge_text = f"🚀 v2.1 Hızlı Momentum ({strat_spike}x) Aktif"
     elif active_preset == "v21_defensive":
         strat_badge_text = f"🏰 v2.1 Yüksek Güvenlik ({strat_spike}x) Aktif"
+    elif active_preset == "v20_classic":
+        strat_badge_text = f"⚡ v2.0 Klasik Serbest ({strat_spike}x) Aktif"
+    elif active_preset == "v10_legacy":
+        strat_badge_text = f"🏛️ v1.0 Orijinal Klasik ({strat_spike}x) Aktif"
     else:
         strat_badge_text = f"⚙️ v2.1 Özel Profil ({strat_spike}x) Aktif"
 
@@ -2121,6 +2143,8 @@ __SSR_TENANTS_HTML__
         .replace("__STRAT_SEL_BALANCED__", sel_balanced)
         .replace("__STRAT_SEL_AGILE__", sel_agile)
         .replace("__STRAT_SEL_DEF__", sel_def)
+        .replace("__STRAT_SEL_V20__", sel_v20)
+        .replace("__STRAT_SEL_V10__", sel_v10)
         .replace("__STRAT_SEL_CUST__", sel_cust)
         .replace("__STRAT_SPIKE__", str(strat_spike))
         .replace("__STRAT_MINVOL__", str(int(strat_minvol)))
