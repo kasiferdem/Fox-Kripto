@@ -1228,6 +1228,8 @@ def convert_dust_to_bnb(tenant_config: Optional[Dict[str, Any]] = None, max_usd_
     try:
         # 1. Mevcut portföy varlıklarını ve değerlerini çek
         bal = fetch_portfolio_balance(tenant_config)
+        if bal.get("api_error"):
+            return {"status": "FAILED", "error": f"Binance API Bağlantı Hatası: {bal.get('api_error')}"}
         holdings = bal.get("holdings_details", {})
         
         # 2. Açık pozisyonları çek (ASLA DÖNÜŞTÜRÜLMEYECEK COINLER)
