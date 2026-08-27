@@ -801,18 +801,6 @@ def update_system_settings_endpoint(req: SystemSettingsRequest):
     set_system_setting("trailing_stop_enabled", bool(req.trailing_stop_enabled))
     return {"status": "success", "trailing_stop_enabled": bool(req.trailing_stop_enabled)}
 
-@app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
-def get_strategy_config_endpoint():
-    from db import get_strategy_config
-    cfg = get_strategy_config()
-    return {"status": "success", "config": cfg}
-
-@app_api.post("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
-def update_strategy_config_endpoint(req: StrategyConfigRequest):
-    from db import save_strategy_config
-    cfg_data = req.dict()
-    save_strategy_config(cfg_data)
-    return {"status": "success", "config": cfg_data}
 
 # -----------------------------------------
 # WEB DASHBOARD (HTML / JAVASCRIPT ARAYÜZÜ)
@@ -1171,7 +1159,7 @@ def get_dashboard_html():
                     <input type="number" id="strat-trailcallback" step="0.1" min="0.2" max="3.0" value="__STRAT_TRAILCALLBACK__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #34d399; font-weight: 700; border: 1px solid #10b981;">
                 </div>
                 <div>
-                    <button class="btn btn-primary" onclick="saveStrategySettings()" style="height: 38px; white-space: nowrap; font-weight: 600;">💾 Profili Uygula</button>
+                    <button id="btn-save-strat" class="btn btn-primary" onclick="saveStrategySettings()" style="height: 38px; white-space: nowrap; font-weight: 600;">💾 Profili Uygula</button>
                 </div>
             </div>
             <div id="strat-desc" style="font-size: 12px; color: #94a3b8; margin-top: 10px;">
@@ -1968,6 +1956,11 @@ __SSR_TENANTS_HTML__
             }
 
             async function saveStrategySettings() {
+                const btn = document.getElementById('btn-save-strat');
+                if (btn) {
+                    btn.innerText = '⏳ Kaydediliyor...';
+                    btn.disabled = true;
+                }
                 const preset = document.getElementById('strategy-preset-select').value;
                 const spike = parseFloat(document.getElementById('strat-spike').value) || 1.2;
                 const minvol = parseFloat(document.getElementById('strat-minvol').value) || 4000;
@@ -1996,10 +1989,15 @@ __SSR_TENANTS_HTML__
                         alert('✅ Strateji ve Sürüm Profili Başarıyla Kaydedildi!\n\nSeçili Sürüm: ' + preset + ' (' + spike + 'x)\nMax Pozisyon Bütçesi: %' + maxbudget + '\nMin Hacim: $' + minvol + '\n24s Tavan: %' + maxgain + '\nZirve Geri Çekilme Kilidi: %' + trailcallback);
                         loadStrategyConfig();
                     } else {
-                        alert('❌ Kaydetme Başarısız!');
+                        alert('❌ Kaydetme Başarısız: ' + (data.detail || JSON.stringify(data)));
                     }
                 } catch (e) {
                     alert('Hata: ' + e);
+                } finally {
+                    if (btn) {
+                        btn.innerText = '💾 Profili Uygula';
+                        btn.disabled = false;
+                    }
                 }
             }
 
