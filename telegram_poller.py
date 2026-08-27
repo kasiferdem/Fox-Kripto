@@ -713,10 +713,19 @@ def handle_update(update: dict):
         
         try:
             
-            top_gainers = fetch_top_volume_gainers(limit=5)
-            early_surges_usdt = detect_early_volume_breakouts(quote="USDT")
-            early_surges_try = detect_early_volume_breakouts(quote="TRY")
-            all_surges = early_surges_usdt[:3] + early_surges_try[:3]
+            user_exch = str(tenant.get("exchange_id", "binance")).lower()
+            if user_exch in ["binance", "global", "usdt"]:
+                all_surges = detect_early_volume_breakouts(quote="USDT")[:6]
+                top_gainers = [g for g in fetch_top_volume_gainers(limit=10) if not g['symbol'].endswith("TRY")][:5]
+            elif user_exch in ["binancetr", "binance.tr", "trbinance", "try"]:
+                all_surges = detect_early_volume_breakouts(quote="TRY")[:6]
+                top_gainers = [g for g in fetch_top_volume_gainers(limit=10) if g['symbol'].endswith("TRY")][:5]
+            else:
+                early_surges_usdt = detect_early_volume_breakouts(quote="USDT")
+                early_surges_try = detect_early_volume_breakouts(quote="TRY")
+                all_surges = early_surges_usdt[:3] + early_surges_try[:3]
+                top_gainers = fetch_top_volume_gainers(limit=5)
+            
             news_items = fetch_live_global_crypto_news(limit_per_source=2)
             
             surges_lines = []
