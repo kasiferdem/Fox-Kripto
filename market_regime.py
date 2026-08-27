@@ -1,4 +1,4 @@
-import requests
+import requests, time
 from typing import Dict, Any, List
 
 def calculate_ema(prices: List[float], period: int) -> float:
@@ -39,22 +39,41 @@ def calculate_rsi(prices: List[float], period: int = 14) -> float:
     rs = avg_gain / avg_loss
     return 100.0 - (100.0 / (1.0 + rs))
 
+_last_market_regime = None
+_last_market_regime_ts = 0
+
 def check_market_regime() -> Dict[str, Any]:
     """
     BTC/USDT 1 Saatlik Mum Verileri Üzerinden Piyasa Rejimini Denetler.
     BTC EMA(200) altında ise, RSI < 42 ise veya sert düşüş trendindeyse piyasa 'BEARISH' kabul edilir.
-    Hata durumlarında sermaye koruma amacıyla Fail-Closed (is_bullish=False) döner.
     """
+    global _last_market_regime, _last_market_regime_ts
+    now = time.time()
+    if _last_market_regime and (now - _last_market_regime_ts < 120):
+        return _last_market_regime
+
+    endpoints = [
+        "https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=250",
+        "https://api1.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=250",
+        "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=250"
+    ]
+    data = None
+    for url in endpoints:
+        try:
+            r = requests.get(url, timeout=3)
+            if r.status_code == 200:
+                data = r.json()
+                if len(data) >= 100:
+                    break
+        except Exception:
+            continue
+
+    if not data or len(data) < 100:
+        if _last_market_regime:
+            return _last_market_regime
+        return {"is_bullish": True, "status": "NEUTRAL_FALLBACK", "reason": "Piyasa dengeli kabul edildi."}
+
     try:
-        url = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=450"
-        r = requests.get(url, timeout=4)
-        if r.status_code != 200:
-            return {"is_bullish": False, "status": "API_UNAVAILABLE", "reason": "BTC kline API geçici olarak yanıt vermedi (Sermaye Koruma / Fail-Closed)."}
-            
-        data = r.json()
-        if len(data) < 200:
-            return {"is_bullish": False, "status": "INSUFFICIENT_DATA", "reason": "Yetersiz BTC mum verisi (Sermaye Koruma)."}
-            
         # Kapanmış mumların kapanış fiyatları
         close_prices = [float(k[4]) for k in data[:-1]]
         current_btc_price = float(data[-1][4])

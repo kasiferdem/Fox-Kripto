@@ -349,9 +349,9 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     # Kasa Bütçesi ve Slot Hesabı (v2.1 Kuralı)
     bal_gl = portfolio_state.get("binance_global") or {}
     bal_tr = portfolio_state.get("binance_tr") or {}
-    free_usdt = float(bal_gl.get("free_usdt", 0.0))
-    free_try = float(bal_tr.get("free_try", 0.0))
-    tot_val_usd = float(bal_gl.get("total_usdt", 0.0)) or 100.0
+    free_usdt = float(bal_gl.get("free_usdt") or portfolio_state.get("free_usdt", 0.0))
+    free_try = float(bal_tr.get("free_try") or portfolio_state.get("free_try", 0.0))
+    tot_val_usd = float(bal_gl.get("total_usdt") or portfolio_state.get("total_usdt", 0.0)) or 100.0
     
     from db import get_strategy_config
     strat_cfg = get_strategy_config(use_cache=True)
