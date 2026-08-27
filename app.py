@@ -802,7 +802,90 @@ def update_system_settings_endpoint(req: SystemSettingsRequest):
 
 
 # -----------------------------------------
-# WEB DASHBOARD (HTML / JAVASCRIPT ARAYÜZÜ)
+# WEB DASHBOARD (V1 & V2 HTML / JAVASCRIPT ARAYÜZÜ)
+@app_api.get("/v2/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/V2/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/v2", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/V2", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+def get_v2_dashboard_html():
+    from v2_dashboard_html import generate_v2_dashboard_html
+    from db import get_supabase, get_system_setting, get_strategy_config
+    import json
+    clean = []
+    tenants_ssr_html = ""
+    try:
+        client = get_supabase()
+        if client:
+            res = client.table("user_tenants").select("*").order("created_at", desc=False).execute()
+            raw = res.data or []
+            for t in raw:
+                st = dict(t)
+                st.pop("exchange_secret_key", None)
+                clean.append(st)
+            for idx, user in enumerate(clean):
+                safe_name = str(user.get("tenant_name", "Kullanıcı")).replace("'", "\\'")
+                safe_id = str(user.get("id", ""))
+                tp = float(user.get("take_profit_percent") or 3.0)
+                sl = float(user.get("stop_loss_percent") or 1.5)
+                mb = float(user.get("max_budget_percent") or 25)
+                exch = str(user.get("exchange_id") or "binance")
+                tg_id = user.get("telegram_chat_id")
+                tenants_ssr_html += f"""
+                <tr>
+                    <td><strong style="color: #38bdf8;">{user.get('tenant_name')}</strong></td>
+                    <td><code class="mono">{tg_id}</code></td>
+                    <td><input type="number" step="0.1" class="input-inline" id="tp_{{idx}}" value="{tp}"></td>
+                    <td><input type="number" step="0.1" class="input-inline" id="sl_{{idx}}" value="{sl}"></td>
+                    <td><input type="number" step="1" class="input-inline" id="mb_{{idx}}" value="{mb}"></td>
+                    <td><span class="mono" style="color: #60a5fa;">{exch.upper()}</span></td>
+                    <td>🇹🇷 TR</td>
+                    <td><span style="color: var(--success); font-weight: bold;">🟢 Aktif</span></td>
+                    <td>
+                        <button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="updateSettings('{safe_id}', {{idx}}, '{safe_name}')">💾 Kaydet</button>
+                    </td>
+                </tr>
+                """
+    except Exception as e:
+        tenants_ssr_html = f"<tr><td colspan='9' style='color: var(--text-muted);'>Yükleniyor... ({{e}})</td></tr>"
+
+    logs_ssr_html = "<p style='color: var(--text-muted); padding: 12px;'>V2 Karar ve İşlem Motoru Canlı Takipte.</p>"
+    try:
+        if client:
+            res_l = client.table("crypto_trade_logs").select("*").order("created_at", desc=True).limit(20).execute()
+            logs_list = res_l.data or []
+            if logs_list:
+                rows = ""
+                for l in logs_list:
+                    d = str(l.get("created_at") or "")[:19].replace("T", " ")
+                    is_buy = str(l.get("direction", "BUY")).upper() == "BUY"
+                    dir_b = '<span style="color: var(--success); font-weight: bold;">🛒 ALIM (BUY)</span>' if is_buy else '<span style="color: var(--danger); font-weight: bold;">🎯 SATIM (SELL)</span>'
+                    rows += f"<div style='padding: 8px 12px; border-bottom: 1px solid var(--border-color); font-size: 12px;'><span style='color: var(--text-muted);'>{d}</span> | {dir_b} | <strong class='mono'>{l.get('symbol')}</strong> | Fiyat: {l.get('entry_price')} | AI Skor: +{l.get('sentiment_score')} | Durum: {l.get('status')}</div>"
+                logs_ssr_html = rows
+    except Exception:
+        pass
+
+    trailing_stop_enabled = bool(get_system_setting("trailing_stop_enabled", True))
+    trailing_checked = "checked" if trailing_stop_enabled else ""
+    trailing_status = "AÇIK" if trailing_stop_enabled else "KAPALI"
+    trailing_color = "var(--success)" if trailing_stop_enabled else "var(--danger)"
+
+    content = generate_v2_dashboard_html(
+        tenants_ssr_json=json.dumps(clean),
+        tenants_ssr_html=tenants_ssr_html,
+        logs_ssr_html=logs_ssr_html,
+        active_engine="WHALE_HUNTING",
+        active_risk="BALANCED",
+        active_version="V2",
+        trailing_checked=trailing_checked,
+        trailing_status=trailing_status,
+        trailing_color=trailing_color
+    )
+    return HTMLResponse(content=content)
+
+@app_api.get("/v1/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/V1/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/v1", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/V1", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/admin", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
