@@ -346,6 +346,15 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     c_sym = cand["symbol"]
     c_base = c_sym.split("/")[0].upper()
     
+    # 🚨 ZIRHLI KURAL: Cüzdanda zaten bu coin varsa ASLA tekrar alım yapma!
+    existing_holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
+    if isinstance(existing_holdings, dict) and c_base in existing_holdings:
+        coin_info = existing_holdings[c_base]
+        val_now = coin_info.get("val_usd", 0.0) if isinstance(coin_info, dict) else 0.0
+        if val_now >= 5.0:
+            print(f"   🛑 [Tekrar Alım Engeli]: {c_base} zaten cüzdanda mevcut (${val_now:.2f}), tekrar alım yapılmaz.")
+            return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
+
     # Kasa Bütçesi ve Slot Hesabı (v2.1 Kuralı)
     bal_gl = portfolio_state.get("binance_global") or {}
     bal_tr = portfolio_state.get("binance_tr") or {}
@@ -361,6 +370,13 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     # Hedef slot sayısı bütçe yüzdesine göre dinamik belirlenir (%33 -> 3 slot, %25 -> 4 slot, %15 -> 6 slot)
     calculated_slots = max(1, int(100.0 / user_max_pct))
     target_slots = max(calculated_slots, 1) if shield_active else max(1, adaptive_slots)
+    
+    # Aktif açık pozisyon sayısını say ve slot doluluğunu denetle
+    if isinstance(existing_holdings, dict):
+        active_coins = [k for k, v in existing_holdings.items() if str(k).upper() not in ["USDT", "TRY", "BNB", "USDC", "FDUSD"] and (isinstance(v, dict) and (v.get("val_usd", 0) > 5.0 or v.get("val_try", 0) > 150))]
+        if len(active_coins) >= target_slots:
+            print(f"   🛑 [Maksimum Slot Dolu]: Açık pozisyon sayısı ({len(active_coins)}) hedef slotu ({target_slots}) doldurdu. Yeni alım kapalı.")
+            return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
     
     is_quote_try = c_sym.endswith("TRY")
     cand_quote = "TRY" if is_quote_try else "USDT"
