@@ -32,13 +32,23 @@ def node_fetch_live_data(state: CryptoAgentState) -> Dict[str, Any]:
     return {"portfolio_state": portfolio, "news_data": news_text}
 
 def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
-    """[B] Deterministik ön filtre (Volume, Orderbook & Cooldown Filter)"""
-    print("\n--- [B. NODE: DETERMINISTIK ÖN FİLTRE] ---")
+    """[B] Deterministik ön filtre (V2 Scalping & Whale Hunting Confirmation Filter)"""
+    print("\n--- [B. NODE: V2 DETERMINISTIK ÖN FİLTRE & TEYİT MATRİSİ] ---")
     raw_candidates = detect_early_volume_breakouts()
     tenant_config = state.get("tenant_config") or {}
     tenant_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id") or "default_tenant")
     active_cooldowns = get_active_cooldowns_from_db(tenant_id=tenant_id)
     
+    from db import get_strategy_config
+    strat_cfg = get_strategy_config(use_cache=True)
+    active_preset = str(strat_cfg.get("active_preset", "v21_smart_armor")).lower()
+    
+    from v2_scalping_engine import V2ScalpingEngine
+    from v2_whale_engine import V2WhaleHuntingEngine
+    
+    is_scalp = "scalp" in active_preset
+    engine = V2ScalpingEngine(risk_level="BALANCED", custom_params=strat_cfg) if is_scalp else V2WhaleHuntingEngine(risk_level="BALANCED", custom_params=strat_cfg)
+
     clean_candidates = []
     for c in raw_candidates:
         c_sym = c["symbol"]
@@ -46,9 +56,26 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
         if c_base in active_cooldowns:
             print(f"   ⏳ [Soğuma Kilidi]: {c_base} son işlem sonrası dinlenmede, elendi.")
             continue
-        clean_candidates.append(c)
+            
+        # V2 Çok Boyutlu Değerlendirme
+        try:
+            ticker_dict = {"symbol": c_sym, "lastPrice": c.get("last_price", 1.0), "quoteVolume": c.get("volume", 50000.0), "priceChangePercent": c.get("gain_24h", 2.0)}
+            if is_scalp:
+                eval_res = engine.evaluate_ticker_data(ticker_dict)
+            else:
+                eval_res = engine.evaluate_whale_signal(ticker_dict)
+            
+            c["v2_evaluation"] = eval_res
+            c["v2_score"] = eval_res.get("final_score", 8.0)
+            if eval_res.get("status") in ["READY", "WAITING_CONFIRMATION"]:
+                clean_candidates.append(c)
+                print(f"   🐋 [V2 Teyit Başarılı]: {c_sym} -> Skor: {c['v2_score']}/10 ({eval_res.get('status')})")
+            else:
+                print(f"   ⚠️ [V2 Filtre]: {c_sym} -> {eval_res.get('status')} (Skor: {c['v2_score']}/10)")
+        except Exception as e_v2:
+            clean_candidates.append(c)
         
-    print(f"   [Ön Filtre Sonucu]: {len(clean_candidates)} adet aday coin teknik heyete gönderildi.")
+    print(f"   [V2 Ön Filtre Sonucu]: {len(clean_candidates)} adet aday coin teknik heyete gönderildi.")
     return {"filtered_candidates": clean_candidates}
 
 def node_gemini_news_report(state: CryptoAgentState) -> Dict[str, Any]:
