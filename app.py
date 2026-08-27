@@ -1370,6 +1370,26 @@ __SSR_TENANTS_HTML__
                 document.getElementById('i18n-card-logs').innerText = t.logsTitle;
             }
 
+            function showToast(msg, type = 'success') {
+                let container = document.getElementById('toast-container');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.id = 'toast-container';
+                    container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; gap: 10px; max-width: 440px; pointer-events: none;';
+                    document.body.appendChild(container);
+                }
+                const toast = document.createElement('div');
+                const bg = type === 'success' ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.98), rgba(5, 150, 105, 0.98))' : 'linear-gradient(135deg, rgba(239, 68, 68, 0.98), rgba(185, 28, 28, 0.98))';
+                toast.style.cssText = `background: ${bg}; color: white; padding: 14px 20px; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); font-weight: 600; font-size: 13px; line-height: 1.5; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.25); pointer-events: auto; transition: all 0.3s ease;`;
+                toast.innerHTML = msg.replace(/\n/g, '<br>');
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(-10px)';
+                    setTimeout(() => toast.remove(), 350);
+                }, 4500);
+            }
+
             function getAuthHeaders() {
                 return {
                     'Authorization': 'Basic ' + btoa('admin:foxkripto2026'),
@@ -1986,13 +2006,13 @@ __SSR_TENANTS_HTML__
                     const data = await res.json();
                     if (data.status === 'success') {
                         updateStrategyBadge(preset, spike);
-                        alert('✅ Strateji ve Sürüm Profili Başarıyla Kaydedildi!\n\nSeçili Sürüm: ' + preset + ' (' + spike + 'x)\nMax Pozisyon Bütçesi: %' + maxbudget + '\nMin Hacim: $' + minvol + '\n24s Tavan: %' + maxgain + '\nZirve Geri Çekilme Kilidi: %' + trailcallback);
+                        showToast('✅ Strateji ve Sürüm Profili Başarıyla Kaydedildi!<br><br><b>Sürüm:</b> ' + preset + ' (' + spike + 'x)<br><b>Bütçe:</b> %' + maxbudget + ' | <b>Min Hacim:</b> $' + minvol + '<br><b>Tavan:</b> %' + maxgain + ' | <b>Zirve Kilidi:</b> %' + trailcallback, 'success');
                         loadStrategyConfig();
                     } else {
-                        alert('❌ Kaydetme Başarısız: ' + (data.detail || JSON.stringify(data)));
+                        showToast('❌ Kaydetme Başarısız: ' + (data.detail || JSON.stringify(data)), 'error');
                     }
                 } catch (e) {
-                    alert('Hata: ' + e);
+                    showToast('❌ Bağlantı Hatası: ' + e, 'error');
                 } finally {
                     if (btn) {
                         btn.innerText = '💾 Profili Uygula';
