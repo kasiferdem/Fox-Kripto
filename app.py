@@ -1381,7 +1381,7 @@ __SSR_TENANTS_HTML__
                 const toast = document.createElement('div');
                 const bg = type === 'success' ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.98), rgba(5, 150, 105, 0.98))' : 'linear-gradient(135deg, rgba(239, 68, 68, 0.98), rgba(185, 28, 28, 0.98))';
                 toast.style.cssText = `background: ${bg}; color: white; padding: 14px 20px; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); font-weight: 600; font-size: 13px; line-height: 1.5; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.25); pointer-events: auto; transition: all 0.3s ease;`;
-                toast.innerHTML = msg.replace(/\n/g, '<br>');
+                toast.innerHTML = msg.split(String.fromCharCode(10)).join('<br>');
                 container.appendChild(toast);
                 setTimeout(() => {
                     toast.style.opacity = '0';
