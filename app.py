@@ -507,7 +507,6 @@ class StrategyConfigRequest(BaseModel):
 # API ROTALARI (KULLANICI EKLE / SİL / LİSTELE)
 # -----------------------------------------
 @app_api.get("/health")
-@app_api.get("/")
 def health_check():
     return {"status": "healthy", "service": "Fox-Kripto Multi-Tenant Dashboard", "version": "2.1.0-explain-trade"}
 
@@ -804,6 +803,7 @@ def update_system_settings_endpoint(req: SystemSettingsRequest):
 
 # -----------------------------------------
 # WEB DASHBOARD (HTML / JAVASCRIPT ARAYÜZÜ)
+@app_api.get("/", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/admin", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 def get_dashboard_html():
