@@ -1074,14 +1074,22 @@ def get_dashboard_html():
                 }
             };
             var desc = document.getElementById('strat-desc');
-            if (preset === 'v21_balanced' || preset === 'agile_21_august') {
+            if (preset === 'v21_smart_armor') {
+                setVal('strat-spike', 1.15);
+                setVal('strat-minvol', 2500);
+                setVal('strat-maxgain', 60.0);
+                setVal('strat-minscore', 4.5);
+                setVal('strat-maxbudget', 25.0);
+                setVal('strat-trailcallback', 0.6);
+                if (desc) desc.innerHTML = '💡 <em>Açıklama: 🛡️ 3 Kademeli Akıllı Zırh: +%1.0 Breakeven sıfır risk, +%1.5 balina kâr kilidi (%0.6), +%3.0 ralli takipçisi ve %25 (4 slot) kasa disiplini.</em>';
+            } else if (preset === 'v21_balanced' || preset === 'agile_21_august') {
                 setVal('strat-spike', 1.2);
                 setVal('strat-minvol', 4000);
                 setVal('strat-maxgain', 15.0);
                 setVal('strat-minscore', 5.5);
                 setVal('strat-maxbudget', 33.0);
                 setVal('strat-trailcallback', 0.8);
-                if (desc) desc.innerHTML = '💡 <em>Açıklama: v2.1 Dengeli Motor: %33 max bütçe (3 slot), $4.000 min hacim ve 1.2x erken balina teyidi ile çalışır. (Önerilen)</em>';
+                if (desc) desc.innerHTML = '💡 <em>Açıklama: v2.1 Dengeli Motor: %33 max bütçe (3 slot), $4.000 min hacim ve 1.2x erken balina teyidi ile çalışır.</em>';
             } else if (preset === 'v21_agile') {
                 setVal('strat-spike', 1.15);
                 setVal('strat-minvol', 2500);
@@ -1126,7 +1134,8 @@ def get_dashboard_html():
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 Hazır Strateji & Sürüm</label>
                     <select id="strategy-preset-select" onchange="window.onPresetChange(this.value)" oninput="window.onPresetChange(this.value)" style="width: 100%; padding: 9px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 13px;">
-                        <option value="v21_balanced" __STRAT_SEL_BALANCED__>🛡️ v2.1 Kurumsal Dengeli (Önerilen)</option>
+                        <option value="v21_smart_armor" __STRAT_SEL_ARMOR__>🛡️ v2.1 3 Kademeli Akıllı Zırh (Önerilen Scalp & Balina)</option>
+                        <option value="v21_balanced" __STRAT_SEL_BALANCED__>⚖️ v2.1 Kurumsal Dengeli</option>
                         <option value="v21_agile" __STRAT_SEL_AGILE__>🚀 v2.1 Hızlı Momentum (Scalp Modu)</option>
                         <option value="v21_defensive" __STRAT_SEL_DEF__>🏰 v2.1 Yüksek Güvenlik (Defansif)</option>
                         <option value="v20_classic" __STRAT_SEL_V20__>⚡ v2.0 Klasik Serbest Motor (Kısıtlamasız)</option>
@@ -2193,19 +2202,20 @@ __SSR_TENANTS_HTML__
     shield_color = "var(--success)" if shield_enabled else "var(--danger)"
 
     strat_cfg = get_strategy_config(use_cache=False)
-    active_preset = strat_cfg.get("active_preset", "v21_balanced")
+    active_preset = strat_cfg.get("active_preset", "v21_smart_armor")
     if active_preset == "agile_21_august":
         active_preset = "v21_balanced"
     elif active_preset == "defensive_22_august":
         active_preset = "v21_defensive"
 
-    strat_spike = float(strat_cfg.get("volume_spike_multiplier", 1.2))
-    strat_minvol = float(strat_cfg.get("min_volume_usd", 4000.0))
-    strat_maxgain = float(strat_cfg.get("max_recent_gain_24h", 15.0))
-    strat_minscore = float(strat_cfg.get("min_ai_score", 5.5))
-    strat_maxbudget = float(strat_cfg.get("max_budget_percent", 33.0))
-    strat_trailcallback = float(strat_cfg.get("trailing_callback_pct", 0.8))
+    strat_spike = float(strat_cfg.get("volume_spike_multiplier", 1.15))
+    strat_minvol = float(strat_cfg.get("min_volume_usd", 2500.0))
+    strat_maxgain = float(strat_cfg.get("max_recent_gain_24h", 60.0))
+    strat_minscore = float(strat_cfg.get("min_ai_score", 4.5))
+    strat_maxbudget = float(strat_cfg.get("max_budget_percent", 25.0))
+    strat_trailcallback = float(strat_cfg.get("trailing_callback_pct", 0.6))
 
+    sel_armor = "selected" if active_preset in ["v21_smart_armor", "smart_armor"] else ""
     sel_balanced = "selected" if active_preset == "v21_balanced" else ""
     sel_agile = "selected" if active_preset == "v21_agile" else ""
     sel_def = "selected" if active_preset == "v21_defensive" else ""
@@ -2213,8 +2223,10 @@ __SSR_TENANTS_HTML__
     sel_v10 = "selected" if active_preset == "v10_legacy" else ""
     sel_cust = "selected" if active_preset == "custom" else ""
     
-    if active_preset == "v21_balanced":
-        strat_badge_text = f"🛡️ v2.1 Kurumsal Dengeli ({strat_spike}x) Aktif"
+    if active_preset in ["v21_smart_armor", "smart_armor"]:
+        strat_badge_text = f"🛡️ v2.1 3 Kademeli Akıllı Zırh ({strat_spike}x) Aktif"
+    elif active_preset == "v21_balanced":
+        strat_badge_text = f"⚖️ v2.1 Kurumsal Dengeli ({strat_spike}x) Aktif"
     elif active_preset == "v21_agile":
         strat_badge_text = f"🚀 v2.1 Hızlı Momentum ({strat_spike}x) Aktif"
     elif active_preset == "v21_defensive":
@@ -2239,6 +2251,7 @@ __SSR_TENANTS_HTML__
         .replace("__SHIELD_STATUS__", shield_status)
         .replace("__SHIELD_COLOR__", shield_color)
         .replace("__STRAT_BADGE__", strat_badge_text)
+        .replace("__STRAT_SEL_ARMOR__", sel_armor)
         .replace("__STRAT_SEL_BALANCED__", sel_balanced)
         .replace("__STRAT_SEL_AGILE__", sel_agile)
         .replace("__STRAT_SEL_DEF__", sel_def)

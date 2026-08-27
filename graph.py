@@ -248,20 +248,24 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                         
                         from db import get_strategy_config
                         strat_cfg = get_strategy_config(use_cache=True)
-                        trail_callback = float(strat_cfg.get("trailing_callback_pct") or 0.8)
-                        callback_mult_20 = 1.0 - (trail_callback / 100.0)
-                        callback_mult_14 = 1.0 - (min(trail_callback, 0.6) / 100.0)
+                        trail_callback = float(strat_cfg.get("trailing_callback_pct") or 0.6)
+                        callback_mult = 1.0 - (trail_callback / 100.0)
                         
-                        # 🏆 1. ZİRVEDEN GERİ ÇEKİLME KÂR KİLİTLEME (Asla kârlı coinin zarara dönmesine izin vermez):
-                        if peak_gain_pct >= 2.0 and curr_p <= (highest_p * callback_mult_20):
-                            # +%2.0+ görmüş coin zirveden kullanıcının belirlediği geri çekilme olduğunda kârla çık:
+                        # 🛡️ 3 KADEMELİ AKILLI ZIRH MOTORU (Scalp & Balina Kâr Koruma):
+                        # Kademe 3: +%3.0+ Ralli Hareketi -> Zirveden %0.8 geri çekilmede maksimum kârla sat
+                        if peak_gain_pct >= 3.0 and curr_p <= (highest_p * 0.992):
                             is_take_profit = True
-                            reason_desc = f"🏆 Zirve Kâr Koruma (+%{net_profit_pct:.2f} Net Kâr Cebe Kilitlendi / Zirve: +%{peak_gain_pct:.2f})"
+                            reason_desc = f"🚀 3. Kademe: Ralli Kâr Kilidi (+%{net_profit_pct:.2f} Net Kâr Kasaya / Zirve: +%{peak_gain_pct:.2f})"
                             sell_fraction = 1.0
-                        elif peak_gain_pct >= 1.4 and curr_p <= (highest_p * callback_mult_14):
-                            # +%1.4+ görmüş coin zirveden gerilediğinde hemen kârla çık:
+                        # Kademe 2: +%1.5 - +%3.0 Balina Hareketi -> Zirveden %0.6 çekilmede anında kârı al
+                        elif peak_gain_pct >= 1.5 and curr_p <= (highest_p * callback_mult):
                             is_take_profit = True
-                            reason_desc = f"🛡️ Erken Kâr Sigortası (+%{net_profit_pct:.2f} Net Kâr Cebe Kilitlendi / Zirve: +%{peak_gain_pct:.2f})"
+                            reason_desc = f"💰 2. Kademe: Balina Kârı Kapma (+%{net_profit_pct:.2f} Net Kâr Cebe / Zirve: +%{peak_gain_pct:.2f})"
+                            sell_fraction = 1.0
+                        # Kademe 1: +%1.0+ Kârı Görüp Alış Seviyesine Gevşeme -> Başa Baş (Breakeven) Sıfır Risk Satışı!
+                        elif peak_gain_pct >= 1.0 and curr_p <= (recorded_buy_p * 1.001):
+                            is_take_profit = True
+                            reason_desc = f"🛡️ 1. Kademe: Başa Baş Koruması (+%{net_profit_pct:.2f} Komisyonsuz Sıfır Zararla Çıkış / Zirve: +%{peak_gain_pct:.2f})"
                             sell_fraction = 1.0
                         elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
                             # Kullanıcının belirlediği ana TP hedefine ulaşıldı:
@@ -269,9 +273,9 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             reason_desc = f"🎯 Hedef Kâr Alma (+%{net_profit_pct:.2f} Net Kâr Kasaya Alındı)"
                             sell_fraction = 1.0
                         elif (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
-                            # Kullanıcının belirlediği Stop-Loss sınırı:
+                            # Sıkı Stop-Loss sınırı:
                             is_stop_loss = True
-                            reason_desc = f"🛡️ Stop-Loss (%{net_profit_pct:.2f} Net Zarar Kesildi)"
+                            reason_desc = f"🛡️ Sıkı Stop-Loss (%{net_profit_pct:.2f} Net Zarar Kesildi)"
                             sell_fraction = 1.0
                     else:
                         if (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):

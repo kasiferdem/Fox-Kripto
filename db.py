@@ -594,6 +594,16 @@ def get_system_constitution_rules() -> Dict[str, Any]:
         return DEFAULT_SYSTEM_RULES
 
 STRATEGY_PRESETS = {
+    "v21_smart_armor": {
+        "name": "🛡️ v2.1 3 Kademeli Akıllı Zırh (Scalp & Balina)",
+        "volume_spike_multiplier": 1.15,
+        "min_volume_usd": 2500.0,
+        "max_recent_gain_24h": 60.0,
+        "min_ai_score": 4.5,
+        "max_budget_percent": 25.0,
+        "trailing_callback_pct": 0.6,
+        "description": "3 Kademeli Akıllı Zırh: +%1.0 Breakeven sıfır risk, +%1.5 balina kâr kilidi, +%3.0 ralli takipçisi ve %25 (4 slot) kasa disiplini."
+    },
     "v21_balanced": {
         "name": "🛡️ v2.1 Kurumsal Dengeli (Önerilen)",
         "volume_spike_multiplier": 1.2,
