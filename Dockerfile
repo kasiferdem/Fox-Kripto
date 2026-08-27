@@ -3,7 +3,7 @@
 # -----------------------------------------
 FROM python:3.12-slim
 LABEL maintainer="FoxKripto"
-LABEL build.version="20260824-v3-fresh"
+LABEL build.version="20260827-v5-clean"
 
 # Çalışma dizinini ayarla
 WORKDIR /app
@@ -12,6 +12,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Bağımlılıkları kopyala ve yükle
@@ -24,5 +25,5 @@ COPY . .
 # Port tanımı
 EXPOSE 8000
 
-# Varsayılan başlangıç komutu (Dinamik PORT destekli)
+# Varsayılan başlangıç komutu
 CMD ["sh", "-c", "uvicorn app:app_api --host 0.0.0.0 --port ${PORT:-8000}"]
