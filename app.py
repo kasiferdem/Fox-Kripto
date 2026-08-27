@@ -1998,6 +1998,12 @@ __SSR_TENANTS_HTML__
             loadSystemSettings();
             loadStrategyConfig();
             loadData();
+
+            const presetSelectEl = document.getElementById('strategy-preset-select');
+            if (presetSelectEl) {
+                presetSelectEl.addEventListener('change', function() { onPresetChange(this.value); });
+                presetSelectEl.addEventListener('input', function() { onPresetChange(this.value); });
+            }
         </script>
 
         <!-- AKTİF KURALLAR & VERSİYON GEÇMİŞİ MODALI -->
