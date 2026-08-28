@@ -119,20 +119,22 @@ def get_active_trading_symbols():
         pass
     return set()
 
-def detect_early_volume_breakouts(quote_asset: str = "USDT") -> List[Dict[str, Any]]:
+def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", min_volume_usd: float = None, max_recent_gain: float = None, **kwargs) -> List[Dict[str, Any]]:
     """Binance Global ve TR üzerinde gerçek $50K+ kurumsal balina hacim kırılımlarını tespit eder."""
     breakouts = []
-    quote_upper = quote_asset.upper()
+    target_quote = quote or quote_asset or "USDT"
+    quote_upper = target_quote.upper()
     try:
         active_syms = get_active_trading_symbols()
         try:
             from db import get_strategy_config
             strat = get_strategy_config(use_cache=True)
-            max_24h_req = float(strat.get("max_recent_gain_24h", 15.0))
-            min_vol_req = max(35000.0, float(strat.get("min_volume_usd", 50000.0)))
+            max_24h_req = float(max_recent_gain or strat.get("max_recent_gain_24h", 15.0))
+            configured_vol = float(min_volume_usd or strat.get("min_volume_usd", 50000.0))
+            min_vol_req = max(35000.0, configured_vol)
         except Exception:
-            max_24h_req = 15.0
-            min_vol_req = 50000.0
+            max_24h_req = float(max_recent_gain or 15.0)
+            min_vol_req = float(min_volume_usd or 50000.0)
 
         sess = get_http_session()
         r = sess.get("https://api.binance.com/api/v3/ticker/24hr", timeout=6)

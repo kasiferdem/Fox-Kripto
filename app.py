@@ -856,37 +856,33 @@ def get_v2_dashboard_html():
     except Exception as e:
         tenants_ssr_html = f"<tr><td colspan='9' style='color: var(--text-muted);'>Yükleniyor... ({{e}})</td></tr>"
 
-    logs_ssr_html = "<p style='color: var(--text-muted); padding: 12px;'>V2 Karar ve İşlem Motoru Canlı Takipte.</p>"
+    logs_list = []
     try:
         if client:
-            res_l = client.table("crypto_trade_logs").select("*").order("created_at", desc=True).limit(20).execute()
+            res_l = client.table("crypto_trade_logs").select("*").order("created_at", desc=True).limit(30).execute()
             logs_list = res_l.data or []
-            if logs_list:
-                rows = ""
-                for l in logs_list:
-                    d = str(l.get("created_at") or "")[:19].replace("T", " ")
-                    is_buy = str(l.get("direction", "BUY")).upper() == "BUY"
-                    dir_b = '<span style="color: var(--success); font-weight: bold;">🛒 ALIM (BUY)</span>' if is_buy else '<span style="color: var(--danger); font-weight: bold;">🎯 SATIM (SELL)</span>'
-                    rows += f"<div style='padding: 8px 12px; border-bottom: 1px solid var(--border-color); font-size: 12px;'><span style='color: var(--text-muted);'>{d}</span> | {dir_b} | <strong class='mono'>{l.get('symbol')}</strong> | Fiyat: {l.get('entry_price')} | AI Skor: +{l.get('sentiment_score')} | Durum: {l.get('status')}</div>"
-                logs_ssr_html = rows
+            # Enriched tenant name
+            t_map = {t["id"]: t.get("tenant_name", "Kullanıcı") for t in clean}
+            for l in logs_list:
+                tid = str(l.get("tenant_id") or "")
+                if tid in t_map:
+                    l["tenant_name"] = t_map[tid]
     except Exception:
         pass
 
-    trailing_stop_enabled = bool(get_system_setting("trailing_stop_enabled", True))
-    trailing_checked = "checked" if trailing_stop_enabled else ""
-    trailing_status = "AÇIK" if trailing_stop_enabled else "KAPALI"
-    trailing_color = "var(--success)" if trailing_stop_enabled else "var(--danger)"
+    strat_cfg = get_strategy_config(use_cache=False)
+    sys_settings = {
+        "trailing_stop_enabled": bool(get_system_setting("trailing_stop_enabled", True)),
+        "v21_security_shield_enabled": bool(get_system_setting("v21_security_shield_enabled", True))
+    }
 
     content = generate_v2_dashboard_html(
-        tenants_ssr_json=json.dumps(clean),
-        tenants_ssr_html=tenants_ssr_html,
-        logs_ssr_html=logs_ssr_html,
+        tenants=clean,
+        logs=logs_list,
         active_engine="WHALE_HUNTING",
         active_risk="BALANCED",
-        active_version="V2",
-        trailing_checked=trailing_checked,
-        trailing_status=trailing_status,
-        trailing_color=trailing_color
+        system_settings=sys_settings,
+        strategy_config=strat_cfg
     )
     return HTMLResponse(content=content)
 
