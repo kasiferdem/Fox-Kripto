@@ -957,21 +957,24 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                             estimated_total_try += val_try
                             holdings_details[asset] = {"amount": amount, "price": 1.0, "val_usd": val_usd, "val_try": val_try}
                         else:
-                            price_try = price_map.get(f"{clean_lookup_coin}TRY", 0.0)
                             price_usd = price_map.get(f"{clean_lookup_coin}USDT", 0.0)
+                            price_try = price_map.get(f"{clean_lookup_coin}TRY", 0.0)
                             
-                            if price_try > 0:
-                                val_try = amount * price_try
-                                val_usd = val_try / usdt_try_price if usdt_try_price > 0 else (amount * price_usd)
-                            else:
+                            if price_usd > 0:
                                 val_usd = amount * price_usd
                                 val_try = val_usd * usdt_try_price
+                            elif price_try > 0:
+                                val_try = amount * price_try
+                                val_usd = val_try / usdt_try_price if usdt_try_price > 0 else 0.0
+                            else:
+                                val_usd = 0.0
+                                val_try = 0.0
                                 
                             estimated_total_usd += val_usd
                             estimated_total_try += val_try
                             holdings_details[asset] = {
                                 "amount": amount, 
-                                "price": price_usd if price_usd > 0 else (price_try / usdt_try_price), 
+                                "price": price_usd if price_usd > 0 else (price_try / usdt_try_price if usdt_try_price > 0 else 0.0), 
                                 "price_try": price_try if price_try > 0 else (price_usd * usdt_try_price),
                                 "val_usd": val_usd, 
                                 "val_try": val_try
