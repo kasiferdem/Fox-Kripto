@@ -871,6 +871,21 @@ def get_v2_dashboard_html():
         pass
 
     strat_cfg = get_strategy_config(use_cache=False)
+    raw_preset = str(strat_cfg.get("active_preset", "whale_hunting_balanced")).upper()
+    if "SCALP" in raw_preset:
+        active_engine = "VOLUME_SCALPING"
+    else:
+        active_engine = "WHALE_HUNTING"
+
+    if "AGGRESSIVE" in raw_preset or "AGILE" in raw_preset:
+        active_risk = "AGGRESSIVE"
+    elif "DEFENSIVE" in raw_preset:
+        active_risk = "DEFENSIVE"
+    elif "CUSTOM" in raw_preset:
+        active_risk = "CUSTOM"
+    else:
+        active_risk = "BALANCED"
+
     sys_settings = {
         "trailing_stop_enabled": bool(get_system_setting("trailing_stop_enabled", True)),
         "v21_security_shield_enabled": bool(get_system_setting("v21_security_shield_enabled", True))
@@ -879,8 +894,8 @@ def get_v2_dashboard_html():
     content = generate_v2_dashboard_html(
         tenants=clean,
         logs=logs_list,
-        active_engine="WHALE_HUNTING",
-        active_risk="BALANCED",
+        active_engine=active_engine,
+        active_risk=active_risk,
         system_settings=sys_settings,
         strategy_config=strat_cfg
     )

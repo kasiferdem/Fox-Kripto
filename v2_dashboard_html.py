@@ -22,6 +22,19 @@ def generate_v2_dashboard_html(
     trailing_checked = "checked" if system_settings.get("trailing_stop_enabled", True) else ""
     shield_checked = "checked" if system_settings.get("v21_security_shield_enabled", True) else ""
 
+    # Dynamic Engine and Risk States
+    is_scalp = (active_engine == "VOLUME_SCALPING")
+    scalp_btn_cls = "engine-select-btn active-scalp" if is_scalp else "engine-select-btn"
+    whale_btn_cls = "engine-select-btn active-whale" if not is_scalp else "engine-select-btn"
+    engine_title_text = "⚡ Hacim Scalping Motoru (1m/3m/5m İvme)" if is_scalp else "🐋 Gerçek Balina Avı Motoru (10 Kriterli Teyit)"
+    engine_badge_style = "background: rgba(6, 182, 212, 0.2); color: var(--scalp-cyan); border: 1px solid var(--scalp-cyan);" if is_scalp else "background: rgba(245, 158, 11, 0.2); color: var(--whale-gold); border: 1px solid var(--whale-gold);"
+    engine_badge_text = f"⚡ Scalp · {active_risk} · v2.2 Aktif" if is_scalp else f"🐋 Balina Avı · {active_risk} · v2.2 Aktif"
+
+    pill_agg_cls = "risk-pill active" if active_risk == "AGGRESSIVE" else "risk-pill"
+    pill_bal_cls = "risk-pill active" if active_risk == "BALANCED" else "risk-pill"
+    pill_def_cls = "risk-pill active" if active_risk == "DEFENSIVE" else "risk-pill"
+    pill_cus_cls = "risk-pill active" if active_risk == "CUSTOM" else "risk-pill"
+
     # Strategy Config Defaults
     min_vol = int(strategy_config.get("min_volume_usd", 50000))
     spike_mult = float(strategy_config.get("volume_spike_multiplier", 2.5))
@@ -642,20 +655,20 @@ def generate_v2_dashboard_html(
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
             <div>
                 <span style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">AKTİF QUANT STRATEJİ MOTORU</span>
-                <h2 id="engine-title" style="font-size: 20px; font-weight: 700; color: #f8fafc; margin-top: 2px;">🐋 Gerçek Balina Avı Motoru (10 Kriterli Teyit)</h2>
+                <h2 id="engine-title" style="font-size: 20px; font-weight: 700; color: #f8fafc; margin-top: 2px;">{engine_title_text}</h2>
             </div>
-            <div id="engine-badge" style="background: rgba(245, 158, 11, 0.2); color: var(--whale-gold); border: 1px solid var(--whale-gold); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700;">
-                🐋 Balina Avı · {active_risk} · v2.2 Aktif
+            <div id="engine-badge" style="{engine_badge_style} padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700;">
+                {engine_badge_text}
             </div>
         </div>
 
         <!-- Motor Seçim Butonları -->
         <div class="engine-toggle-group">
-            <button id="btn-engine-scalp" class="engine-select-btn" onclick="switchEngine('VOLUME_SCALPING')">
+            <button id="btn-engine-scalp" class="{scalp_btn_cls}" onclick="switchEngine('VOLUME_SCALPING')">
                 <span>⚡ 1. Hacim Scalping Motoru</span>
                 <span style="font-size: 12px; opacity: 0.8;">1m/3m/5m Hızlı Momentum</span>
             </button>
-            <button id="btn-engine-whale" class="engine-select-btn active-whale" onclick="switchEngine('WHALE_HUNTING')">
+            <button id="btn-engine-whale" class="{whale_btn_cls}" onclick="switchEngine('WHALE_HUNTING')">
                 <span>🐋 2. Gerçek Balina Avı Motoru</span>
                 <span style="font-size: 12px; opacity: 0.8;">Spot + Vadeli OI + Duvar Teyidi</span>
             </button>
@@ -664,10 +677,10 @@ def generate_v2_dashboard_html(
         <!-- Hazır Risk Seviyesi Seçici -->
         <div class="risk-pills-row">
             <span style="font-size: 13px; color: var(--text-muted); font-weight: 600; margin-right: 6px;">Hazır Profiller:</span>
-            <button id="pill-agg" class="risk-pill" onclick="switchRisk('AGGRESSIVE')">🔥 Agresif</button>
-            <button id="pill-bal" class="risk-pill active" onclick="switchRisk('BALANCED')">⚖️ Dengeli (Önerilen)</button>
-            <button id="pill-def" class="risk-pill" onclick="switchRisk('DEFENSIVE')">🏰 Defansif</button>
-            <button id="pill-cus" class="risk-pill" onclick="switchRisk('CUSTOM')">⚙️ Özel (Custom)</button>
+            <button id="pill-agg" class="{pill_agg_cls}" onclick="switchRisk('AGGRESSIVE')">🔥 Agresif</button>
+            <button id="pill-bal" class="{pill_bal_cls}" onclick="switchRisk('BALANCED')">⚖️ Dengeli (Önerilen)</button>
+            <button id="pill-def" class="{pill_def_cls}" onclick="switchRisk('DEFENSIVE')">🏰 Defansif</button>
+            <button id="pill-cus" class="{pill_cus_cls}" onclick="switchRisk('CUSTOM')">⚙️ Özel (Custom)</button>
             <button class="btn btn-primary" onclick="saveV2Strategy()" style="margin-left: auto; height: 38px; font-weight: 700;">💾 Parametreleri Kaydet & Canlıya Al</button>
         </div>
 
@@ -1074,7 +1087,21 @@ def generate_v2_dashboard_html(
                     body: JSON.stringify(payload)
                 }});
                 if (res.ok) {{
-                    showToast('✅ [BAŞARILI]: Tüm Quant Parametreleri Canlı Otonom Motora Kaydedildi!');
+                    const engineName = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Hacim Scalping Motoru' : '🐋 Gerçek Balina Avı Motoru');
+                    showToast('✅ [BAŞARILI]: ' + engineName + ' (' + currentRisk + ') Canlıya Alındı ve Kaydedildi!');
+                    const badge = document.getElementById('engine-badge');
+                    if (badge) {{
+                        badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + currentRisk + ' · v2.2 Aktif';
+                        if (currentEngine === 'VOLUME_SCALPING') {{
+                            badge.style.borderColor = 'var(--scalp-cyan)';
+                            badge.style.color = 'var(--scalp-cyan)';
+                            badge.style.background = 'rgba(6, 182, 212, 0.2)';
+                        }} else {{
+                            badge.style.borderColor = 'var(--whale-gold)';
+                            badge.style.color = 'var(--whale-gold)';
+                            badge.style.background = 'rgba(245, 158, 11, 0.2)';
+                        }}
+                    }}
                 }} else {{
                     alert('❌ Kaydetme hatası: ' + res.statusText);
                 }}
