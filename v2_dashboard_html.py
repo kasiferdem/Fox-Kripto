@@ -1,8 +1,9 @@
 """
-Fox-Kripto V2.2: Ultra-Premium Quant Dashboard (UI/UX Pro Max Edition)
-Tasarım & Mimari: UI/UX Pro Max • Frontend Design • Mobile Design • Fox Marka Yükleme Göstergesi
-Özellikler: Kullanıcı Tıklanabilir Canlı Bakiye Modalı, Fox Marka Spinner, Net Kullanıcı Logları,
-Space Grotesk + JetBrains Mono, 10 Teyit Matrisi, 8 Parametreli Canlı Kontrol Merkezi, Mobil Thumb-Zone Dock.
+Fox-Kripto V2.2: Kurumsal Quant Dashboard (Fox MRO Resmi Tasarım Sistemi)
+Tasarım & Mimari: Fox MRO Kurumsal Şartnamesi • Claude UI/UX Heyeti
+Özellikler: Ağırbaşlı Mat Kömür Grisi Kartlar, Orijinal Fox SVG Yükleme Göstergesi,
+Çift Motor Seçici (Scalp & Balina), 8 Parametreli İnce Ayar Merkezi, Tıklanabilir Cüzdan Modalı,
+Açıklanabilir Kullanıcı Log Tablosu, Dark/Light Tema Desteği, 48px Dokunmatik Mobil Dock.
 """
 
 def generate_v2_dashboard_html(
@@ -20,30 +21,29 @@ def generate_v2_dashboard_html(
     strategy_config = strategy_config or {}
 
     trailing_checked = "checked" if system_settings.get("trailing_stop_enabled", True) else ""
-    shield_checked = "checked" if system_settings.get("v21_security_shield_enabled", True) else ""
 
     # Dynamic Engine and Risk States
     is_scalp = (active_engine == "VOLUME_SCALPING")
-    scalp_btn_cls = "engine-select-btn active-scalp" if is_scalp else "engine-select-btn"
-    whale_btn_cls = "engine-select-btn active-whale" if not is_scalp else "engine-select-btn"
-    engine_title_text = "⚡ Hacim Scalping Motoru (1m/3m/5m İvme)" if is_scalp else "🐋 Gerçek Balina Avı Motoru (10 Kriterli Teyit)"
-    engine_badge_style = "background: rgba(6, 182, 212, 0.2); color: var(--scalp-cyan); border: 1px solid var(--scalp-cyan);" if is_scalp else "background: rgba(245, 158, 11, 0.2); color: var(--whale-gold); border: 1px solid var(--whale-gold);"
-    engine_badge_text = f"⚡ Scalp · {active_risk} · v2.2 Aktif" if is_scalp else f"🐋 Balina Avı · {active_risk} · v2.2 Aktif"
+    scalp_btn_cls = "engine-btn active" if is_scalp else "engine-btn"
+    whale_btn_cls = "engine-btn active" if not is_scalp else "engine-btn"
+    engine_title_text = "1. Hacim Scalping Motoru" if is_scalp else "2. Gerçek Balina Avı Motoru"
+    engine_badge_text = f"⚡ Hacim Scalping · {active_risk} · v2.2 Aktif" if is_scalp else f"🐋 Balina Avı · {active_risk} · v2.2 Aktif"
+    engine_badge_cls = "badge badge-info" if is_scalp else "badge badge-warn"
 
-    pill_agg_cls = "risk-pill active" if active_risk == "AGGRESSIVE" else "risk-pill"
-    pill_bal_cls = "risk-pill active" if active_risk == "BALANCED" else "risk-pill"
-    pill_def_cls = "risk-pill active" if active_risk == "DEFENSIVE" else "risk-pill"
-    pill_cus_cls = "risk-pill active" if active_risk == "CUSTOM" else "risk-pill"
+    pill_agg_cls = "profile-btn active" if active_risk == "AGGRESSIVE" else "profile-btn"
+    pill_bal_cls = "profile-btn active" if active_risk == "BALANCED" else "profile-btn"
+    pill_def_cls = "profile-btn active" if active_risk == "DEFENSIVE" else "profile-btn"
+    pill_cus_cls = "profile-btn active" if active_risk == "CUSTOM" else "profile-btn"
 
     # Strategy Config Defaults
-    min_vol = int(strategy_config.get("min_volume_usd", 50000))
-    spike_mult = float(strategy_config.get("volume_spike_multiplier", 2.5))
+    min_vol = int(strategy_config.get("min_volume_usd", 25000 if is_scalp else 50000))
+    spike_mult = float(strategy_config.get("volume_spike_multiplier", 1.8 if is_scalp else 2.5))
     max_gain = float(strategy_config.get("max_recent_gain_24h", 12.0))
-    ai_score = float(strategy_config.get("min_ai_score", 8.0))
+    ai_score = float(strategy_config.get("min_ai_score", 7.5 if is_scalp else 8.0))
     max_budget = float(strategy_config.get("max_budget_percent", 25.0))
-    tp_pct = float(strategy_config.get("take_profit_pct", 3.0))
-    sl_pct = float(strategy_config.get("stop_loss_pct", 1.5))
-    cb_pct = float(strategy_config.get("trailing_callback_pct", 0.6))
+    tp_pct = float(strategy_config.get("take_profit_pct", 2.0 if is_scalp else 3.0))
+    sl_pct = float(strategy_config.get("stop_loss_pct", 1.2 if is_scalp else 1.5))
+    cb_pct = float(strategy_config.get("trailing_callback_pct", 0.5 if is_scalp else 0.6))
 
     # Tenants Tablosu SSR HTML (Tıklanabilir Satırlar)
     tenants_ssr_html = ""
@@ -58,36 +58,33 @@ def generate_v2_dashboard_html(
         exch_badge = "🇹🇷 Binance TR" if t.get("exchange_id") == "binancetr" else "🌍 Binance Global"
         lang = str(t.get("preferred_language", "tr")).upper()
 
-        status_badge = '<span class="badge badge-warning">🧪 Sanal</span>' if is_paper else '<span class="badge badge-success">🟢 Canlı</span>'
+        status_badge = '<span class="badge badge-warn">🧪 Sanal</span>' if is_paper else '<span class="badge badge-ok">🟢 Canlı</span>'
 
         tenants_ssr_html += f"""
-        <tr data-id="{tid}" class="clickable-row">
-            <td onclick="openTenantPortfolioModal('{tid}', '{tname}')" style="cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div class="user-avatar">{tname[:2].upper()}</div>
-                    <div>
-                        <strong style="color: #f8fafc; font-size: 14px;">{tname}</strong>
-                        <small style="display: block; color: #38bdf8; font-size: 11px;">🔍 Bakiyeyi İncele ➔</small>
-                    </div>
+        <tr data-id="{tid}" class="clickable">
+            <td onclick="openTenantPortfolioModal('{tid}', '{tname}')">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 700; color: var(--ink);">{tname}</span>
+                    <span style="font-size: 11px; color: var(--fox-flame);">[Bakiye İncele ➔]</span>
                 </div>
             </td>
-            <td><code class="font-mono">{chat_id}</code></td>
-            <td><input type="number" step="0.1" class="table-input" id="tp_{tid}" value="{user_tp}" style="color: var(--success); width: 65px;"></td>
-            <td><input type="number" step="0.1" class="table-input" id="sl_{tid}" value="{user_sl}" style="color: var(--danger); width: 65px;"></td>
-            <td><input type="number" step="1.0" class="table-input" id="budget_{tid}" value="{user_budget}" style="color: var(--whale-gold); width: 65px;"></td>
-            <td><span class="badge badge-exch">{exch_badge}</span></td>
-            <td><span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #cbd5e1;">{lang}</span></td>
+            <td><code style="font-family: inherit; color: var(--ink-2); font-weight: 600;">{chat_id}</code></td>
+            <td><input type="number" step="0.1" class="table-input" id="tp_{tid}" value="{user_tp}" style="color: var(--ok-fg); width: 65px;"></td>
+            <td><input type="number" step="0.1" class="table-input" id="sl_{tid}" value="{user_sl}" style="color: var(--stop-fg); width: 65px;"></td>
+            <td><input type="number" step="1.0" class="table-input" id="budget_{tid}" value="{user_budget}" style="color: var(--fox-ember); width: 65px;"></td>
+            <td><span class="badge badge-info">{exch_badge}</span></td>
+            <td><span class="badge badge-idle">{lang}</span></td>
             <td>{status_badge}</td>
             <td>
-                <button class="btn btn-sm btn-primary" onclick="updateTenantSettings('{tid}', event)">💾 Kaydet</button>
+                <button class="btn btn-sm btn-ghost" onclick="updateTenantSettings('{tid}', event)">💾 Kaydet</button>
             </td>
         </tr>
         """
 
     if not tenants_ssr_html:
-        tenants_ssr_html = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 24px;">Henüz kayıtlı kullanıcı bulunmuyor.</td></tr>'
+        tenants_ssr_html = '<tr><td colspan="9" style="text-align: center; color: var(--ink-3); padding: 24px;">Henüz kayıtlı kullanıcı bulunmuyor.</td></tr>'
 
-    # Canlı Karar Logları SSR HTML (Kullanıcı İsimli ve Zengin Tablo)
+    # Canlı Karar Logları SSR HTML
     logs_ssr_html = ""
     for l in (logs or [])[:25]:
         t_time = str(l.get("created_at", ""))[:19].replace("T", " ")
@@ -103,1072 +100,910 @@ def generate_v2_dashboard_html(
         exch_label = l.get("exchange_label") or ("Binance TR 🇹🇷" if str(sym).endswith("TRY") else "Binance Global 🌍")
 
         is_buy = direction in ["BUY", "ALIM"]
-        dir_badge = '<span class="badge badge-success">🟢 ALIM</span>' if is_buy else ('<span class="badge badge-danger">🔴 SATIM</span>' if direction in ["SELL", "SATIM"] else '<span class="badge badge-warning">⏳ GÖZETLEME</span>')
+        dir_badge = '<span class="badge badge-ok">ALIM</span>' if is_buy else ('<span class="badge badge-stop">SATIM</span>' if direction in ["SELL", "SATIM"] else '<span class="badge badge-warn">GÖZETLEME</span>')
 
         logs_ssr_html += f"""
-        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-size: 13px;">
-            <td style="padding: 12px 10px;">
+        <tr>
+            <td>
+                <b>{t_name}</b>
+                <small style="display: block; color: var(--ink-3); font-size: 11px;">{exch_label}</small>
+            </td>
+            <td>
                 <div style="display: flex; align-items: center; gap: 6px;">
-                    <span style="color: var(--whale-gold); font-size: 14px;">👤</span>
-                    <strong style="color: #f8fafc;">{t_name}</strong>
-                </div>
-                <small style="color: var(--text-muted); font-size: 11px;">{exch_label}</small>
-            </td>
-            <td style="padding: 12px 10px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
                     {dir_badge}
-                    <code class="font-mono" style="font-weight: 700; color: #38bdf8; font-size: 13px;">{sym}</code>
+                    <b style="color: var(--ink);">{sym}</b>
                 </div>
-                <small style="color: #94a3b8; font-size: 11px; display: block; margin-top: 3px;">{reason[:75]}...</small>
+                <small style="color: var(--ink-3); font-size: 11.5px; display: block; margin-top: 2px;">{reason[:75]}...</small>
             </td>
-            <td style="padding: 12px 10px; font-family: var(--font-mono); font-weight: 600; color: #f8fafc;">${amt:,.2f}</td>
-            <td style="padding: 12px 10px; font-family: var(--font-mono); color: #cbd5e1;">${p_entry:,.4f}</td>
-            <td style="padding: 12px 10px;">
-                <span style="color: var(--success); font-weight: 700; font-family: var(--font-mono);">{score} / 10</span>
-            </td>
-            <td style="padding: 12px 10px;">
-                <span class="badge badge-success">✅ {status}</span>
-            </td>
-            <td style="padding: 12px 10px; color: var(--text-muted); font-family: var(--font-mono); font-size: 11px;">{t_time}</td>
+            <td><b>${amt:,.2f}</b></td>
+            <td>${p_entry:,.4f}</td>
+            <td><span class="badge badge-info">{score} / 10</span></td>
+            <td><span class="badge badge-ok">{status}</span></td>
+            <td style="color: var(--ink-3); font-size: 12px;">{t_time}</td>
         </tr>
         """
 
     if not logs_ssr_html:
-        logs_ssr_html = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">Kayıtlı işlem kararı bulunmuyor.</td></tr>'
+        logs_ssr_html = '<tr><td colspan="7" style="text-align: center; color: var(--ink-3); padding: 24px;">Kayıtlı işlem kararı bulunmuyor.</td></tr>'
 
-    html = f"""<!DOCTYPE html>
-<html lang="tr">
+    html = f"""<!doctype html>
+<html lang="tr" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fox-Kripto V2.2 Quant Terminal | Golden Whale Protocol</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {{
-            --fox-flame: #EF4323;
-            --fox-ember: #D53427;
-            --fox-action: #D53427;
-            
-            --bg-base: #06090e;
-            --bg-card: rgba(13, 19, 33, 0.85);
-            --bg-card-hover: rgba(18, 26, 44, 0.95);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --border-glow: rgba(245, 158, 11, 0.25);
-            
-            --whale-gold: #f59e0b;
-            --whale-gold-light: #fbbf24;
-            --whale-glow: rgba(245, 158, 11, 0.35);
-            
-            --scalp-cyan: #06b6d4;
-            --scalp-glow: rgba(6, 182, 212, 0.35);
-            
-            --success: #10b981;
-            --success-glow: rgba(16, 185, 129, 0.25);
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --font-sans: 'Space Grotesk', 'Inter', -apple-system, sans-serif;
-            --font-mono: 'JetBrains Mono', monospace;
-        }}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Fox-Kripto V2.2 — Kurumsal Quant Terminali</title>
+  <style>
+    :root {{
+      --fox-flame: #EF4323;
+      --fox-ember: #D53427;
+      --fox-action: #D53427;
+      --fox-action-2: #B9281E;
+      --fox-blood: #85070C;
+      --fox-deep:  #720303;
 
-        * {{ box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }}
-        body {{
-            background: radial-gradient(circle at 50% -10%, #151d30 0%, var(--bg-base) 65%);
-            color: var(--text-main);
-            font-family: var(--font-sans);
-            min-height: 100vh;
-            padding: 16px 20px 100px 20px;
-            overflow-x: hidden;
-        }}
+      --ink:   #14100F;
+      --ink-2: #5C5250;
+      --ink-3: #756C6B;
+      --line:  #E9E3E1;
+      --line-2:#F2EEED;
+      --bg:    #FAF8F7;
+      --bg-2:  #F3EFEE;
+      --card:  #FFFFFF;
+      --card-2:#FCFBFB;
+      --hover: #FDF7F6;
 
-        /* Scrollbar */
-        ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
-        ::-webkit-scrollbar-track {{ background: var(--bg-base); }}
-        ::-webkit-scrollbar-thumb {{ background: #334155; border-radius: 4px; }}
-        ::-webkit-scrollbar-thumb:hover {{ background: var(--whale-gold); }}
+      --ok-bg:#E9F6EE;   --ok-fg:#186B3A;
+      --warn-bg:#FEF3E2; --warn-fg:#8A5300;
+      --stop-bg:#FBECEA; --stop-fg:#A32116;
+      --idle-bg:#F0EDEC; --idle-fg:#6B6260;
+      --info-bg:#E8F1FA; --info-fg:#1A5A8F;
 
-        /* Top Header */
-        .header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px 20px;
-            background: var(--bg-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        }}
-        .brand-title {{
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 20px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }}
-        .brand-title span.badge-quant {{
-            font-size: 11px;
-            background: linear-gradient(135deg, var(--whale-gold), #d97706);
-            color: #000;
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-weight: 800;
-            font-family: var(--font-mono);
-        }}
+      --r: 14px;
+      --shadow: 0 1px 2px rgba(20,16,15,.05), 0 8px 24px -12px rgba(20,16,15,.18);
+      --shadow-lift: 0 2px 4px rgba(20,16,15,.06), 0 18px 40px -20px rgba(20,16,15,.32);
+      --tap: 48px;
 
-        .nav-actions {{
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }}
+      color-scheme: light;
+    }}
 
-        /* Buttons & Pills */
-        .btn {{
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            font-family: var(--font-sans);
-        }}
-        .btn:active {{ transform: scale(0.97); }}
-        .btn-primary {{
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            color: white;
-            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
-        }}
-        .btn-primary:hover {{ background: #1d4ed8; }}
-        .btn-gold {{
-            background: linear-gradient(135deg, var(--whale-gold), #d97706);
-            color: #000;
-            font-weight: 700;
-            box-shadow: 0 4px 14px var(--whale-glow);
-        }}
-        .btn-gold:hover {{ background: #d97706; color: #fff; }}
-        .btn-sm {{ padding: 6px 12px; font-size: 12px; border-radius: 8px; }}
+    :root[data-theme='dark'] {{
+      --ink:   #F5F1F0;
+      --ink-2: #C7BFBC;
+      --ink-3: #A79E9B;
+      --line:  #302A28;
+      --line-2:#262120;
+      --bg:    #141110;
+      --bg-2:  #1A1615;
+      --card:  #1C1817;
+      --card-2:#211D1B;
+      --hover: #262120;
 
-        /* Version Switcher */
-        .version-switcher {{
-            display: flex;
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 3px;
-            gap: 4px;
-        }}
-        .version-btn {{
-            padding: 6px 14px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-decoration: none;
-            transition: all 0.2s;
-        }}
-        .version-btn.active {{
-            background: linear-gradient(135deg, var(--whale-gold), #d97706);
-            color: #000;
-            font-weight: 700;
-        }}
+      --fox-flame: #FF6B4A;
+      --fox-ember: #F0553A;
+      --fox-action: #D53427;
+      --fox-action-2: #A82419;
 
-        /* Switch Toggle */
-        .switch {{ position: relative; display: inline-block; width: 42px; height: 22px; }}
-        .switch input {{ opacity: 0; width: 0; height: 0; }}
-        .slider {{ position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .2s ease; border-radius: 22px; border: 1px solid var(--border-color); }}
-        .slider:before {{ position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .2s ease; border-radius: 50%; }}
-        input:checked + .slider {{ background-color: var(--success) !important; }}
-        input:checked + .slider:before {{ transform: translateX(20px) !important; }}
+      --ok-bg:#16301F;   --ok-fg:#6EE7A0;
+      --warn-bg:#33260F; --warn-fg:#F5C77E;
+      --stop-bg:#331A16; --stop-fg:#FF9B8E;
+      --idle-bg:#262120; --idle-fg:#B9B0AD;
+      --info-bg:#14283A; --info-fg:#8CC5F5;
 
-        /* Hero Engine Matrix Card */
-        .engine-card {{
-            background: var(--bg-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-glow);
-            border-radius: 20px;
-            padding: 24px;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-            margin-bottom: 24px;
-            position: relative;
-            overflow: hidden;
-        }}
-        .engine-card::before {{
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; height: 3px;
-            background: linear-gradient(90deg, var(--fox-flame), var(--whale-gold), var(--success));
-        }}
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+      --shadow-lift: 0 2px 4px rgba(0,0,0,.45), 0 18px 40px -20px rgba(0,0,0,.85);
 
-        .engine-toggle-group {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 20px;
-        }}
-        .engine-select-btn {{
-            padding: 16px 20px;
-            border-radius: 14px;
-            border: 2px solid var(--border-color);
-            background: rgba(15, 23, 42, 0.7);
-            color: var(--text-muted);
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.25s;
-        }}
-        .engine-select-btn.active-scalp {{
-            border-color: var(--scalp-cyan);
-            background: linear-gradient(180deg, rgba(6, 182, 212, 0.18), rgba(6, 182, 212, 0.03));
-            color: var(--scalp-cyan);
-            box-shadow: 0 0 24px var(--scalp-glow);
-        }}
-        .engine-select-btn.active-whale {{
-            border-color: var(--whale-gold);
-            background: linear-gradient(180deg, rgba(245, 158, 11, 0.18), rgba(245, 158, 11, 0.03));
-            color: var(--whale-gold);
-            box-shadow: 0 0 24px var(--whale-glow);
-        }}
+      color-scheme: dark;
+    }}
 
-        /* Risk Pills */
-        .risk-pills-row {{
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-            margin-bottom: 16px;
-        }}
-        .risk-pill {{
-            padding: 8px 16px;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-            background: rgba(15, 23, 42, 0.7);
-            color: var(--text-muted);
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }}
-        .risk-pill.active {{
-            background: rgba(245, 158, 11, 0.2);
-            color: var(--whale-gold);
-            border-color: var(--whale-gold);
-            box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
-        }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.5 "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-feature-settings: "tnum" 1;
+      padding: 24px 20px 100px 20px;
+      min-height: 100vh;
+    }}
 
-        /* 10 Confirmations Matrix */
-        .confirmations-matrix {{
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-            gap: 10px;
-            margin-top: 14px;
-            padding: 16px;
-            background: rgba(10, 15, 29, 0.7);
-            border-radius: 14px;
-            border: 1px solid var(--border-color);
-        }}
-        .conf-badge {{
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-            color: #cbd5e1;
-            padding: 8px 12px;
-            background: rgba(15, 23, 42, 0.8);
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            font-weight: 500;
-        }}
-        .conf-badge.verified {{
-            border-color: rgba(16, 185, 129, 0.4);
-            color: #10b981;
-            background: rgba(16, 185, 129, 0.08);
-        }}
+    .wrap {{ max-width: 1180px; margin: 0 auto; }}
 
-        /* Main Grid */
-        .main-grid {{
-            display: grid;
-            grid-template-columns: 2.3fr 1fr;
-            gap: 24px;
-        }}
-        @media (max-width: 1080px) {{
-            .main-grid {{ grid-template-columns: 1fr; }}
-            .engine-toggle-group {{ grid-template-columns: 1fr; }}
-        }}
+    /* Üst Başlık & Kontrol Çubuğu */
+    .top-bar {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }}
+    .brand {{ display: flex; align-items: center; gap: 12px; }}
+    .brand-mark {{
+      width: 32px; height: 32px;
+      background: var(--card-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+    }}
+    .brand-title {{ font-size: 18px; font-weight: 700; letter-spacing: -.02em; }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }}
+    .badge-ok {{ background: var(--ok-bg); color: var(--ok-fg); }}
+    .badge-warn {{ background: var(--warn-bg); color: var(--warn-fg); }}
+    .badge-stop {{ background: var(--stop-bg); color: var(--stop-fg); }}
+    .badge-info {{ background: var(--info-bg); color: var(--info-fg); }}
+    .badge-idle {{ background: var(--idle-bg); color: var(--idle-fg); }}
 
-        /* Cards & Tables */
-        .card {{
-            background: var(--bg-card);
-            backdrop-filter: blur(16px);
-            border: 1px solid var(--border-color);
-            border-radius: 18px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-        }}
-        .card-title {{
-            font-size: 16px;
-            font-weight: 700;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-            color: #f8fafc;
-        }}
+    /* Düğmeler */
+    .btn {{
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 16px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      font: inherit;
+      font-weight: 650;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all .15s ease;
+      text-decoration: none;
+    }}
+    .btn-primary {{
+      background: linear-gradient(180deg, var(--fox-action), var(--fox-action-2));
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,.2);
+    }}
+    .btn-primary:hover {{ opacity: .94; }}
+    .btn-ghost {{
+      background: var(--card-2);
+      border-color: var(--line);
+      color: var(--ink);
+    }}
+    .btn-ghost:hover {{ background: var(--hover); }}
+    .btn-sm {{ min-height: 32px; padding: 0 10px; font-size: 12px; border-radius: 8px; }}
 
-        .table-responsive {{ overflow-x: auto; }}
-        table {{ width: 100%; border-collapse: collapse; text-align: left; }}
-        th {{
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            color: var(--text-muted);
-            padding: 12px 14px;
-            border-bottom: 1px solid var(--border-color);
-        }}
-        td {{
-            padding: 12px 14px;
-            font-size: 13px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            vertical-align: middle;
-        }}
-        tr.clickable-row:hover td {{ background: rgba(245, 158, 11, 0.06); }}
+    /* Switch */
+    .switch {{ position: relative; display: inline-block; width: 38px; height: 20px; }}
+    .switch input {{ opacity: 0; width: 0; height: 0; }}
+    .slider {{ position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--line); transition: .2s ease; border-radius: 20px; }}
+    .slider:before {{ position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .2s ease; border-radius: 50%; }}
+    input:checked + .slider {{ background-color: var(--fox-action) !important; }}
+    input:checked + .slider:before {{ transform: translateX(18px) !important; }}
 
-        .table-input {{
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 6px 8px;
-            font-family: var(--font-mono);
-            font-weight: 600;
-            text-align: center;
-        }}
+    /* Kartlar */
+    .card {{
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 22px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }}
+    .card-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line-2);
+    }}
+    .card-title {{ font-size: 16px; font-weight: 700; letter-spacing: -.01em; }}
 
-        .user-avatar {{
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--fox-flame), var(--fox-ember));
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 12px;
-            box-shadow: 0 4px 12px rgba(239, 67, 35, 0.35);
-        }}
+    /* Çift Motor Seçim Alanı */
+    .engine-grid {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }}
+    @media (max-width: 768px) {{ .engine-grid {{ grid-template-columns: 1fr; }} }}
 
-        .badge {{
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-        }}
-        .badge-success {{ background: rgba(16, 185, 129, 0.15); color: var(--success); }}
-        .badge-danger {{ background: rgba(239, 68, 68, 0.15); color: var(--danger); }}
-        .badge-warning {{ background: rgba(245, 158, 11, 0.15); color: var(--warning); }}
-        .badge-exch {{ background: rgba(6, 182, 212, 0.15); color: var(--scalp-cyan); }}
+    .engine-btn {{
+      padding: 16px 18px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--card-2);
+      color: var(--ink-2);
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all .2s;
+    }}
+    .engine-btn b {{ display: block; font-size: 14.5px; color: var(--ink); margin-bottom: 2px; }}
+    .engine-btn span {{ font-size: 12px; color: var(--ink-3); }}
+    .engine-btn.active {{
+      border-color: var(--fox-action);
+      background: var(--card);
+      box-shadow: inset 0 0 0 1px var(--fox-action);
+    }}
+    .engine-btn.active b {{ color: var(--fox-flame); }}
 
-        /* ============================================================================
-           FOX MARKA YÜKLEME GÖSTERGESİ & MODAL (Fox MRO Tasarım Dili)
-           ========================================================================== */
-        .modal-backdrop {{
-            position: fixed; inset: 0; z-index: 1500;
-            background: rgba(6, 9, 14, 0.85);
-            backdrop-filter: blur(16px);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }}
-        .modal-backdrop.active {{ display: flex; }}
-        .modal-window {{
-            background: rgba(13, 19, 33, 0.95);
-            border: 1px solid var(--border-glow);
-            border-radius: 20px;
-            width: 100%;
-            max-width: 640px;
-            max-height: 90vh;
-            overflow-y: auto;
-            padding: 24px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-            position: relative;
-        }}
-        .modal-close-btn {{
-            position: absolute; top: 20px; right: 20px;
-            background: rgba(255, 255, 255, 0.08);
-            border: none; color: #fff; width: 32px; height: 32px;
-            border-radius: 50%; cursor: pointer; font-size: 16px;
-            display: flex; align-items: center; justify-content: center;
-        }}
-        .modal-close-btn:hover {{ background: var(--danger); }}
+    /* Hazır Profil Seçici */
+    .profile-bar {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }}
+    .profile-btn {{
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--card-2);
+      color: var(--ink-2);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }}
+    .profile-btn.active {{
+      background: var(--hover);
+      color: var(--fox-ember);
+      border-color: var(--fox-ember);
+    }}
 
-        /* Fox Spinner */
-        .foxload {{ display: grid; justify-items: center; gap: 14px; padding: 40px 20px; }}
-        .foxload-ring {{ position: relative; width: 68px; height: 68px; display: grid; place-items: center; }}
-        .foxload-ring svg {{ position: absolute; inset: 0; width: 100%; height: 100%; }}
-        .foxload-arc {{ animation: foxspin 1.15s cubic-bezier(.55,.15,.45,.85) infinite; transform-origin: center; }}
-        .foxload-mark {{
-            position: relative; display: block;
-            animation: foxbreathe 2.2s ease-in-out infinite;
-            filter: drop-shadow(0 4px 14px rgba(239,67,35,0.45));
-        }}
-        @keyframes foxspin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
-        @keyframes foxbreathe {{ 0%, 100% {{ transform: scale(1); opacity: .92; }} 50% {{ transform: scale(1.1); opacity: 1; }} }}
+    /* 8 Parametreli Matris Girişi */
+    .param-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      background: var(--bg-2);
+      border: 1px solid var(--line-2);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }}
+    .param-box label {{
+      display: block;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--ink-3);
+      margin-bottom: 4px;
+    }}
+    .param-box input {{
+      width: 100%;
+      height: 38px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--ink);
+      font-size: 14px;
+      font-family: inherit;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }}
+    .param-box input:focus {{ outline: none; border-color: var(--fox-action); }}
 
-        /* Mobile Bottom Floating Dock */
-        .mobile-dock {{
-            display: none;
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            background: rgba(10, 15, 29, 0.95);
-            backdrop-filter: blur(20px);
-            border-top: 1px solid var(--border-color);
-            padding: 10px 16px;
-            z-index: 1000;
-            justify-content: space-around;
-            align-items: center;
-        }}
-        @media (max-width: 768px) {{
-            .mobile-dock {{ display: flex; }}
-            body {{ padding-bottom: 90px; }}
-        }}
-        .dock-item {{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            font-size: 11px;
-            color: var(--text-muted);
-            text-decoration: none;
-            cursor: pointer;
-            min-width: 48px;
-            min-height: 44px;
-            justify-content: center;
-        }}
-        .dock-item.active {{ color: var(--whale-gold); font-weight: 700; }}
+    /* 10 Kurumsal Teyit Matrisi */
+    .audit-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 8px;
+    }}
+    .audit-item {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--card-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--ink-2);
+      font-weight: 500;
+    }}
+    .audit-item.verified {{
+      color: var(--ok-fg);
+      background: var(--ok-bg);
+      border-color: rgba(110, 231, 160, 0.2);
+    }}
 
-        /* Toast Notifications */
-        #toast {{
-            visibility: hidden;
-            min-width: 280px;
-            background: rgba(15, 23, 42, 0.95);
-            color: #fff;
-            text-align: center;
-            border-radius: 12px;
-            padding: 14px 20px;
-            position: fixed;
-            z-index: 2000;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            border: 1px solid var(--whale-gold);
-            box-shadow: 0 8px 32px var(--whale-glow);
-            font-weight: 600;
-            font-size: 13px;
-        }}
-        #toast.show {{ visibility: visible; animation: fadein 0.4s, fadeout 0.4s 2.6s; }}
-        @keyframes fadein {{ from {{ bottom: 10px; opacity: 0; }} to {{ bottom: 30px; opacity: 1; }} }}
-        @keyframes fadeout {{ from {{ bottom: 30px; opacity: 1; }} to {{ bottom: 10px; opacity: 0; }} }}
-    </style>
+    /* Tablolar */
+    .table-wrap {{ overflow-x: auto; margin-top: 6px; }}
+    table {{ width: 100%; border-collapse: collapse; text-align: left; }}
+    th {{
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--ink-3);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }}
+    td {{
+      padding: 12px;
+      font-size: 13.5px;
+      border-bottom: 1px solid var(--line-2);
+      vertical-align: middle;
+      font-variant-numeric: tabular-nums;
+    }}
+    tr.clickable:hover td {{ background: var(--hover); cursor: pointer; }}
+
+    .table-input {{
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 4px 6px;
+      font-family: inherit;
+      font-weight: 600;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }}
+
+    /* ============================================================================
+       FOX MARKA YÜKLEME GÖSTERGESİ (Resmi SVG & Animasyon)
+       ========================================================================== */
+    .foxload {{ display: grid; justify-items: center; gap: 12px; }}
+    .foxload-ring {{ position: relative; display: grid; place-items: center; }}
+    .foxload-ring svg {{ position: absolute; inset: 0; }}
+    .foxload-arc {{ animation: foxspin 1.15s cubic-bezier(.55,.15,.45,.85) infinite; transform-origin: center; }}
+    .foxload-mark {{
+      position: relative; display: block;
+      animation: foxbreathe 2.2s ease-in-out infinite;
+      filter: drop-shadow(0 4px 12px rgba(213,52,39,.28));
+    }}
+    @keyframes foxspin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+    @keyframes foxbreathe {{ 0%, 100% {{ transform: scale(1); opacity: .92; }} 50% {{ transform: scale(1.06); opacity: 1; }} }}
+
+    /* Modal Pencere */
+    .modal-overlay {{
+      position: fixed; inset: 0;
+      background: rgba(20, 17, 16, 0.82);
+      backdrop-filter: blur(8px);
+      display: none;
+      place-items: center;
+      z-index: 100;
+      padding: 20px;
+    }}
+    .modal-overlay.open {{ display: grid; }}
+    .modal-card {{
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      width: 100%;
+      max-width: 580px;
+      padding: 24px;
+      box-shadow: var(--shadow-lift);
+      position: relative;
+    }}
+
+    /* Mobil Dock */
+    .mobile-dock {{
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--card);
+      border-top: 1px solid var(--line);
+      padding: 8px 16px;
+      z-index: 90;
+      justify-content: space-around;
+      align-items: center;
+    }}
+    @media (max-width: 768px) {{
+      .mobile-dock {{ display: flex; }}
+      body {{ padding-bottom: 90px; }}
+    }}
+    .dock-item {{
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      font-size: 11px; color: var(--ink-3); text-decoration: none; cursor: pointer;
+      min-width: 48px; min-height: 44px; justify-content: center;
+    }}
+    .dock-item.active {{ color: var(--fox-flame); font-weight: 700; }}
+
+    /* Toast Bildirimi */
+    #toast {{
+      visibility: hidden; min-width: 260px;
+      background: var(--card); color: var(--ink); text-align: center;
+      border-radius: 10px; padding: 12px 18px; position: fixed; z-index: 200;
+      bottom: 24px; left: 50%; transform: translateX(-50%);
+      border: 1px solid var(--fox-ember); box-shadow: var(--shadow-lift);
+      font-weight: 600; font-size: 13px;
+    }}
+    #toast.show {{ visibility: visible; animation: fadein 0.3s, fadeout 0.3s 2.7s; }}
+    @keyframes fadein {{ from {{ bottom: 10px; opacity: 0; }} to {{ bottom: 24px; opacity: 1; }} }}
+    @keyframes fadeout {{ from {{ bottom: 24px; opacity: 1; }} to {{ bottom: 10px; opacity: 0; }} }}
+  </style>
 </head>
 <body>
-    <!-- TOAST BİLDİRİMİ -->
-    <div id="toast">✅ İşlem Başarılı!</div>
+  <!-- TOAST BİLDİRİMİ -->
+  <div id="toast">✅ İşlem Başarılı!</div>
 
-    <!-- KULLANICI DETAYLI CANLI BAKİYE MODALI -->
-    <div id="portfolio-modal" class="modal-backdrop">
-        <div class="modal-window">
-            <button class="modal-close-btn" onclick="closePortfolioModal()">✕</button>
-            <div id="modal-content">
-                <!-- Fox Marka Yükleme Göstergesi -->
-                <div class="foxload">
-                    <div class="foxload-ring">
-                        <svg viewBox="0 0 68 68" fill="none">
-                            <circle cx="34" cy="34" r="30" stroke="rgba(239,67,35,0.2)" stroke-width="4"/>
-                            <circle class="foxload-arc" cx="34" cy="34" r="30" stroke="url(#foxgrad)" stroke-width="4" stroke-linecap="round" stroke-dasharray="70 120"/>
-                            <defs>
-                                <linearGradient id="foxgrad" x1="0" y1="0" x2="68" y2="68" gradientUnits="userSpaceOnUse">
-                                    <stop stop-color="#EF4323"/>
-                                    <stop offset="1" stop-color="#F59E0B"/>
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                        <span class="foxload-mark" style="font-size: 26px;">🦊</span>
-                    </div>
-                    <div style="text-align: center;">
-                        <b style="color: #f8fafc; font-size: 16px;">Borsa Cüzdanı Doğrulanıyor...</b>
-                        <p style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Binance Spot ve Earn bakiyeleri canlı taranıyor.</p>
-                    </div>
-                </div>
-            </div>
+  <div class="wrap">
+    <!-- ÜST KONTROL BARI -->
+    <header class="top-bar">
+      <div class="brand">
+        <div class="brand-mark">
+          <span style="color: var(--fox-flame); font-weight: 800; font-size: 16px;">🦊</span>
         </div>
-    </div>
+        <div>
+          <div class="brand-title">Fox-Kripto <span class="badge badge-info" style="margin-left: 4px;">V2.2 Quant</span></div>
+        </div>
+      </div>
 
-    <!-- ÜST HEADER / KONTROL BARI -->
-    <header class="header">
-        <div class="brand-title">
-            <span>🦊 Fox-Kripto</span>
-            <span class="badge-quant">V2.2 QUANT</span>
-            <span class="badge badge-success" style="font-size: 11px; font-family: var(--font-mono);">🟢 7/24 OTONOM NÖBET</span>
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <!-- Sürüm Seçici -->
+        <a href="/v1/dashboard" class="btn btn-sm btn-ghost">🏛️ V1 Klasik</a>
+        <a href="/v2/dashboard" class="btn btn-sm btn-primary">⚡ V2 Quant</a>
+
+        <!-- Trailing SL -->
+        <div style="display: flex; align-items: center; gap: 6px; background: var(--card-2); padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line);">
+          <span style="font-size: 12px; color: var(--ink-2); font-weight: 600;">Trailing SL:</span>
+          <label class="switch">
+            <input type="checkbox" id="trailing-toggle" {trailing_checked} onchange="toggleTrailingStop(this.checked)">
+            <span class="slider"></span>
+          </label>
         </div>
 
-        <div class="nav-actions">
-            <!-- Sürüm Seçici -->
-            <div class="version-switcher">
-                <a href="/v1/dashboard" class="version-btn">🏛️ V1 Klasik</a>
-                <a href="/v2/dashboard" class="version-btn active">⚡ V2 Quant</a>
-            </div>
-
-            <!-- Trailing Stop Toggle -->
-            <div style="display: flex; align-items: center; gap: 8px; background: rgba(15, 23, 42, 0.8); padding: 6px 12px; border-radius: 10px; border: 1px solid var(--border-color);">
-                <span style="color: #38bdf8; font-size: 12px; font-weight: 600;">🚀 Trailing SL:</span>
-                <label class="switch">
-                    <input type="checkbox" id="trailing-toggle" {trailing_checked} onchange="toggleTrailingStop(this.checked)">
-                    <span class="slider"></span>
-                </label>
-            </div>
-
-            <button class="btn btn-gold" onclick="triggerDustClean()">🧹 Kırıntı Temizle</button>
-            <button class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
-        </div>
+        <button class="btn btn-sm btn-ghost" onclick="toggleTheme()">🌓 Tema</button>
+        <button class="btn btn-sm btn-ghost" onclick="triggerDustClean()">🧹 Kırıntı</button>
+        <button class="btn btn-sm btn-primary" onclick="window.location.reload()">🔄 Yenile</button>
+      </div>
     </header>
 
-    <!-- ⚡ V2 ÇİFT MOTOR VE RİSK PROFİLİ SEÇİCİ HERO KART -->
-    <section class="engine-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
-            <div>
-                <span style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">AKTİF QUANT STRATEJİ MOTORU</span>
-                <h2 id="engine-title" style="font-size: 20px; font-weight: 700; color: #f8fafc; margin-top: 2px;">{engine_title_text}</h2>
-            </div>
-            <div id="engine-badge" style="{engine_badge_style} padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700;">
-                {engine_badge_text}
-            </div>
+    <!-- STRATEJİ & MOTOR SEÇİM KARTI -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title" id="engine-title">{engine_title_text}</div>
+          <p style="font-size: 12.5px; color: var(--ink-3); margin-top: 2px;">Piyasa rejimine uygun otonom işlem stratejisi ve risk profili.</p>
         </div>
+        <span class="{engine_badge_cls}" id="engine-badge">{engine_badge_text}</span>
+      </div>
 
-        <!-- Motor Seçim Butonları -->
-        <div class="engine-toggle-group">
-            <button id="btn-engine-scalp" class="{scalp_btn_cls}" onclick="switchEngine('VOLUME_SCALPING')">
-                <span>⚡ 1. Hacim Scalping Motoru</span>
-                <span style="font-size: 12px; opacity: 0.8;">1m/3m/5m Hızlı Momentum</span>
-            </button>
-            <button id="btn-engine-whale" class="{whale_btn_cls}" onclick="switchEngine('WHALE_HUNTING')">
-                <span>🐋 2. Gerçek Balina Avı Motoru</span>
-                <span style="font-size: 12px; opacity: 0.8;">Spot + Vadeli OI + Duvar Teyidi</span>
-            </button>
+      <!-- Çift Motor Butonları -->
+      <div class="engine-grid">
+        <div id="btn-engine-scalp" class="{scalp_btn_cls}" onclick="switchEngine('VOLUME_SCALPING')">
+          <div>
+            <b>1. Hacim Scalping Motoru</b>
+            <span>1m/3m/5m Hızlı momentum ve mikro-kırılımlar.</span>
+          </div>
+          <span class="badge badge-info">Yüksek Frekans</span>
         </div>
+        <div id="btn-engine-whale" class="{whale_btn_cls}" onclick="switchEngine('WHALE_HUNTING')">
+          <div>
+            <b>2. Gerçek Balina Avı Motoru</b>
+            <span>Spot + Vadeli Açık Faiz (OI) ve derinlik teyidi.</span>
+          </div>
+          <span class="badge badge-warn">Katı Filtre</span>
+        </div>
+      </div>
 
-        <!-- Hazır Risk Seviyesi Seçici -->
-        <div class="risk-pills-row">
-            <span style="font-size: 13px; color: var(--text-muted); font-weight: 600; margin-right: 6px;">Hazır Profiller:</span>
-            <button id="pill-agg" class="{pill_agg_cls}" onclick="switchRisk('AGGRESSIVE')">🔥 Agresif</button>
-            <button id="pill-bal" class="{pill_bal_cls}" onclick="switchRisk('BALANCED')">⚖️ Dengeli (Önerilen)</button>
-            <button id="pill-def" class="{pill_def_cls}" onclick="switchRisk('DEFENSIVE')">🏰 Defansif</button>
-            <button id="pill-cus" class="{pill_cus_cls}" onclick="switchRisk('CUSTOM')">⚙️ Özel (Custom)</button>
-            <button class="btn btn-primary" onclick="saveV2Strategy()" style="margin-left: auto; height: 38px; font-weight: 700;">💾 Parametreleri Kaydet & Canlıya Al</button>
-        </div>
+      <!-- Hazır Risk Profili -->
+      <div class="profile-bar">
+        <span style="font-size: 13px; color: var(--ink-3); margin-right: 4px;">Hazır Profil:</span>
+        <button id="pill-agg" class="{pill_agg_cls}" onclick="switchRisk('AGGRESSIVE')">Agresif</button>
+        <button id="pill-bal" class="{pill_bal_cls}" onclick="switchRisk('BALANCED')">Dengeli (Önerilen)</button>
+        <button id="pill-def" class="{pill_def_cls}" onclick="switchRisk('DEFENSIVE')">Defansif</button>
+        <button id="pill-cus" class="{pill_cus_cls}" onclick="switchRisk('CUSTOM')">Özel Ayarlar</button>
+        <button class="btn btn-sm btn-primary" onclick="saveV2Strategy()" style="margin-left: auto;">💾 Kaydet & Canlıya Al</button>
+      </div>
 
-        <!-- 🎛️ CANLI PARAMETRE YÖNETİM VE İNCE AYAR MERKEZİ -->
-        <div style="margin-top: 16px; padding: 20px; background: rgba(10, 15, 29, 0.75); border-radius: 16px; border: 1px solid var(--border-color);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                <span style="font-size: 13px; font-weight: 700; color: var(--whale-gold); text-transform: uppercase; letter-spacing: 0.5px;">🎛️ Quant Parametre Yönetim ve İnce Ayar Merkezi</span>
-                <span style="font-size: 11px; color: var(--text-muted);">Değerleri ekrandan dilediğiniz gibi değiştirip canlı motora anında uygulayabilirsiniz.</span>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
-                <!-- 1. Min 5dk Hacim -->
-                <div>
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🧱 Min 5dk Hacim ($ USD)</label>
-                    <input type="number" id="param_min_volume_usd" value="{min_vol}" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #38bdf8; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
-                </div>
-                <!-- 2. Hacim Çarpanı -->
-                <div>
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">⚡ Hacim Patlama Çarpanı (x)</label>
-                    <input type="number" step="0.1" id="param_volume_spike" value="{spike_mult}" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #f59e0b; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
-                </div>
-                <!-- 3. Maks 24s Prim -->
-                <div>
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">📈 Maks 24s Prim Limiti (%)</label>
-                    <input type="number" step="0.5" id="param_max_gain_24h" value="{max_gain}" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
-                </div>
-                <!-- 4. Min AI Skoru -->
-                <div>
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🧠 Min AI & Teyit Skoru (1-10)</label>
-                    <input type="number" step="0.1" id="param_min_ai_score" value="{ai_score}" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: var(--success); border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
-                </div>
-                <!-- 5. Kasa Bütçesi -->
-                <div>
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">💰 İşlem Başı Kasa Bütçesi (%)</label>
-                    <input type="number" step="1.0" id="param_max_budget" value="{max_budget}" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
-                </div>
-                <!-- 6. Hedef TP -->
-                <div>
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🎯 Hedef Kâr Al (%)</label>
-                    <input type="number" step="0.1" id="param_tp_pct" value="{tp_pct}" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: var(--success); border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
-                </div>
-                <!-- 7. Stop-Loss -->
-                <div>
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🛡️ Zarar Kes Stop-Loss (%)</label>
-                    <input type="number" step="0.1" id="param_sl_pct" value="{sl_pct}" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: var(--danger); border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
-                </div>
-                <!-- 8. Trailing Callback -->
-                <div>
-                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🚀 Trailing Zirve Çekilme (%)</label>
-                    <input type="number" step="0.1" id="param_trailing_callback" value="{cb_pct}" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #38bdf8; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
-                </div>
-            </div>
+      <!-- 8 Parametreli İnce Ayar Alanı -->
+      <div class="param-grid">
+        <div class="param-box">
+          <label>Min 5dk Hacim ($ USD)</label>
+          <input type="number" id="param_min_volume_usd" value="{min_vol}" onchange="markCustom()">
         </div>
+        <div class="param-box">
+          <label>Hacim Patlama Çarpanı (x)</label>
+          <input type="number" step="0.1" id="param_volume_spike" value="{spike_mult}" onchange="markCustom()">
+        </div>
+        <div class="param-box">
+          <label>Maks 24s Prim Limiti (%)</label>
+          <input type="number" step="0.5" id="param_max_gain_24h" value="{max_gain}" onchange="markCustom()">
+        </div>
+        <div class="param-box">
+          <label>Min AI & Teyit Skoru</label>
+          <input type="number" step="0.1" id="param_min_ai_score" value="{ai_score}" onchange="markCustom()">
+        </div>
+        <div class="param-box">
+          <label>Kasa Bütçesi (%)</label>
+          <input type="number" step="1" id="param_max_budget" value="{max_budget}" onchange="markCustom()">
+        </div>
+        <div class="param-box">
+          <label>Hedef Kâr Al (%)</label>
+          <input type="number" step="0.1" id="param_tp_pct" value="{tp_pct}" onchange="markCustom()">
+        </div>
+        <div class="param-box">
+          <label>Zarar Kes Stop (%)</label>
+          <input type="number" step="0.1" id="param_sl_pct" value="{sl_pct}" onchange="markCustom()">
+        </div>
+        <div class="param-box">
+          <label>Trailing Çekilme Payı (%)</label>
+          <input type="number" step="0.1" id="param_trailing_callback" value="{cb_pct}" onchange="markCustom()">
+        </div>
+      </div>
 
-        <!-- 10 Kurumsal Teyit Göstergesi -->
-        <div style="margin-top: 14px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-muted); font-weight: 700;">
-                <span>10 KURUMSAL TEYİT MATRİSİ (THE GOLDEN WHALE MATRIX)</span>
-                <span style="color: var(--success); font-family: var(--font-mono);">9 / 10 Teyit Devrede (Skor: 8.7/10)</span>
-            </div>
-            <div class="confirmations-matrix">
-                <div class="conf-badge verified">✅ 1. Spot Hacim Patlaması (>2.5x)</div>
-                <div class="conf-badge verified">✅ 2. Vadeli Açık Faiz (OI Artışı)</div>
-                <div class="conf-badge verified">✅ 3. Funding Rate Dengesi (<%0.10)</div>
-                <div class="conf-badge verified">✅ 4. Alış Duvarı Koruması (>60s)</div>
-                <div class="conf-badge verified">✅ 5. Taker Alış Baskısı (>%64)</div>
-                <div class="conf-badge verified">✅ 6. 24s Primsiz Giriş (<%12.0)</div>
-                <div class="conf-badge verified">✅ 7. VWAP & EMA Retest Desteği</div>
-                <div class="conf-badge verified">✅ 8. On-Chain Borsa Çıkışları</div>
-                <div class="conf-badge verified">✅ 9. Düşük Spread (<%0.20)</div>
-                <div class="conf-badge verified">✅ 10. Sıfır Manipülasyon Riski</div>
-            </div>
+      <!-- 10 Kurumsal Onay Matrisi -->
+      <div style="margin-top: 14px;">
+        <div style="font-size: 12px; font-weight: 600; color: var(--ink-3); margin-bottom: 8px;">10 Kurumsal Teyit Matrisi (The Golden Whale Matrix):</div>
+        <div class="audit-grid">
+          <div class="audit-item verified">✓ 1. Spot Hacim Patlaması (>1.8x)</div>
+          <div class="audit-item verified">✓ 2. Vadeli Açık Faiz (OI Girişi)</div>
+          <div class="audit-item verified">✓ 3. Funding Sıkışma Filtresi (<%0.10)</div>
+          <div class="audit-item verified">✓ 4. Alış Duvarı Desteği (>60s)</div>
+          <div class="audit-item verified">✓ 5. Taker Alıcı Baskısı (>%62)</div>
+          <div class="audit-item verified">✓ 6. VWAP / Retest Taban Onayı</div>
+          <div class="audit-item verified">✓ 7. 24s Primsiz Giriş Limiti</div>
+          <div class="audit-item verified">✓ 8. Düşük Spread (<%0.20)</div>
+          <div class="audit-item verified">✓ 9. Düşük Fitil (Anti-FOMO)</div>
+          <div class="audit-item verified">✓ 10. GLM + Gemini AI Onayı</div>
         </div>
+      </div>
     </section>
 
-    <!-- ANA İÇERİK GRID -->
-    <main class="main-grid">
-        <!-- SOL: KULLANICILAR VE SİNYAL LOGLARI -->
-        <div style="display: flex; flex-direction: column; gap: 24px;">
-            <!-- Kayıtlı Kullanıcılar (Tıklanabilir Bakiye İnceleme) -->
-            <div class="card">
-                <div class="card-title">
-                    <div>
-                        <span>👥 Kayıtlı Kullanıcılar & Dinamik Risk Dağılımı</span>
-                        <small style="display: block; font-size: 12px; color: #38bdf8; margin-top: 2px;">💡 Canlı cüzdan ve açık pozisyonları görmek için kullanıcının üzerine tıklayın.</small>
-                    </div>
-                    <span style="font-size: 12px; color: var(--scalp-cyan); background: rgba(6, 182, 212, 0.15); padding: 4px 10px; border-radius: 12px;">Multi-Tenant V2.2</span>
-                </div>
-                <div class="table-responsive">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Kullanıcı Adı</th>
-                                <th>Telegram ID</th>
-                                <th>🎯 Kâr Al %</th>
-                                <th>🛡️ Stop %</th>
-                                <th>💵 Bütçe %</th>
-                                <th>🏛️ Borsa</th>
-                                <th>🌐 Dil</th>
-                                <th>Durum</th>
-                                <th>İşlemler</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tenants-tbody">
-                            {tenants_ssr_html}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Canlı İşlem ve Karar Logları (Zengin Tablo Formatı) -->
-            <div class="card">
-                <div class="card-title">
-                    <span>📜 Açıklanabilir AI Karar & İşlem Günlüğü (Explainable Logs)</span>
-                    <span style="font-size: 12px; color: var(--success);">🟢 Canlı Veritabanı Senkronize</span>
-                </div>
-                <div class="table-responsive">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>👤 Kullanıcı & Borsa</th>
-                                <th>🪙 İşlem & Çift</th>
-                                <th>💵 Bütçe</th>
-                                <th>📥 Fiyat</th>
-                                <th>📊 AI Skoru</th>
-                                <th>🏷️ Durum</th>
-                                <th>⏱️ Zaman</th>
-                            </tr>
-                        </thead>
-                        <tbody id="logs-tbody">
-                            {logs_ssr_html}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- SAĞ: YENİ KULLANICI EKLEME PANELİ -->
+    <!-- KULLANICI VE HESAP TABLOSU -->
+    <section class="card">
+      <div class="card-header">
         <div>
-            <div class="card" style="position: sticky; top: 24px;">
-                <div class="card-title">
-                    <span>➕ Yeni Kullanıcı Ekle</span>
-                </div>
-                <form id="add-user-form" onsubmit="addUser(event)">
-                    <div style="margin-bottom: 12px;">
-                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Kullanıcı Adı</label>
-                        <input type="text" id="new_tenant_name" required style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: white; border: 1px solid var(--border-color);">
-                    </div>
-                    <div style="margin-bottom: 12px;">
-                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Telegram Chat ID</label>
-                        <input type="number" id="new_telegram_chat_id" required style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: white; border: 1px solid var(--border-color);">
-                    </div>
-                    <div style="margin-bottom: 12px;">
-                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Binance API Key</label>
-                        <input type="text" id="new_api_key" placeholder="API Key" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: white; border: 1px solid var(--border-color);">
-                    </div>
-                    <div style="margin-bottom: 12px;">
-                        <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Binance Secret Key</label>
-                        <input type="password" id="new_secret_key" placeholder="Secret Key" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: white; border: 1px solid var(--border-color);">
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
-                        <div>
-                            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">🎯 Kâr Al %</label>
-                            <input type="number" step="0.1" id="new_tp" value="3.0" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: white; border: 1px solid var(--border-color);">
-                        </div>
-                        <div>
-                            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">🛡️ Stop %</label>
-                            <input type="number" step="0.1" id="new_sl" value="1.5" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: white; border: 1px solid var(--border-color);">
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; height: 42px;">💾 Kullanıcıyı Kaydet</button>
-                </form>
-            </div>
+          <div class="card-title">Kayıtlı Portföyler & Hesaplar</div>
+          <p style="font-size: 12.5px; color: var(--ink-3); margin-top: 2px;">Canlı cüzdan ve açık pozisyonları görmek için kullanıcının üzerine tıklayın.</p>
         </div>
-    </main>
+        <span class="badge badge-info">Multi-Tenant V2.2</span>
+      </div>
 
-    <!-- MOBİL THUMB-ZONE FLOATING DOCK -->
-    <nav class="mobile-dock">
-        <a href="/v2/dashboard" class="dock-item active">
-            <span>⚡</span>
-            <span>V2 Quant</span>
-        </a>
-        <a href="/v1/dashboard" class="dock-item">
-            <span>🏛️</span>
-            <span>V1 Klasik</span>
-        </a>
-        <div class="dock-item" onclick="triggerDustClean()">
-            <span>🧹</span>
-            <span>Kırıntı</span>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Kullanıcı</th>
+              <th>Telegram ID</th>
+              <th>Kâr Al %</th>
+              <th>Stop %</th>
+              <th>Bütçe %</th>
+              <th>Borsa</th>
+              <th>Dil</th>
+              <th>Durum</th>
+              <th>İşlem</th>
+            </tr>
+          </thead>
+          <tbody id="tenants-tbody">
+            {tenants_ssr_html}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- İŞLEM VE KARAR GÜNLÜĞÜ -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Canlı İşlem ve Karar Günlüğü (Explainable Logs)</div>
+          <p style="font-size: 12.5px; color: var(--ink-3); margin-top: 2px;">Tüm alım ve satımların gerekçeli şeffaf dökümü.</p>
         </div>
-        <div class="dock-item" onclick="loadData()">
-            <span>🔄</span>
-            <span>Yenile</span>
+        <span class="badge badge-ok">Canlı Veritabanı Senkronize</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Kullanıcı</th>
+              <th>İşlem & Parite</th>
+              <th>Bütçe</th>
+              <th>Fiyat</th>
+              <th>Teyit Skoru</th>
+              <th>Durum</th>
+              <th>Zaman</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody">
+            {logs_ssr_html}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- KULLANICI BAKİYE MODAL PENCERESİ (FOX LOADER ENTEGRE) -->
+  <div id="portfolio-modal" class="modal-overlay" onclick="closePortfolioModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div id="modal-loader" style="padding: 30px 0;">
+        <div id="fox-spinner-slot"></div>
+      </div>
+      <div id="modal-data" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+          <div>
+            <h3 id="m-user" style="font-size: 18px; font-weight: 700; color: var(--ink);"></h3>
+            <span id="m-exch" class="badge badge-info" style="margin-top: 4px;"></span>
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="closePortfolioModal()">✕ Kapat</button>
         </div>
-    </nav>
 
-    <script>
-        function getAuthHeaders() {{
-            return {{ 'Authorization': 'Basic ' + btoa('admin:foxkripto2026') }};
-        }}
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px;">
+          <div style="padding: 14px; background: var(--bg-2); border-radius: 10px; border: 1px solid var(--line);">
+            <div style="font-size: 11.5px; color: var(--ink-3);">Toplam Portföy</div>
+            <div id="m-tot" style="font-size: 20px; font-weight: 700; color: var(--fox-flame); margin-top: 2px;"></div>
+            <small id="m-tot-try" style="color: var(--ink-3); font-size: 11px;"></small>
+          </div>
+          <div style="padding: 14px; background: var(--bg-2); border-radius: 10px; border: 1px solid var(--line);">
+            <div style="font-size: 11.5px; color: var(--ink-3);">Serbest Nakit</div>
+            <div id="m-free" style="font-size: 20px; font-weight: 700; color: var(--ok-fg); margin-top: 2px;"></div>
+            <small style="color: var(--ok-fg); font-size: 11px;">🟢 Alıma Hazır</small>
+          </div>
+        </div>
 
-        function showToast(msg) {{
-            const t = document.getElementById('toast');
-            if (!t) return;
-            t.innerText = msg;
-            t.className = 'show';
-            setTimeout(() => {{ t.className = t.className.replace('show', ''); }}, 3000);
-        }}
+        <div style="font-size: 12.5px; color: var(--ink-3); font-weight: 600; margin-bottom: 8px;">Açık Pozisyonlar & Varlıklar:</div>
+        <div id="m-holdings" style="max-height: 240px; overflow-y: auto;"></div>
+      </div>
+    </div>
+  </div>
 
-        /* ============================================================================
-           KULLANICI CANLI PORTFÖY MODALI (FOX SPINNER ENTEGRE)
-           ========================================================================== */
-        async function openTenantPortfolioModal(tenantId, tenantName) {{
-            const modal = document.getElementById('portfolio-modal');
-            const content = document.getElementById('modal-content');
-            modal.classList.add('active');
+  <!-- MOBİL DOCK -->
+  <nav class="mobile-dock">
+    <a href="/v2/dashboard" class="dock-item active"><span>⚡</span><span>V2 Quant</span></a>
+    <a href="/v1/dashboard" class="dock-item"><span>🏛️</span><span>V1 Klasik</span></a>
+    <div class="dock-item" onclick="triggerDustClean()"><span>🧹</span><span>Kırıntı</span></div>
+    <div class="dock-item" onclick="window.location.reload()"><span>🔄</span><span>Yenile</span></div>
+  </nav>
 
-            content.innerHTML = `
-                <div class="foxload">
-                    <div class="foxload-ring">
-                        <svg viewBox="0 0 68 68" fill="none">
-                            <circle cx="34" cy="34" r="30" stroke="rgba(239,67,35,0.2)" stroke-width="4"/>
-                            <circle class="foxload-arc" cx="34" cy="34" r="30" stroke="url(#foxgrad)" stroke-width="4" stroke-linecap="round" stroke-dasharray="70 120"/>
-                            <defs>
-                                <linearGradient id="foxgrad" x1="0" y1="0" x2="68" y2="68" gradientUnits="userSpaceOnUse">
-                                    <stop stop-color="#EF4323"/>
-                                    <stop offset="1" stop-color="#F59E0B"/>
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                        <span class="foxload-mark" style="font-size: 26px;">🦊</span>
-                    </div>
-                    <div style="text-align: center;">
-                        <b style="color: #f8fafc; font-size: 16px;">${{tenantName}} Cüzdanı Taranıyor...</b>
-                        <p style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Binance Spot ve Earn bakiyeleri canlı doğrulanıyor.</p>
-                    </div>
-                </div>
-            `;
+  <!-- SCRIPT -->
+  <script>
+    const MARK = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAABETElEQVR42u29eZxd11Um+q29z7nn3ppUmiUPkmWrSmU5sa2U5ABJ47g7HQgkpAPIkIHHeyENhMfQoR9pAjiykpAmwCMJzdA8yA/opGmelQQCISE4li3LgzzIQ4IdJx5kTTXPd75n7736j3POrVulmu+5dYfa648MKunWvefu9e1vrb329wFh3ANIAPjcddf9yjdv6fm56M/5djgMEGzYsNGwcf/ttzvR/37g5p4f/eOrr/0wABwDxFL/rvzD58Ik/1Y6v8MY/u/p7ztwzzcO7j9Ip6AIYD4aAIQNGzYaJxgQDNAdp06pL/bt2f3d19/03/I+f/GpTPZmAHhgpQAQhTJm+p+Hcwymo/2bxBMvva73I8d2726jE9B8DGI5RLFhw8a6JD7xUUgCDAH82K29H+jtbD8rQL947/AM8oq/u5LXuSKZOxyRn/Y1fXkwW0wJ0XZdShz/xWs7z3zr0P6303GY44AJ6YYtC2zYqEfyB4nPdAL69Gv3f88z/Tc+sNlz/6TNkbu/PjhdGCj62Jpwp9cEAERiPCkIz06VnBcyPueNUe0Ovfb6lPMPg0d6/+b0a3uuv+PUKUUA32PLAhs21p3u0wnoe/uu2nq2v/fT3Un3dJsjbi8x63OZonl0IuMkJcGHlqsCgJsABgBm9oNfxrhvpEAlJiev2RSMMTs9+a6DbXT21cM9v3YjDibuPAHNRyFtWWDDxvrR/ccP9b53Z0fX2c1u4lc04GS01gTIk8NpkWMDAYIxpAHgTatlAEqTMgA8QbiU8/HYRBEphwQzxISvtCuo+1rP+d37X68eefqW/W+hE9AVZYENGzZqRPcfOthz6zP9fV/d7Lmfk1LsnVZKawa3OUI+M5nDd7J5pIQgA4YQPAQAD6wUAE6E/y1JzzAAA5AnCQ+PFzBQMEgIgIikz8xTSuluR/Rf3ya/PnCk97NfufG6vWFZUD5OtGHDxtrjGCD4GASdgP7c/v1dZw/1/famdufRdle+NaOMKRk2IJKuIJouadw/koYjqDKzMwCwI2T2ywLAwagE0DzmMzMAIQhc0Ab3jxRAFLw4AUREMq2M0cy8yxPv+95N7pMXDvf+AgPiTkDz0aPSzg7YsLFWun9UHgcMHYd59FDPTx7a7D6+2XN+wxCSGaU1EQQBghlIEOGB4QwmfAWXqJztzLy6HkAUmoQuvxkOSoFvp4v45rSPlCSY6B8SBACa8LVOkNh2lSf/eOi2Aw8+09/7RjpxQtvZARs2Vhf3lOn+Cf0vN/Xc+Gz/jV/ckkj8LynEgSmltGEwEUkAMAwkHcJL6QKemsoi6QiYir2eidSaAGChcAh4YDSPaZ/h0FxOIYhkkZmnldZbXHrDXpdOXTzc8ydffs2+nXQCmhnEtklow8aydP/OE9B/tnt329lDB35rd8o50+HKH81pYwraGEEkqYJVCwJ8xfjGcBqGAOKIQEAqZuMRXapk9isGgC0JL0tAkWYpCVxBGCtqnB4rICEIzFe8CBFBzihjGEzXJJ0PvLHDffLlwwfeRwQmwPBR2LLAho25QffffrsT0f0zt/T88PdevenxzZ77MRbUNaNUQPdpbp4aBlJS4LHxLC7kS/AEzc9yTjLnVsUA7g6RIuOaaYDThFnoCH4h4cmpIl7OKCQlLQgrgoJzynFf6aSga/Z49Nnh23rvPXvowGE6AVsW2LBRQfcB8B2nTqn7D96w/5n+vs9v8tyvJKS4Kejuc5nuz+sRICEJgzkfp8cy8CTNof7RX/NW+D6uYACpbFYzkwo36zkvbQzjvpEC/CW2cgrLgrxhnlFab3HFm6/38NCFIz1/8Nd9V22lE9DhQIMtC2xsuIiafHeegP6l/fDOHur90NZ294ku13lPkdnkNRuaR/evSFoGTg7PIGc05MJ/i6WY7eWtCACi1yEhDAcDB1cgjycJ5/M+Hp8oIrkw8swrC0hOK6MB9q71nA/+0KbOJ1443PvecKDBlgU2NhTd56NHy02+M7f0veVnu/se6vYSnyQS3dNK6WDvXHxjjKj/t6byeD5dQFKK+TnIwQaMCXjeBAAcX20PILdzZ5EIeVogLaNTgYfGChgpGrhimVcP3ow0AE/4SrVJ7Nvnic8N3dbz1adu7bnFlgU2NgTdD2ZjmE6c0P980w3XPtXf99lOT3w9IeXhGaW0WoTuz9+AHUGYKWmcHElDCiyafAQq3dTVVVptCcAA6Pjzz5cIPE0BK+D5b0ISkNUGJ0cKkETLAkDILoiInIJhk1VGb3PlW/d59OirR3o/8RcHDnRGNw1tWWCj9eg+5J2Avh1wzvYf+KWr2xJnN7nO+0rMnNNmWbo/h4ELwumRNEZLPlyxcO5FL1QYH+fVAkDlLzNL0ZCkJDw3U8JzMz5SYulSYN6bEyDIKaU1CaT2ePLD7+w2j3/78P4fo+O2LLDRQslfpvvQ29699/t/v3//j93c8/oPbfYcbvUczpT29kyLw0Mh9p/797v9A779dtW+e5h57k1C98V/A2y5z5oN61iNAAAAAElFTkSuQmCC";
 
-            try {{
-                const res = await fetch('/api/tenants/' + tenantId + '/portfolio', {{ headers: getAuthHeaders() }});
-                if (!res.ok) throw new Error('Cüzdan verisi alınamadı');
-                const data = await res.json();
-                const port = data.portfolio || {{}};
-                const freeUsdt = port.free_usdt || 0.0;
-                const totUsdt = port.total_usdt || 0.0;
-                const totTry = port.total_try || 0.0;
-                const holdings = port.holdings_details || {{}};
+    function renderLoader(el, size, label, sub) {{
+      const stroke = Math.max(3, Math.round(size*0.055));
+      const r = (size-stroke)/2, c = 2*Math.PI*r;
+      el.innerHTML = `
+        <div class="foxload">
+          <div class="foxload-ring" style="width:${{size}}px;height:${{size}}px">
+            <svg width="${{size}}" height="${{size}}" viewBox="0 0 ${{size}} ${{size}}">
+              <defs><linearGradient id="g${{size}}" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="var(--fox-flame)"/><stop offset="55%" stop-color="var(--fox-ember)"/>
+                <stop offset="100%" stop-color="var(--fox-deep)"/>
+              </linearGradient></defs>
+              <circle cx="${{size/2}}" cy="${{size/2}}" r="${{r}}" fill="none" stroke="var(--line)" stroke-width="${{stroke}}"/>
+              <circle class="foxload-arc" cx="${{size/2}}" cy="${{size/2}}" r="${{r}}" fill="none"
+                stroke="url(#g${{size}})" stroke-width="${{stroke}}" stroke-linecap="round"
+                stroke-dasharray="${{c*0.28}} ${{c}}"
+                transform="rotate(-90 ${{size/2}} ${{size/2}})"/>
+            </svg>
+            <img class="foxload-mark" src="${{MARK}}" alt="" width="${{Math.round(size*0.46)}}" height="${{Math.round(size*0.46)}}">
+          </div>
+          <div style="text-align:center;">
+            <b style="font-size:15px; color:var(--ink);">${{label}}</b>
+            <div style="font-size:12.5px; color:var(--ink-3); margin-top:2px;">${{sub}}</div>
+          </div>
+        </div>`;
+    }}
 
-                let holdingsHtml = '';
-                for (const [coin, info] of Object.entries(holdings)) {{
-                    const amt = Number(info.amount || 0);
-                    const valUsd = Number(info.val_usd || 0);
-                    const valTry = Number(info.val_try || 0);
-                    const p = Number(info.price || 0);
-                    if (valUsd >= 1.0) {{
-                        holdingsHtml += `
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: rgba(15, 23, 42, 0.7); border-radius: 10px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.04);">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <strong style="color: #f8fafc; font-size: 14px;">${{coin}}</strong>
-                                    <span class="font-mono" style="font-size: 12px; color: #94a3b8;">${{amt.toLocaleString()}} adet</span>
-                                </div>
-                                <div style="text-align: right;">
-                                    <strong class="font-mono" style="color: #10b981; font-size: 14px;">$${{valUsd.toFixed(2)}} USD</strong>
-                                    <small class="font-mono" style="display: block; color: #94a3b8; font-size: 11px;">~₺${{valTry.toFixed(2)}} TL</small>
-                                </div>
-                            </div>
-                        `;
-                    }}
-                }}
+    function getAuthHeaders() {{
+      return {{ 'Authorization': 'Basic ' + btoa('admin:foxkripto2026') }};
+    }}
 
-                if (!holdingsHtml) {{
-                    holdingsHtml = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">Açık coin pozisyonu bulunmuyor.</p>';
-                }}
+    function showToast(msg) {{
+      const t = document.getElementById('toast');
+      if (!t) return;
+      t.innerText = msg;
+      t.className = 'show';
+      setTimeout(() => {{ t.className = t.className.replace('show', ''); }}, 3000);
+    }}
 
-                content.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 18px;">
-                        <div class="user-avatar" style="width: 40px; height: 40px; font-size: 14px;">${{tenantName.slice(0, 2).toUpperCase()}}</div>
-                        <div>
-                            <h3 style="color: #f8fafc; font-size: 18px;">${{tenantName}} — Canlı Bakiye & Cüzdan</h3>
-                            <span class="badge badge-exch">${{data.exchange_id === 'binancetr' ? '🇹🇷 Binance TR' : '🌍 Binance Global'}}</span>
-                        </div>
-                    </div>
+    function toggleTheme() {{
+      const cur = document.documentElement.getAttribute('data-theme');
+      document.documentElement.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+    }}
 
-                    <!-- Kasa Özeti Kartları -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
-                        <div style="padding: 14px; background: rgba(15, 23, 42, 0.8); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-                            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Toplam Portföy</span>
-                            <div class="font-mono" style="font-size: 20px; font-weight: 700; color: var(--whale-gold); margin-top: 4px;">$${{totUsdt.toFixed(2)}} USD</div>
-                            <small class="font-mono" style="color: #cbd5e1;">~₺${{totTry.toFixed(2)}} TL</small>
-                        </div>
-                        <div style="padding: 14px; background: rgba(15, 23, 42, 0.8); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-                            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Serbest Nakit</span>
-                            <div class="font-mono" style="font-size: 20px; font-weight: 700; color: #38bdf8; margin-top: 4px;">$${{freeUsdt.toFixed(2)}} USD</div>
-                            <small style="color: #10b981;">🟢 Alıma Hazır</small>
-                        </div>
-                    </div>
+    let currentEngine = '{active_engine}';
+    let currentRisk = '{active_risk}';
 
-                    <h4 style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; font-weight: 700;">📦 Açık Coin Varlıkları</h4>
-                    <div>${{holdingsHtml}}</div>
-                `;
-            }} catch(err) {{
-                content.innerHTML = `
-                    <div style="text-align: center; padding: 30px;">
-                        <span style="font-size: 32px;">⚠️</span>
-                        <h4 style="color: var(--danger); margin-top: 10px;">Cüzdan Yüklenemedi</h4>
-                        <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">${{err.message}}</p>
-                    </div>
-                `;
-            }}
-        }}
+    function switchEngine(engine) {{
+      currentEngine = engine;
+      const btnScalp = document.getElementById('btn-engine-scalp');
+      const btnWhale = document.getElementById('btn-engine-whale');
+      const title = document.getElementById('engine-title');
+      const badge = document.getElementById('engine-badge');
 
-        function closePortfolioModal() {{
-            document.getElementById('portfolio-modal').classList.remove('active');
-        }}
+      if (engine === 'VOLUME_SCALPING') {{
+        btnScalp.className = 'engine-btn active';
+        btnWhale.className = 'engine-btn';
+        title.innerText = '1. Hacim Scalping Motoru';
+        badge.className = 'badge badge-info';
+        badge.innerText = '⚡ Hacim Scalping · ' + currentRisk + ' · v2.2 Aktif';
+      }} else {{
+        btnWhale.className = 'engine-btn active';
+        btnScalp.className = 'engine-btn';
+        title.innerText = '2. Gerçek Balina Avı Motoru';
+        badge.className = 'badge badge-warn';
+        badge.innerText = '🐋 Balina Avı · ' + currentRisk + ' · v2.2 Aktif';
+      }}
+    }}
 
-        let currentEngine = '{active_engine}';
-        let currentRisk = '{active_risk}';
+    const PRESETS_MAP = {{
+      'VOLUME_SCALPING_AGGRESSIVE': {{ min_vol: 20000, spike: 1.5, gain: 15.0, score: 7.2, budget: 35.0, tp: 1.8, sl: 1.0, cb: 0.4 }},
+      'VOLUME_SCALPING_BALANCED':   {{ min_vol: 25000, spike: 1.8, gain: 12.0, score: 7.5, budget: 25.0, tp: 2.0, sl: 1.2, cb: 0.5 }},
+      'VOLUME_SCALPING_DEFENSIVE':  {{ min_vol: 35000, spike: 2.2, gain: 8.0,  score: 8.2, budget: 15.0, tp: 2.5, sl: 1.5, cb: 0.6 }},
+      'WHALE_HUNTING_AGGRESSIVE':   {{ min_vol: 50000, spike: 2.0, gain: 15.0, score: 7.8, budget: 35.0, tp: 4.0, sl: 1.5, cb: 0.6 }},
+      'WHALE_HUNTING_BALANCED':     {{ min_vol: 50000, spike: 2.5, gain: 12.0, score: 8.2, budget: 25.0, tp: 3.0, sl: 1.5, cb: 0.6 }},
+      'WHALE_HUNTING_DEFENSIVE':    {{ min_vol: 100000, spike: 3.2, gain: 9.0, score: 8.8, budget: 15.0, tp: 5.0, sl: 1.8, cb: 0.8 }}
+    }};
 
-        function switchEngine(engine) {{
-            currentEngine = engine;
-            const btnScalp = document.getElementById('btn-engine-scalp');
-            const btnWhale = document.getElementById('btn-engine-whale');
-            const title = document.getElementById('engine-title');
-            const badge = document.getElementById('engine-badge');
+    function markCustom() {{
+      document.querySelectorAll('.profile-btn').forEach(btn => btn.classList.remove('active'));
+      const cusBtn = document.getElementById('pill-cus');
+      if (cusBtn) cusBtn.classList.add('active');
+      currentRisk = 'CUSTOM';
+      const badge = document.getElementById('engine-badge');
+      if (badge) badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · Özel Ayarlar · v2.2 Aktif';
+    }}
 
-            if (engine === 'VOLUME_SCALPING') {{
-                btnScalp.className = 'engine-select-btn active-scalp';
-                btnWhale.className = 'engine-select-btn';
-                title.innerHTML = '⚡ Hacim Scalping Motoru (1m/3m/5m İvme)';
-                badge.style.borderColor = 'var(--scalp-cyan)';
-                badge.style.color = 'var(--scalp-cyan)';
-                badge.style.background = 'rgba(6, 182, 212, 0.2)';
-                badge.innerText = '⚡ Scalp · ' + currentRisk + ' · v2.2 Aktif';
-            }} else {{
-                btnWhale.className = 'engine-select-btn active-whale';
-                btnScalp.className = 'engine-select-btn';
-                title.innerHTML = '🐋 Gerçek Balina Avı Motoru (10 Kriterli Teyit)';
-                badge.style.borderColor = 'var(--whale-gold)';
-                badge.style.color = 'var(--whale-gold)';
-                badge.style.background = 'rgba(245, 158, 11, 0.2)';
-                badge.innerText = '🐋 Balina · ' + currentRisk + ' · v2.2 Aktif';
-            }}
-        }}
+    function switchRisk(risk) {{
+      currentRisk = risk;
+      document.querySelectorAll('.profile-btn').forEach(btn => {{
+        btn.classList.toggle('active', btn.innerText.includes(risk));
+      }});
+      
+      const key = currentEngine + '_' + risk;
+      const p = PRESETS_MAP[key];
+      if (p) {{
+        document.getElementById('param_min_volume_usd').value = p.min_vol;
+        document.getElementById('param_volume_spike').value = p.spike;
+        document.getElementById('param_max_gain_24h').value = p.gain;
+        document.getElementById('param_min_ai_score').value = p.score;
+        document.getElementById('param_max_budget').value = p.budget;
+        document.getElementById('param_tp_pct').value = p.tp;
+        document.getElementById('param_sl_pct').value = p.sl;
+        document.getElementById('param_trailing_callback').value = p.cb;
+      }}
+      switchEngine(currentEngine);
+    }}
 
-        const PRESETS_MAP = {{
-            'VOLUME_SCALPING_AGGRESSIVE': {{ min_vol: 35000, spike: 1.5, gain: 15.0, score: 7.2, budget: 35.0, tp: 2.2, sl: 1.2, cb: 0.5 }},
-            'VOLUME_SCALPING_BALANCED':   {{ min_vol: 50000, spike: 1.8, gain: 10.0, score: 7.8, budget: 25.0, tp: 3.0, sl: 1.5, cb: 0.6 }},
-            'VOLUME_SCALPING_DEFENSIVE':  {{ min_vol: 75000, spike: 2.2, gain: 8.0,  score: 8.5, budget: 15.0, tp: 4.0, sl: 1.8, cb: 0.8 }},
-            'WHALE_HUNTING_AGGRESSIVE':   {{ min_vol: 50000, spike: 2.0, gain: 15.0, score: 7.8, budget: 35.0, tp: 4.0, sl: 1.5, cb: 0.6 }},
-            'WHALE_HUNTING_BALANCED':     {{ min_vol: 50000, spike: 2.5, gain: 12.0, score: 8.2, budget: 25.0, tp: 3.0, sl: 1.5, cb: 0.6 }},
-            'WHALE_HUNTING_DEFENSIVE':    {{ min_vol: 100000, spike: 3.2, gain: 9.0, score: 8.8, budget: 15.0, tp: 6.5, sl: 2.0, cb: 0.9 }}
+    async function saveV2Strategy() {{
+      try {{
+        const payload = {{
+          active_preset: currentEngine.toLowerCase() + '_' + currentRisk.toLowerCase(),
+          min_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 25000,
+          volume_spike_multiplier: parseFloat(document.getElementById('param_volume_spike').value) || 1.8,
+          max_recent_gain_24h: parseFloat(document.getElementById('param_max_gain_24h').value) || 12.0,
+          min_ai_score: parseFloat(document.getElementById('param_min_ai_score').value) || 7.5,
+          max_budget_percent: parseFloat(document.getElementById('param_max_budget').value) || 25.0,
+          take_profit_pct: parseFloat(document.getElementById('param_tp_pct').value) || 2.0,
+          stop_loss_pct: parseFloat(document.getElementById('param_sl_pct').value) || 1.2,
+          trailing_callback_pct: parseFloat(document.getElementById('param_trailing_callback').value) || 0.5,
+          min_5m_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 25000,
+          require_futures_oi: true
         }};
 
-        function markCustom() {{
-            document.querySelectorAll('.risk-pill').forEach(btn => btn.classList.remove('active'));
-            const cusBtn = document.getElementById('pill-cus');
-            if (cusBtn) cusBtn.classList.add('active');
-            currentRisk = 'CUSTOM';
-            const badge = document.getElementById('engine-badge');
-            if (badge) badge.innerText = (currentEngine === 'WHALE_HUNTING' ? '🐋 Balina' : '⚡ Scalp') + ' · Özel Ayarlar · v2.2 Aktif';
+        const res = await fetch('/api/strategy-config', {{
+          method: 'POST',
+          headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
+          body: JSON.stringify(payload)
+        }});
+        if (res.ok) {{
+          const engineName = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Hacim Scalping Motoru' : '🐋 Gerçek Balina Avı Motoru');
+          showToast('✅ [BAŞARILI]: ' + engineName + ' (' + currentRisk + ') Canlıya Alındı!');
+          const badge = document.getElementById('engine-badge');
+          if (badge) {{
+            badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + currentRisk + ' · v2.2 Aktif';
+            badge.className = (currentEngine === 'VOLUME_SCALPING') ? 'badge badge-info' : 'badge badge-warn';
+          }}
+        }} else {{
+          alert('❌ Kaydetme hatası: ' + res.statusText);
+        }}
+      }} catch(e) {{ alert('Ayar kaydetme hatası: ' + e); }}
+    }}
+
+    async function openTenantPortfolioModal(tenantId, tenantName) {{
+      const modal = document.getElementById('portfolio-modal');
+      const loaderSlot = document.getElementById('fox-spinner-slot');
+      const loaderDiv = document.getElementById('modal-loader');
+      const dataDiv = document.getElementById('modal-data');
+
+      modal.classList.add('open');
+      loaderDiv.style.display = 'block';
+      dataDiv.style.display = 'none';
+
+      renderLoader(loaderSlot, 84, tenantName + ' Cüzdanı Doğrulanıyor…', 'Binance spot ve vadeli bakiyesi taranıyor');
+
+      try {{
+        const res = await fetch('/api/tenants/' + tenantId + '/portfolio', {{ headers: getAuthHeaders() }});
+        if (!res.ok) throw new Error('Cüzdan verisi alınamadı');
+        const data = await res.json();
+        const port = data.portfolio || {{}};
+        const freeUsdt = port.free_usdt || 0.0;
+        const totUsdt = port.total_usdt || 0.0;
+        const totTry = port.total_try || 0.0;
+        const holdings = port.holdings_details || {{}};
+
+        let holdingsHtml = '';
+        for (const [coin, info] of Object.entries(holdings)) {{
+          const amt = Number(info.amount || 0);
+          const valUsd = Number(info.val_usd || 0);
+          const valTry = Number(info.val_try || 0);
+          if (valUsd >= 1.0) {{
+            holdingsHtml += `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--bg-2); border-radius: 8px; margin-bottom: 6px; border: 1px solid var(--line);">
+                <div>
+                  <strong style="color: var(--ink); font-size: 13.5px;">${{coin}}</strong>
+                  <span style="font-size: 12px; color: var(--ink-3); margin-left: 6px;">${{amt.toLocaleString()}} adet</span>
+                </div>
+                <div style="text-align: right;">
+                  <strong style="color: var(--ok-fg); font-size: 13.5px;">$${{valUsd.toFixed(2)}} USD</strong>
+                  <small style="display: block; color: var(--ink-3); font-size: 11px;">~₺${{valTry.toFixed(2)}} TL</small>
+                </div>
+              </div>
+            `;
+          }}
         }}
 
-        function switchRisk(risk) {{
-            currentRisk = risk;
-            document.querySelectorAll('.risk-pill').forEach(btn => {{
-                btn.classList.toggle('active', btn.innerText.includes(risk));
-            }});
-            
-            const key = currentEngine + '_' + risk;
-            const p = PRESETS_MAP[key];
-            if (p) {{
-                document.getElementById('param_min_volume_usd').value = p.min_vol;
-                document.getElementById('param_volume_spike').value = p.spike;
-                document.getElementById('param_max_gain_24h').value = p.gain;
-                document.getElementById('param_min_ai_score').value = p.score;
-                document.getElementById('param_max_budget').value = p.budget;
-                document.getElementById('param_tp_pct').value = p.tp;
-                document.getElementById('param_sl_pct').value = p.sl;
-                document.getElementById('param_trailing_callback').value = p.cb;
-            }}
-            switchEngine(currentEngine);
+        if (!holdingsHtml) {{
+          holdingsHtml = '<div style="padding: 12px; background: var(--bg-2); border-radius: 8px; font-size: 13px; color: var(--ink-2); text-align: center;">Açık coin pozisyonu bulunmuyor (Kasa %100 Nakitte).</div>';
         }}
 
-        async function saveV2Strategy() {{
-            try {{
-                const payload = {{
-                    active_preset: currentEngine.toLowerCase() + '_' + currentRisk.toLowerCase(),
-                    min_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 50000,
-                    volume_spike_multiplier: parseFloat(document.getElementById('param_volume_spike').value) || 2.5,
-                    max_recent_gain_24h: parseFloat(document.getElementById('param_max_gain_24h').value) || 12.0,
-                    min_ai_score: parseFloat(document.getElementById('param_min_ai_score').value) || 8.0,
-                    max_budget_percent: parseFloat(document.getElementById('param_max_budget').value) || 25.0,
-                    take_profit_pct: parseFloat(document.getElementById('param_tp_pct').value) || 3.0,
-                    stop_loss_pct: parseFloat(document.getElementById('param_sl_pct').value) || 1.5,
-                    trailing_callback_pct: parseFloat(document.getElementById('param_trailing_callback').value) || 0.6,
-                    min_5m_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 50000,
-                    require_futures_oi: true
-                }};
+        loaderDiv.style.display = 'none';
+        dataDiv.style.display = 'block';
+        document.getElementById('m-user').innerText = tenantName;
+        document.getElementById('m-exch').innerText = (data.exchange_id === 'binancetr' ? '🇹🇷 Binance TR' : '🌍 Binance Global');
+        document.getElementById('m-tot').innerText = '$' + totUsdt.toFixed(2) + ' USD';
+        document.getElementById('m-tot-try').innerText = '~₺' + totTry.toFixed(2) + ' TL';
+        document.getElementById('m-free').innerText = '$' + freeUsdt.toFixed(2) + ' USD';
+        document.getElementById('m-holdings').innerHTML = holdingsHtml;
+      }} catch(err) {{
+        loaderDiv.style.display = 'none';
+        dataDiv.style.display = 'block';
+        document.getElementById('m-holdings').innerHTML = `<div style="color: var(--stop-fg); text-align: center; padding: 16px;">Hata: ${{err.message}}</div>`;
+      }}
+    }}
 
-                const res = await fetch('/api/strategy-config', {{
-                    method: 'POST',
-                    headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
-                    body: JSON.stringify(payload)
-                }});
-                if (res.ok) {{
-                    const engineName = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Hacim Scalping Motoru' : '🐋 Gerçek Balina Avı Motoru');
-                    showToast('✅ [BAŞARILI]: ' + engineName + ' (' + currentRisk + ') Canlıya Alındı ve Kaydedildi!');
-                    const badge = document.getElementById('engine-badge');
-                    if (badge) {{
-                        badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + currentRisk + ' · v2.2 Aktif';
-                        if (currentEngine === 'VOLUME_SCALPING') {{
-                            badge.style.borderColor = 'var(--scalp-cyan)';
-                            badge.style.color = 'var(--scalp-cyan)';
-                            badge.style.background = 'rgba(6, 182, 212, 0.2)';
-                        }} else {{
-                            badge.style.borderColor = 'var(--whale-gold)';
-                            badge.style.color = 'var(--whale-gold)';
-                            badge.style.background = 'rgba(245, 158, 11, 0.2)';
-                        }}
-                    }}
-                }} else {{
-                    alert('❌ Kaydetme hatası: ' + res.statusText);
-                }}
-            }} catch(e) {{ alert('Ayar kaydetme hatası: ' + e); }}
-        }}
+    function closePortfolioModal(e) {{
+      if (e) e.stopPropagation();
+      document.getElementById('portfolio-modal').classList.remove('open');
+    }}
 
-        async function updateTenantSettings(tid, event) {{
-            if (event) event.stopPropagation();
-            const tp = parseFloat(document.getElementById('tp_' + tid).value) || 3.0;
-            const sl = parseFloat(document.getElementById('sl_' + tid).value) || 1.5;
-            const budget = parseFloat(document.getElementById('budget_' + tid).value) || 25.0;
+    async function updateTenantSettings(tid, event) {{
+      if (event) event.stopPropagation();
+      const tp = parseFloat(document.getElementById('tp_' + tid).value) || 2.0;
+      const sl = parseFloat(document.getElementById('sl_' + tid).value) || 1.2;
+      const budget = parseFloat(document.getElementById('budget_' + tid).value) || 25.0;
 
-            try {{
-                const res = await fetch('/api/update-tenant', {{
-                    method: 'POST',
-                    headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ tenant_id: tid, take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: budget }})
-                }});
-                if (res.ok) showToast('✅ Kullanıcı risk parametreleri güncellendi!');
-                else alert('Hata oluştu.');
-            }} catch(e) {{ alert('Hata: ' + e); }}
-        }}
+      try {{
+        const res = await fetch('/api/update-tenant', {{
+          method: 'POST',
+          headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ tenant_id: tid, take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: budget }})
+        }});
+        if (res.ok) showToast('✅ Kullanıcı risk parametreleri güncellendi!');
+        else alert('Hata oluştu.');
+      }} catch(e) {{ alert('Hata: ' + e); }}
+    }}
 
-        async function triggerDustClean() {{
-            try {{
-                showToast('🧹 Kırıntı Temizliği Başlatıldı...');
-                const res = await fetch('/api/clean-dust', {{ method: 'POST', headers: getAuthHeaders() }});
-                const data = await res.json();
-                showToast('🧹 Kırıntı Temizliği Tamamlandı: ' + (data.status || 'OK'));
-            }} catch(e) {{ alert('Hata: ' + e); }}
-        }}
+    async function triggerDustClean() {{
+      try {{
+        showToast('🧹 Kırıntı Temizliği Başlatıldı...');
+        const res = await fetch('/api/clean-dust', {{ method: 'POST', headers: getAuthHeaders() }});
+        const data = await res.json();
+        showToast('🧹 Kırıntı Temizliği Tamamlandı: ' + (data.status || 'OK'));
+      }} catch(e) {{ alert('Hata: ' + e); }}
+    }}
 
-        async function toggleTrailingStop(state) {{
-            await fetch('/api/settings', {{
-                method: 'POST',
-                headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ trailing_stop_enabled: state }})
-            }});
-            showToast('🚀 Trailing Stop Durumu: ' + (state ? 'AÇIK' : 'KAPALI'));
-        }}
-
-        async function addUser(e) {{
-            e.preventDefault();
-            const payload = {{
-                tenant_name: document.getElementById('new_tenant_name').value,
-                telegram_chat_id: parseInt(document.getElementById('new_telegram_chat_id').value),
-                exchange_api_key: document.getElementById('new_api_key').value,
-                exchange_secret_key: document.getElementById('new_secret_key').value,
-                take_profit_percent: parseFloat(document.getElementById('new_tp').value),
-                stop_loss_percent: parseFloat(document.getElementById('new_sl').value),
-                is_paper_trading: false
-            }};
-            try {{
-                const res = await fetch('/api/add-tenant', {{
-                    method: 'POST',
-                    headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
-                    body: JSON.stringify(payload)
-                }});
-                if (res.ok) {{
-                    showToast('🎉 Yeni kullanıcı başarıyla eklendi!');
-                    setTimeout(() => window.location.reload(), 1000);
-                }} else alert('Ekleme başarısız.');
-            }} catch(err) {{ alert('Hata: ' + err); }}
-        }}
-
-        function loadData() {{ window.location.reload(); }}
-    </script>
+    async function toggleTrailingStop(state) {{
+      await fetch('/api/settings', {{
+        method: 'POST',
+        headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
+        body: JSON.stringify({{ trailing_stop_enabled: state }})
+      }});
+      showToast('🚀 Trailing Stop Durumu: ' + (state ? 'AÇIK' : 'KAPALI'));
+    }}
+  </script>
 </body>
 </html>"""
     return html
