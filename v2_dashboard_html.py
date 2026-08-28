@@ -56,7 +56,9 @@ def generate_v2_dashboard_html(
         user_budget = t.get("max_budget_percent", max_budget)
         is_paper = t.get("is_paper_trading", False)
         exch_badge = "🇹🇷 Binance TR" if t.get("exchange_id") == "binancetr" else "🌍 Binance Global"
-        lang = str(t.get("preferred_language", "tr")).upper()
+        user_lang = str(t.get("preferred_language", "tr")).lower()
+        sel_tr = "selected" if user_lang == "tr" else ""
+        sel_en = "selected" if user_lang == "en" else ""
 
         status_badge = '<span class="badge badge-warn">🧪 Sanal</span>' if is_paper else '<span class="badge badge-ok">🟢 Canlı</span>'
 
@@ -73,7 +75,12 @@ def generate_v2_dashboard_html(
             <td><input type="number" step="0.1" class="table-input" id="sl_{tid}" value="{user_sl}" style="color: var(--stop-fg); width: 65px;"></td>
             <td><input type="number" step="1.0" class="table-input" id="budget_{tid}" value="{user_budget}" style="color: var(--fox-ember); width: 65px;"></td>
             <td><span class="badge badge-info">{exch_badge}</span></td>
-            <td><span class="badge badge-idle">{lang}</span></td>
+            <td>
+                <select id="lang_{tid}" class="table-input" style="width: 80px; font-weight: 600;">
+                    <option value="tr" {sel_tr}>🇹🇷 TR</option>
+                    <option value="en" {sel_en}>🇬🇧 EN</option>
+                </select>
+            </td>
             <td>{status_badge}</td>
             <td>
                 <button class="btn btn-sm btn-ghost" onclick="updateTenantSettings('{tid}', event)">💾 Kaydet</button>
@@ -554,6 +561,7 @@ def generate_v2_dashboard_html(
         </div>
 
         <button class="btn btn-sm btn-ghost" onclick="toggleTheme()">🌓 Tema</button>
+        <button class="btn btn-sm btn-ghost" onclick="toggleLang()" id="btn-lang">🌐 TR</button>
         <button class="btn btn-sm btn-ghost" onclick="triggerDustClean()">🧹 Kırıntı</button>
         <button class="btn btn-sm btn-primary" onclick="window.location.reload()">🔄 Yenile</button>
       </div>
@@ -969,19 +977,27 @@ def generate_v2_dashboard_html(
       document.getElementById('portfolio-modal').classList.remove('open');
     }}
 
+    let curLang = 'tr';
+    function toggleLang() {{
+      curLang = curLang === 'tr' ? 'en' : 'tr';
+      document.getElementById('btn-lang').innerText = curLang === 'tr' ? '🌐 TR' : '🌐 EN';
+      showToast(curLang === 'tr' ? '🌐 Dil: Türkçe olarak ayarlandı.' : '🌐 Language set to English.');
+    }}
+
     async function updateTenantSettings(tid, event) {{
       if (event) event.stopPropagation();
       const tp = parseFloat(document.getElementById('tp_' + tid).value) || 2.0;
       const sl = parseFloat(document.getElementById('sl_' + tid).value) || 1.2;
       const budget = parseFloat(document.getElementById('budget_' + tid).value) || 25.0;
+      const lang = document.getElementById('lang_' + tid).value || 'tr';
 
       try {{
         const res = await fetch('/api/update-tenant', {{
           method: 'POST',
           headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
-          body: JSON.stringify({{ tenant_id: tid, take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: budget }})
+          body: JSON.stringify({{ tenant_id: tid, take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: budget, preferred_language: lang }})
         }});
-        if (res.ok) showToast('✅ Kullanıcı risk parametreleri güncellendi!');
+        if (res.ok) showToast('✅ Kullanıcı risk ve dil parametreleri güncellendi!');
         else alert('Hata oluştu.');
       }} catch(e) {{ alert('Hata: ' + e); }}
     }}
