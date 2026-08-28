@@ -1,8 +1,8 @@
 """
 Fox-Kripto V2.2: Ultra-Premium Quant Dashboard (UI/UX Pro Max Edition)
-Tasarım & Mimari: UI/UX Pro Max • Frontend Design • Mobile Design Heyeti
-Özellikler: Space Grotesk + JetBrains Mono, Cyber Glassmorphism, 10 Teyit Matrisi,
-8 Parametreli Canlı Kontrol Merkezi, Mobil Uyumlu Thumb-Zone Dock, Açıklanabilir AI Karar Defteri.
+Tasarım & Mimari: UI/UX Pro Max • Frontend Design • Mobile Design • Fox Marka Yükleme Göstergesi
+Özellikler: Kullanıcı Tıklanabilir Canlı Bakiye Modalı, Fox Marka Spinner, Net Kullanıcı Logları,
+Space Grotesk + JetBrains Mono, 10 Teyit Matrisi, 8 Parametreli Canlı Kontrol Merkezi, Mobil Thumb-Zone Dock.
 """
 
 def generate_v2_dashboard_html(
@@ -32,7 +32,7 @@ def generate_v2_dashboard_html(
     sl_pct = float(strategy_config.get("stop_loss_pct", 1.5))
     cb_pct = float(strategy_config.get("trailing_callback_pct", 0.6))
 
-    # Tenants Tablosu SSR HTML
+    # Tenants Tablosu SSR HTML (Tıklanabilir Satırlar)
     tenants_ssr_html = ""
     for t in tenants:
         tid = t.get("id", "")
@@ -45,25 +45,28 @@ def generate_v2_dashboard_html(
         exch_badge = "🇹🇷 Binance TR" if t.get("exchange_id") == "binancetr" else "🌍 Binance Global"
         lang = str(t.get("preferred_language", "tr")).upper()
 
-        status_badge = '<span class="badge badge-warning">🧪 Sanal (Paper)</span>' if is_paper else '<span class="badge badge-success">🟢 Canlı Hesap</span>'
+        status_badge = '<span class="badge badge-warning">🧪 Sanal</span>' if is_paper else '<span class="badge badge-success">🟢 Canlı</span>'
 
         tenants_ssr_html += f"""
-        <tr data-id="{tid}">
-            <td style="font-weight: 700; color: #f8fafc;">
-                <div style="display: flex; align-items: center; gap: 8px;">
+        <tr data-id="{tid}" class="clickable-row">
+            <td onclick="openTenantPortfolioModal('{tid}', '{tname}')" style="cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 10px;">
                     <div class="user-avatar">{tname[:2].upper()}</div>
-                    <span>{tname}</span>
+                    <div>
+                        <strong style="color: #f8fafc; font-size: 14px;">{tname}</strong>
+                        <small style="display: block; color: #38bdf8; font-size: 11px;">🔍 Bakiyeyi İncele ➔</small>
+                    </div>
                 </div>
             </td>
             <td><code class="font-mono">{chat_id}</code></td>
-            <td><input type="number" step="0.1" class="table-input" id="tp_{tid}" value="{user_tp}" style="color: var(--success); width: 70px;"></td>
-            <td><input type="number" step="0.1" class="table-input" id="sl_{tid}" value="{user_sl}" style="color: var(--danger); width: 70px;"></td>
-            <td><input type="number" step="1.0" class="table-input" id="budget_{tid}" value="{user_budget}" style="color: var(--whale-gold); width: 70px;"></td>
+            <td><input type="number" step="0.1" class="table-input" id="tp_{tid}" value="{user_tp}" style="color: var(--success); width: 65px;"></td>
+            <td><input type="number" step="0.1" class="table-input" id="sl_{tid}" value="{user_sl}" style="color: var(--danger); width: 65px;"></td>
+            <td><input type="number" step="1.0" class="table-input" id="budget_{tid}" value="{user_budget}" style="color: var(--whale-gold); width: 65px;"></td>
             <td><span class="badge badge-exch">{exch_badge}</span></td>
             <td><span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #cbd5e1;">{lang}</span></td>
             <td>{status_badge}</td>
             <td>
-                <button class="btn btn-sm btn-primary" onclick="updateTenantSettings('{tid}')">💾 Kaydet</button>
+                <button class="btn btn-sm btn-primary" onclick="updateTenantSettings('{tid}', event)">💾 Kaydet</button>
             </td>
         </tr>
         """
@@ -71,44 +74,54 @@ def generate_v2_dashboard_html(
     if not tenants_ssr_html:
         tenants_ssr_html = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 24px;">Henüz kayıtlı kullanıcı bulunmuyor.</td></tr>'
 
-    # Canlı Karar Logları SSR HTML
+    # Canlı Karar Logları SSR HTML (Kullanıcı İsimli ve Zengin Tablo)
     logs_ssr_html = ""
-    for l in (logs or [])[:20]:
+    for l in (logs or [])[:25]:
         t_time = str(l.get("created_at", ""))[:19].replace("T", " ")
         sym = l.get("symbol", "N/A")
         direction = l.get("direction", "HOLD")
         status = l.get("status", "SUCCESS")
-        t_name = l.get("tenant_name", "Otonom")
+        t_name = l.get("tenant_name") or "S"
         amt = float(l.get("amount_usd", 0.0) or 0.0)
         p_entry = float(l.get("entry_price", 0.0) or 0.0)
         det = l.get("execution_details") or {}
         reason = det.get("justification") or det.get("reason") or "Kurumsal teyit matrisi ve AI mutabakatı ile onaylandı."
+        score = l.get("sentiment_score") or det.get("v2_score") or "8.5"
+        exch_label = l.get("exchange_label") or ("Binance TR 🇹🇷" if str(sym).endswith("TRY") else "Binance Global 🌍")
 
-        dir_badge = '<span class="badge badge-success">🟢 ALIM</span>' if direction in ["BUY", "ALIM"] else ('<span class="badge badge-danger">🔴 SATIM</span>' if direction in ["SELL", "SATIM"] else '<span class="badge badge-warning">⏳ GÖZETLEME</span>')
+        is_buy = direction in ["BUY", "ALIM"]
+        dir_badge = '<span class="badge badge-success">🟢 ALIM</span>' if is_buy else ('<span class="badge badge-danger">🔴 SATIM</span>' if direction in ["SELL", "SATIM"] else '<span class="badge badge-warning">⏳ GÖZETLEME</span>')
 
         logs_ssr_html += f"""
-        <div class="log-item">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
-                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                    {dir_badge}
-                    <strong style="color: #f8fafc; font-size: 14px;">{sym}</strong>
-                    <span style="color: var(--text-muted); font-size: 12px;">({t_name})</span>
+        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-size: 13px;">
+            <td style="padding: 12px 10px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="color: var(--whale-gold); font-size: 14px;">👤</span>
+                    <strong style="color: #f8fafc;">{t_name}</strong>
                 </div>
-                <span class="font-mono" style="font-size: 11px; color: #94a3b8;">{t_time}</span>
-            </div>
-            <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 6px; line-height: 1.4;">
-                💡 <em>{reason}</em>
-            </div>
-            <div style="display: flex; gap: 16px; font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">
-                <span>💵 Bütçe: <strong>${amt:,.2f}</strong></span>
-                <span>📥 Fiyat: <strong>${p_entry:,.4f}</strong></span>
-                <span>🛡️ Durum: <strong style="color: var(--success);">{status}</strong></span>
-            </div>
-        </div>
+                <small style="color: var(--text-muted); font-size: 11px;">{exch_label}</small>
+            </td>
+            <td style="padding: 12px 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    {dir_badge}
+                    <code class="font-mono" style="font-weight: 700; color: #38bdf8; font-size: 13px;">{sym}</code>
+                </div>
+                <small style="color: #94a3b8; font-size: 11px; display: block; margin-top: 3px;">{reason[:75]}...</small>
+            </td>
+            <td style="padding: 12px 10px; font-family: var(--font-mono); font-weight: 600; color: #f8fafc;">${amt:,.2f}</td>
+            <td style="padding: 12px 10px; font-family: var(--font-mono); color: #cbd5e1;">${p_entry:,.4f}</td>
+            <td style="padding: 12px 10px;">
+                <span style="color: var(--success); font-weight: 700; font-family: var(--font-mono);">{score} / 10</span>
+            </td>
+            <td style="padding: 12px 10px;">
+                <span class="badge badge-success">✅ {status}</span>
+            </td>
+            <td style="padding: 12px 10px; color: var(--text-muted); font-family: var(--font-mono); font-size: 11px;">{t_time}</td>
+        </tr>
         """
 
     if not logs_ssr_html:
-        logs_ssr_html = '<div style="text-align: center; color: var(--text-muted); padding: 32px;">Kayıtlı işlem kararı bulunmuyor.</div>'
+        logs_ssr_html = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">Kayıtlı işlem kararı bulunmuyor.</td></tr>'
 
     html = f"""<!DOCTYPE html>
 <html lang="tr">
@@ -121,6 +134,10 @@ def generate_v2_dashboard_html(
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {{
+            --fox-flame: #EF4323;
+            --fox-ember: #D53427;
+            --fox-action: #D53427;
+            
             --bg-base: #06090e;
             --bg-card: rgba(13, 19, 33, 0.85);
             --bg-card-hover: rgba(18, 26, 44, 0.95);
@@ -279,7 +296,7 @@ def generate_v2_dashboard_html(
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; height: 3px;
-            background: linear-gradient(90deg, var(--scalp-cyan), var(--whale-gold), var(--success));
+            background: linear-gradient(90deg, var(--fox-flame), var(--whale-gold), var(--success));
         }}
 
         .engine-toggle-group {{
@@ -373,7 +390,7 @@ def generate_v2_dashboard_html(
         /* Main Grid */
         .main-grid {{
             display: grid;
-            grid-template-columns: 2.2fr 1fr;
+            grid-template-columns: 2.3fr 1fr;
             gap: 24px;
         }}
         @media (max-width: 1080px) {{
@@ -416,7 +433,7 @@ def generate_v2_dashboard_html(
             border-bottom: 1px solid rgba(255, 255, 255, 0.04);
             vertical-align: middle;
         }}
-        tr:hover td {{ background: rgba(255, 255, 255, 0.02); }}
+        tr.clickable-row:hover td {{ background: rgba(245, 158, 11, 0.06); }}
 
         .table-input {{
             background: rgba(15, 23, 42, 0.9);
@@ -429,30 +446,17 @@ def generate_v2_dashboard_html(
         }}
 
         .user-avatar {{
-            width: 32px;
-            height: 32px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--whale-gold), #b45309);
-            color: #000;
+            background: linear-gradient(135deg, var(--fox-flame), var(--fox-ember));
+            color: #fff;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 800;
             font-size: 12px;
-        }}
-
-        /* Log Item */
-        .log-item {{
-            padding: 12px 14px;
-            border-radius: 12px;
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            margin-bottom: 10px;
-            transition: all 0.2s;
-        }}
-        .log-item:hover {{
-            background: rgba(15, 23, 42, 0.9);
-            border-color: var(--border-glow);
+            box-shadow: 0 4px 12px rgba(239, 67, 35, 0.35);
         }}
 
         .badge {{
@@ -467,6 +471,53 @@ def generate_v2_dashboard_html(
         .badge-danger {{ background: rgba(239, 68, 68, 0.15); color: var(--danger); }}
         .badge-warning {{ background: rgba(245, 158, 11, 0.15); color: var(--warning); }}
         .badge-exch {{ background: rgba(6, 182, 212, 0.15); color: var(--scalp-cyan); }}
+
+        /* ============================================================================
+           FOX MARKA YÜKLEME GÖSTERGESİ & MODAL (Fox MRO Tasarım Dili)
+           ========================================================================== */
+        .modal-backdrop {{
+            position: fixed; inset: 0; z-index: 1500;
+            background: rgba(6, 9, 14, 0.85);
+            backdrop-filter: blur(16px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }}
+        .modal-backdrop.active {{ display: flex; }}
+        .modal-window {{
+            background: rgba(13, 19, 33, 0.95);
+            border: 1px solid var(--border-glow);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 640px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            position: relative;
+        }}
+        .modal-close-btn {{
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border: none; color: #fff; width: 32px; height: 32px;
+            border-radius: 50%; cursor: pointer; font-size: 16px;
+            display: flex; align-items: center; justify-content: center;
+        }}
+        .modal-close-btn:hover {{ background: var(--danger); }}
+
+        /* Fox Spinner */
+        .foxload {{ display: grid; justify-items: center; gap: 14px; padding: 40px 20px; }}
+        .foxload-ring {{ position: relative; width: 68px; height: 68px; display: grid; place-items: center; }}
+        .foxload-ring svg {{ position: absolute; inset: 0; width: 100%; height: 100%; }}
+        .foxload-arc {{ animation: foxspin 1.15s cubic-bezier(.55,.15,.45,.85) infinite; transform-origin: center; }}
+        .foxload-mark {{
+            position: relative; display: block;
+            animation: foxbreathe 2.2s ease-in-out infinite;
+            filter: drop-shadow(0 4px 14px rgba(239,67,35,0.45));
+        }}
+        @keyframes foxspin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+        @keyframes foxbreathe {{ 0%, 100% {{ transform: scale(1); opacity: .92; }} 50% {{ transform: scale(1.1); opacity: 1; }} }}
 
         /* Mobile Bottom Floating Dock */
         .mobile-dock {{
@@ -527,6 +578,35 @@ def generate_v2_dashboard_html(
 <body>
     <!-- TOAST BİLDİRİMİ -->
     <div id="toast">✅ İşlem Başarılı!</div>
+
+    <!-- KULLANICI DETAYLI CANLI BAKİYE MODALI -->
+    <div id="portfolio-modal" class="modal-backdrop">
+        <div class="modal-window">
+            <button class="modal-close-btn" onclick="closePortfolioModal()">✕</button>
+            <div id="modal-content">
+                <!-- Fox Marka Yükleme Göstergesi -->
+                <div class="foxload">
+                    <div class="foxload-ring">
+                        <svg viewBox="0 0 68 68" fill="none">
+                            <circle cx="34" cy="34" r="30" stroke="rgba(239,67,35,0.2)" stroke-width="4"/>
+                            <circle class="foxload-arc" cx="34" cy="34" r="30" stroke="url(#foxgrad)" stroke-width="4" stroke-linecap="round" stroke-dasharray="70 120"/>
+                            <defs>
+                                <linearGradient id="foxgrad" x1="0" y1="0" x2="68" y2="68" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#EF4323"/>
+                                    <stop offset="1" stop-color="#F59E0B"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <span class="foxload-mark" style="font-size: 26px;">🦊</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <b style="color: #f8fafc; font-size: 16px;">Borsa Cüzdanı Doğrulanıyor...</b>
+                        <p style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Binance Spot ve Earn bakiyeleri canlı taranıyor.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ÜST HEADER / KONTROL BARI -->
     <header class="header">
@@ -667,10 +747,13 @@ def generate_v2_dashboard_html(
     <main class="main-grid">
         <!-- SOL: KULLANICILAR VE SİNYAL LOGLARI -->
         <div style="display: flex; flex-direction: column; gap: 24px;">
-            <!-- Kayıtlı Kullanıcılar -->
+            <!-- Kayıtlı Kullanıcılar (Tıklanabilir Bakiye İnceleme) -->
             <div class="card">
                 <div class="card-title">
-                    <span>👥 Kayıtlı Kullanıcılar & Dinamik Risk Dağılımı</span>
+                    <div>
+                        <span>👥 Kayıtlı Kullanıcılar & Dinamik Risk Dağılımı</span>
+                        <small style="display: block; font-size: 12px; color: #38bdf8; margin-top: 2px;">💡 Canlı cüzdan ve açık pozisyonları görmek için kullanıcının üzerine tıklayın.</small>
+                    </div>
                     <span style="font-size: 12px; color: var(--scalp-cyan); background: rgba(6, 182, 212, 0.15); padding: 4px 10px; border-radius: 12px;">Multi-Tenant V2.2</span>
                 </div>
                 <div class="table-responsive">
@@ -695,14 +778,29 @@ def generate_v2_dashboard_html(
                 </div>
             </div>
 
-            <!-- Canlı İşlem ve Karar Logları -->
+            <!-- Canlı İşlem ve Karar Logları (Zengin Tablo Formatı) -->
             <div class="card">
                 <div class="card-title">
                     <span>📜 Açıklanabilir AI Karar & İşlem Günlüğü (Explainable Logs)</span>
                     <span style="font-size: 12px; color: var(--success);">🟢 Canlı Veritabanı Senkronize</span>
                 </div>
-                <div id="logs-container">
-                    {logs_ssr_html}
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>👤 Kullanıcı & Borsa</th>
+                                <th>🪙 İşlem & Çift</th>
+                                <th>💵 Bütçe</th>
+                                <th>📥 Fiyat</th>
+                                <th>📊 AI Skoru</th>
+                                <th>🏷️ Durum</th>
+                                <th>⏱️ Zaman</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-tbody">
+                            {logs_ssr_html}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -777,6 +875,113 @@ def generate_v2_dashboard_html(
             t.innerText = msg;
             t.className = 'show';
             setTimeout(() => {{ t.className = t.className.replace('show', ''); }}, 3000);
+        }}
+
+        /* ============================================================================
+           KULLANICI CANLI PORTFÖY MODALI (FOX SPINNER ENTEGRE)
+           ========================================================================== */
+        async function openTenantPortfolioModal(tenantId, tenantName) {{
+            const modal = document.getElementById('portfolio-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.add('active');
+
+            content.innerHTML = `
+                <div class="foxload">
+                    <div class="foxload-ring">
+                        <svg viewBox="0 0 68 68" fill="none">
+                            <circle cx="34" cy="34" r="30" stroke="rgba(239,67,35,0.2)" stroke-width="4"/>
+                            <circle class="foxload-arc" cx="34" cy="34" r="30" stroke="url(#foxgrad)" stroke-width="4" stroke-linecap="round" stroke-dasharray="70 120"/>
+                            <defs>
+                                <linearGradient id="foxgrad" x1="0" y1="0" x2="68" y2="68" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#EF4323"/>
+                                    <stop offset="1" stop-color="#F59E0B"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <span class="foxload-mark" style="font-size: 26px;">🦊</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <b style="color: #f8fafc; font-size: 16px;">${{tenantName}} Cüzdanı Taranıyor...</b>
+                        <p style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Binance Spot ve Earn bakiyeleri canlı doğrulanıyor.</p>
+                    </div>
+                </div>
+            `;
+
+            try {{
+                const res = await fetch('/api/tenants/' + tenantId + '/portfolio', {{ headers: getAuthHeaders() }});
+                if (!res.ok) throw new Error('Cüzdan verisi alınamadı');
+                const data = await res.json();
+                const port = data.portfolio || {{}};
+                const freeUsdt = port.free_usdt || 0.0;
+                const totUsdt = port.total_usdt || 0.0;
+                const totTry = port.total_try || 0.0;
+                const holdings = port.holdings_details || {{}};
+
+                let holdingsHtml = '';
+                for (const [coin, info] of Object.entries(holdings)) {{
+                    const amt = Number(info.amount || 0);
+                    const valUsd = Number(info.val_usd || 0);
+                    const valTry = Number(info.val_try || 0);
+                    const p = Number(info.price || 0);
+                    if (valUsd >= 1.0) {{
+                        holdingsHtml += `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: rgba(15, 23, 42, 0.7); border-radius: 10px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.04);">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <strong style="color: #f8fafc; font-size: 14px;">${{coin}}</strong>
+                                    <span class="font-mono" style="font-size: 12px; color: #94a3b8;">${{amt.toLocaleString()}} adet</span>
+                                </div>
+                                <div style="text-align: right;">
+                                    <strong class="font-mono" style="color: #10b981; font-size: 14px;">$${{valUsd.toFixed(2)}} USD</strong>
+                                    <small class="font-mono" style="display: block; color: #94a3b8; font-size: 11px;">~₺${{valTry.toFixed(2)}} TL</small>
+                                </div>
+                            </div>
+                        `;
+                    }}
+                }}
+
+                if (!holdingsHtml) {{
+                    holdingsHtml = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">Açık coin pozisyonu bulunmuyor.</p>';
+                }}
+
+                content.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 18px;">
+                        <div class="user-avatar" style="width: 40px; height: 40px; font-size: 14px;">${{tenantName.slice(0, 2).toUpperCase()}}</div>
+                        <div>
+                            <h3 style="color: #f8fafc; font-size: 18px;">${{tenantName}} — Canlı Bakiye & Cüzdan</h3>
+                            <span class="badge badge-exch">${{data.exchange_id === 'binancetr' ? '🇹🇷 Binance TR' : '🌍 Binance Global'}}</span>
+                        </div>
+                    </div>
+
+                    <!-- Kasa Özeti Kartları -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                        <div style="padding: 14px; background: rgba(15, 23, 42, 0.8); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Toplam Portföy</span>
+                            <div class="font-mono" style="font-size: 20px; font-weight: 700; color: var(--whale-gold); margin-top: 4px;">$${{totUsdt.toFixed(2)}} USD</div>
+                            <small class="font-mono" style="color: #cbd5e1;">~₺${{totTry.toFixed(2)}} TL</small>
+                        </div>
+                        <div style="padding: 14px; background: rgba(15, 23, 42, 0.8); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+                            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Serbest Nakit</span>
+                            <div class="font-mono" style="font-size: 20px; font-weight: 700; color: #38bdf8; margin-top: 4px;">$${{freeUsdt.toFixed(2)}} USD</div>
+                            <small style="color: #10b981;">🟢 Alıma Hazır</small>
+                        </div>
+                    </div>
+
+                    <h4 style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; font-weight: 700;">📦 Açık Coin Varlıkları</h4>
+                    <div>${{holdingsHtml}}</div>
+                `;
+            }} catch(err) {{
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 30px;">
+                        <span style="font-size: 32px;">⚠️</span>
+                        <h4 style="color: var(--danger); margin-top: 10px;">Cüzdan Yüklenemedi</h4>
+                        <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">${{err.message}}</p>
+                    </div>
+                `;
+            }}
+        }}
+
+        function closePortfolioModal() {{
+            document.getElementById('portfolio-modal').classList.remove('active');
         }}
 
         let currentEngine = '{active_engine}';
@@ -876,7 +1081,8 @@ def generate_v2_dashboard_html(
             }} catch(e) {{ alert('Ayar kaydetme hatası: ' + e); }}
         }}
 
-        async function updateTenantSettings(tid) {{
+        async function updateTenantSettings(tid, event) {{
+            if (event) event.stopPropagation();
             const tp = parseFloat(document.getElementById('tp_' + tid).value) || 3.0;
             const sl = parseFloat(document.getElementById('sl_' + tid).value) || 1.5;
             const budget = parseFloat(document.getElementById('budget_' + tid).value) || 25.0;
