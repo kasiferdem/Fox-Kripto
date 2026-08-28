@@ -7,6 +7,33 @@ import requests
 from typing import Dict, Any, List, Optional
 from v2_models import V2_WHALE_PRESETS, SignalStatus
 
+def fetch_live_binance_futures_data(symbol: str) -> Dict[str, Any]:
+    """Binance Vadeli (Futures) üzerinden anlık Open Interest ve Funding oranını çeker."""
+    res = {"has_futures": False, "oi_usd": 0.0, "funding_rate": 0.0001}
+    try:
+        clean_sym = symbol.replace("/", "").replace("_", "").upper()
+        if not clean_sym.endswith("USDT"):
+            return res
+        sess = requests.Session()
+        # 1. Open Interest
+        r_oi = sess.get(f"https://fapi.binance.com/fapi/v1/openInterest?symbol={clean_sym}", timeout=3)
+        if r_oi.status_code == 200:
+            d_oi = r_oi.json()
+            res["has_futures"] = True
+            res["oi_amount"] = float(d_oi.get("openInterest", 0.0))
+        
+        # 2. Premium Index & Funding Rate
+        r_fund = sess.get(f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={clean_sym}", timeout=3)
+        if r_fund.status_code == 200:
+            d_fund = r_fund.json()
+            res["funding_rate"] = float(d_fund.get("lastFundingRate", 0.0001) or 0.0001)
+            res["mark_price"] = float(d_fund.get("markPrice", 0.0) or 0.0)
+            if res.get("oi_amount", 0) > 0 and res.get("mark_price", 0) > 0:
+                res["oi_usd"] = res["oi_amount"] * res["mark_price"]
+    except Exception:
+        pass
+    return res
+
 class V2WhaleHuntingEngine:
     def __init__(self, risk_level: str = "BALANCED", custom_params: Optional[Dict[str, Any]] = None):
         self.risk_level = risk_level.upper() if risk_level else "BALANCED"
@@ -30,20 +57,27 @@ class V2WhaleHuntingEngine:
         last_price = float(ticker.get("lastPrice", 0.0) or ticker.get("price", 0.0))
         vol_usd = float(ticker.get("quoteVolume", 0.0) or 0.0)
         gain_24h = float(ticker.get("priceChangePercent", 0.0) or 0.0)
+        
+        # Canlı Vadeli Verilerini Otonom Olarak Çek
+        if not futures_ticker or not oi_data:
+            live_fapi = fetch_live_binance_futures_data(symbol)
+            if live_fapi.get("has_futures"):
+                oi_data = {"openInterest": live_fapi.get("oi_usd", 0.0)}
+                futures_ticker = {"lastFundingRate": live_fapi.get("funding_rate", 0.0001)}
 
         confirmations_passed = []
         confirmations_failed = []
         sub_scores = {}
 
         # 1. Kriter: Spot Hacim Patlaması & Çarpan (Ağırlık: %25)
-        min_vol = self.params.get("min_5m_volume_usd", 150000.0)
+        min_vol = self.params.get("min_5m_volume_usd", 50000.0)
         vol_5m_est = vol_usd / 288.0
         if vol_5m_est >= min_vol:
             confirmations_passed.append(f"Spot 5dk Hacim (${vol_5m_est:,.0f}) ${min_vol:,.0f} balina eşiğini aştı.")
-            sub_scores["volume_score"] = 9.0
+            sub_scores["volume_score"] = 9.5
         else:
             confirmations_failed.append(f"Spot Hacim (${vol_5m_est:,.0f}) balina eşiği (${min_vol:,.0f}) altında.")
-            sub_scores["volume_score"] = 5.5
+            sub_scores["volume_score"] = 2.0
 
         # 2. Kriter: Vadeli Açık Faiz (Open Interest - OI) Teyidi (Ağırlık: %15)
         oi_passed = True
