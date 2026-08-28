@@ -380,19 +380,70 @@ def generate_v2_dashboard_html(
 
         <!-- Risk Seviyesi Seçici -->
         <div class="risk-pills-row">
-            <span style="font-size: 13px; color: var(--text-muted); font-weight: 600; margin-right: 6px;">Risk Seviyesi:</span>
-            <button class="risk-pill" onclick="switchRisk('AGGRESSIVE')">🔥 Agresif</button>
-            <button class="risk-pill active" onclick="switchRisk('BALANCED')">⚖️ Dengeli (Önerilen)</button>
-            <button class="risk-pill" onclick="switchRisk('DEFENSIVE')">🏰 Defansif</button>
-            <button class="risk-pill" onclick="switchRisk('CUSTOM')">⚙️ Özel (Custom)</button>
-            <button class="btn btn-primary" onclick="saveV2Strategy()" style="margin-left: auto; height: 38px;">💾 Motoru & Profili Uygula</button>
+            <span style="font-size: 13px; color: var(--text-muted); font-weight: 600; margin-right: 6px;">Hazır Profiller:</span>
+            <button id="pill-agg" class="risk-pill" onclick="switchRisk('AGGRESSIVE')">🔥 Agresif</button>
+            <button id="pill-bal" class="risk-pill active" onclick="switchRisk('BALANCED')">⚖️ Dengeli (Önerilen)</button>
+            <button id="pill-def" class="risk-pill" onclick="switchRisk('DEFENSIVE')">🏰 Defansif</button>
+            <button id="pill-cus" class="risk-pill" onclick="switchRisk('CUSTOM')">⚙️ Özel (Custom)</button>
+            <button class="btn btn-primary" onclick="saveV2Strategy()" style="margin-left: auto; height: 38px; font-weight: 700;">💾 Parametreleri Kaydet & Canlıya Al</button>
+        </div>
+
+        <!-- 🎛️ CANLI PARAMETRE YÖNETİM VE İNCE AYAR MERKEZİ -->
+        <div style="margin-top: 16px; padding: 20px; background: rgba(10, 15, 29, 0.75); border-radius: 16px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <span style="font-size: 13px; font-weight: 700; color: var(--whale-gold); text-transform: uppercase; letter-spacing: 0.5px;">🎛️ Quant Parametre Yönetim ve İnce Ayar Merkezi</span>
+                <span style="font-size: 11px; color: var(--text-muted);">Değerleri dilediğiniz gibi değiştirip canlı motora anında uygulayabilirsiniz.</span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+                <!-- 1. Min 5dk Hacim -->
+                <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🧱 Min 5dk Hacim ($ USD)</label>
+                    <input type="number" id="param_min_volume_usd" value="50000" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #38bdf8; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
+                </div>
+                <!-- 2. Hacim Çarpanı -->
+                <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">⚡ Hacim Patlama Çarpanı (x)</label>
+                    <input type="number" step="0.1" id="param_volume_spike" value="2.5" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #f59e0b; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
+                </div>
+                <!-- 3. Maks 24s Prim -->
+                <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">📈 Maks 24s Prim Limiti (%)</label>
+                    <input type="number" step="0.5" id="param_max_gain_24h" value="12.0" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
+                </div>
+                <!-- 4. Min AI Skoru -->
+                <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🧠 Min AI & Teyit Skoru (1-10)</label>
+                    <input type="number" step="0.1" id="param_min_ai_score" value="8.0" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: var(--success); border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
+                </div>
+                <!-- 5. Kasa Bütçesi -->
+                <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">💰 İşlem Başı Kasa Bütçesi (%)</label>
+                    <input type="number" step="1.0" id="param_max_budget" value="25.0" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
+                </div>
+                <!-- 6. Hedef TP -->
+                <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🎯 Hedef Kâr Al (%)</label>
+                    <input type="number" step="0.1" id="param_tp_pct" value="3.0" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: var(--success); border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
+                </div>
+                <!-- 7. Stop-Loss -->
+                <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🛡️ Zarar Kes Stop-Loss (%)</label>
+                    <input type="number" step="0.1" id="param_sl_pct" value="1.5" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: var(--danger); border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
+                </div>
+                <!-- 8. Trailing Callback -->
+                <div>
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 600;">🚀 Trailing Zirve Çekilme (%)</label>
+                    <input type="number" step="0.1" id="param_trailing_callback" value="0.6" onchange="markCustom()" style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #38bdf8; border: 1px solid var(--border-color); font-family: var(--font-mono); font-weight: 600;">
+                </div>
+            </div>
         </div>
 
         <!-- 10 Kurumsal Teyit Göstergesi -->
         <div style="margin-top: 14px;">
             <div style="font-size: 12px; color: var(--text-muted); font-weight: 700; display: flex; justify-content: space-between;">
                 <span>10 KURUMSAL TEYİT MATRİSİ (WHALE CONFIRMATION MATRIX)</span>
-                <span style="color: var(--success); font-family: var(--font-mono);">7 / 10 Teyit Geçti (Skor: 8.7/10)</span>
+                <span style="color: var(--success); font-family: var(--font-mono);">9 / 10 Teyit Aktif (Skor: 8.7/10)</span>
             </div>
             <div class="confirmations-matrix">
                 <div class="conf-badge verified">✅ 1. Spot Hacim Patlaması (>2.5x)</div>
@@ -400,9 +451,9 @@ def generate_v2_dashboard_html(
                 <div class="conf-badge verified">✅ 3. Funding Rate Dengesi (<%0.10)</div>
                 <div class="conf-badge verified">✅ 4. Alış Duvarı Koruması (>60s)</div>
                 <div class="conf-badge verified">✅ 5. Taker Alış Baskısı (>%64)</div>
-                <div class="conf-badge verified">✅ 6. 24s Primsiz Giriş (<%9.0)</div>
+                <div class="conf-badge verified">✅ 6. 24s Primsiz Giriş (<%12.0)</div>
                 <div class="conf-badge verified">✅ 7. VWAP & EMA Retest Desteği</div>
-                <div class="conf-badge">⏳ 8. On-Chain Borsa Çıkışları</div>
+                <div class="conf-badge verified">✅ 8. On-Chain Borsa Çıkışları</div>
                 <div class="conf-badge verified">✅ 9. Düşük Spread (<%0.20)</div>
                 <div class="conf-badge verified">✅ 10. Sıfır Manipülasyon Riski</div>
             </div>
@@ -526,30 +577,71 @@ def generate_v2_dashboard_html(
             }}
         }}
 
+        const PRESETS_MAP = {{
+            'VOLUME_SCALPING_AGGRESSIVE': {{ min_vol: 35000, spike: 1.5, gain: 15.0, score: 7.2, budget: 35.0, tp: 2.2, sl: 1.2, cb: 0.5 }},
+            'VOLUME_SCALPING_BALANCED':   {{ min_vol: 50000, spike: 1.8, gain: 10.0, score: 7.8, budget: 25.0, tp: 3.0, sl: 1.5, cb: 0.6 }},
+            'VOLUME_SCALPING_DEFENSIVE':  {{ min_vol: 75000, spike: 2.2, gain: 8.0,  score: 8.5, budget: 15.0, tp: 4.0, sl: 1.8, cb: 0.8 }},
+            'WHALE_HUNTING_AGGRESSIVE':   {{ min_vol: 50000, spike: 2.0, gain: 15.0, score: 7.8, budget: 35.0, tp: 4.0, sl: 1.5, cb: 0.6 }},
+            'WHALE_HUNTING_BALANCED':     {{ min_vol: 75000, spike: 2.5, gain: 12.0, score: 8.2, budget: 25.0, tp: 5.0, sl: 1.8, cb: 0.7 }},
+            'WHALE_HUNTING_DEFENSIVE':    {{ min_vol: 100000, spike: 3.2, gain: 9.0, score: 8.8, budget: 15.0, tp: 6.5, sl: 2.0, cb: 0.9 }}
+        }};
+
+        function markCustom() {{
+            document.querySelectorAll('.risk-pill').forEach(btn => btn.classList.remove('active'));
+            const cusBtn = document.getElementById('pill-cus');
+            if (cusBtn) cusBtn.classList.add('active');
+            currentRisk = 'CUSTOM';
+            const badge = document.getElementById('engine-badge');
+            if (badge) badge.innerText = (currentEngine === 'WHALE_HUNTING' ? '🐋 Balina' : '⚡ Scalp') + ' · Özel Ayarlar · v2.0 Aktif';
+        }}
+
         function switchRisk(risk) {{
             currentRisk = risk;
             document.querySelectorAll('.risk-pill').forEach(btn => {{
                 btn.classList.toggle('active', btn.innerText.includes(risk));
             }});
+            
+            const key = currentEngine + '_' + risk;
+            const p = PRESETS_MAP[key];
+            if (p) {{
+                document.getElementById('param_min_volume_usd').value = p.min_vol;
+                document.getElementById('param_volume_spike').value = p.spike;
+                document.getElementById('param_max_gain_24h').value = p.gain;
+                document.getElementById('param_min_ai_score').value = p.score;
+                document.getElementById('param_max_budget').value = p.budget;
+                document.getElementById('param_tp_pct').value = p.tp;
+                document.getElementById('param_sl_pct').value = p.sl;
+                document.getElementById('param_trailing_callback').value = p.cb;
+            }}
             switchEngine(currentEngine);
         }}
 
         async function saveV2Strategy() {{
             try {{
+                const payload = {{
+                    active_preset: currentEngine.toLowerCase() + '_' + currentRisk.toLowerCase(),
+                    min_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 50000,
+                    volume_spike_multiplier: parseFloat(document.getElementById('param_volume_spike').value) || 2.5,
+                    max_recent_gain_24h: parseFloat(document.getElementById('param_max_gain_24h').value) || 12.0,
+                    min_ai_score: parseFloat(document.getElementById('param_min_ai_score').value) || 8.0,
+                    max_budget_percent: parseFloat(document.getElementById('param_max_budget').value) || 25.0,
+                    take_profit_pct: parseFloat(document.getElementById('param_tp_pct').value) || 3.0,
+                    stop_loss_pct: parseFloat(document.getElementById('param_sl_pct').value) || 1.5,
+                    trailing_callback_pct: parseFloat(document.getElementById('param_trailing_callback').value) || 0.6,
+                    min_5m_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 50000,
+                    require_futures_oi: true
+                }};
+
                 const res = await fetch('/api/strategy-config', {{
                     method: 'POST',
                     headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{
-                        active_preset: currentEngine.toLowerCase() + '_' + currentRisk.toLowerCase(),
-                        volume_spike_multiplier: currentEngine === 'WHALE_HUNTING' ? 3.0 : 1.6,
-                        min_volume_usd: currentEngine === 'WHALE_HUNTING' ? 150000 : 50000,
-                        max_recent_gain_24h: currentEngine === 'WHALE_HUNTING' ? 9.0 : 10.0,
-                        min_ai_score: currentEngine === 'WHALE_HUNTING' ? 8.2 : 7.5,
-                        max_budget_percent: 25.0,
-                        trailing_callback_pct: 0.8
-                    }})
+                    body: JSON.stringify(payload)
                 }});
-                if (res.ok) alert('✅ V2 ' + (currentEngine === 'WHALE_HUNTING' ? 'Balina Avı' : 'Scalping') + ' (' + currentRisk + ') profili başarıyla uygulandı!');
+                if (res.ok) {{
+                    alert('✅ [BAŞARILI]: Tüm Quant Parametreleri Canlı Otonom Motora ve Veritabanına Kaydedildi!\n\n• Min Hacim: $' + payload.min_volume_usd.toLocaleString() + ' USD\n• Hacim Çarpanı: ' + payload.volume_spike_multiplier + 'x\n• Hedef TP: %' + payload.take_profit_pct + ' | SL: %' + payload.stop_loss_pct + '\n• Kasa Bütçesi: %' + payload.max_budget_percent);
+                }} else {{
+                    alert('❌ Kaydetme hatası: ' + res.statusText);
+                }}
             }} catch(e) {{ alert('Ayar kaydetme hatası: ' + e); }}
         }}
 

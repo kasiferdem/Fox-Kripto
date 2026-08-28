@@ -522,13 +522,17 @@ def get_settings_endpoint():
     }
 
 class StrategyConfigRequest(BaseModel):
-    active_preset: str
-    volume_spike_multiplier: float
-    min_volume_usd: float
-    max_recent_gain_24h: float
-    min_ai_score: float
+    active_preset: str = "whale_hunting_balanced"
+    volume_spike_multiplier: float = 2.5
+    min_volume_usd: float = 50000.0
+    max_recent_gain_24h: float = 12.0
+    min_ai_score: float = 8.0
     max_budget_percent: float = 25.0
-    trailing_callback_pct: float = 0.8
+    trailing_callback_pct: float = 0.6
+    take_profit_pct: Optional[float] = 3.0
+    stop_loss_pct: Optional[float] = 1.5
+    min_5m_volume_usd: Optional[float] = 50000.0
+    require_futures_oi: Optional[bool] = True
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -546,7 +550,11 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "max_recent_gain_24h": req.max_recent_gain_24h,
         "min_ai_score": req.min_ai_score,
         "max_budget_percent": req.max_budget_percent,
-        "trailing_callback_pct": req.trailing_callback_pct
+        "trailing_callback_pct": req.trailing_callback_pct,
+        "take_profit_pct": req.take_profit_pct,
+        "stop_loss_pct": req.stop_loss_pct,
+        "min_5m_volume_usd": req.min_5m_volume_usd or req.min_volume_usd,
+        "require_futures_oi": req.require_futures_oi
     }
     ok = save_strategy_config(payload)
     return {"status": "success" if ok else "error", "config": payload}
