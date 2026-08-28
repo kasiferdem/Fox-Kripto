@@ -653,11 +653,13 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
             
         t_row = curr.data[0]
         api_k = str(t_row.get("exchange_api_key", ""))
+        sec_k = str(t_row.get("exchange_secret_key", ""))
         payload = {
             "stop_loss_percent": float(req.stop_loss_percent),
-            "max_budget_percent": float(req.max_budget_percent),
-            "exchange_id": str(req.exchange_id or "binance")
+            "max_budget_percent": float(req.max_budget_percent)
         }
+        if req.exchange_id:
+            payload["exchange_id"] = str(req.exchange_id)
         
         import json
         kd = {}
@@ -686,6 +688,25 @@ def update_tenant_settings(tenant_id: str, req: TenantUpdateSettingsRequest):
     except Exception as e:
         print(f"❌ [Settings Update Error]: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+class DirectUpdateTenantRequest(BaseModel):
+    tenant_id: str
+    take_profit_percent: float = 2.0
+    stop_loss_percent: float = 1.2
+    max_budget_percent: float = 25.0
+    preferred_language: str = "tr"
+    exchange_id: Optional[str] = None
+
+@app_api.post("/api/update-tenant", dependencies=[Depends(authenticate_admin)])
+def direct_update_tenant_endpoint(req: DirectUpdateTenantRequest):
+    sub_req = TenantUpdateSettingsRequest(
+        take_profit_percent=req.take_profit_percent,
+        stop_loss_percent=req.stop_loss_percent,
+        max_budget_percent=req.max_budget_percent,
+        preferred_language=req.preferred_language,
+        exchange_id=req.exchange_id
+    )
+    return update_tenant_settings(req.tenant_id, sub_req)
 
 @app_api.delete("/api/tenants/{tenant_id}", dependencies=[Depends(authenticate_admin)])
 def delete_tenant(tenant_id: str):
