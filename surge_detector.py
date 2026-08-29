@@ -16,13 +16,13 @@ def get_http_session():
         })
     return _http_session
 
-def fetch_5m_candles(symbol: str, limit: int = 6) -> List[Dict[str, float]]:
-    """Binance REST API üzerinden 5 dakikalık mum verilerini çeker."""
+def fetch_1m_candles(symbol: str, limit: int = 8) -> List[Dict[str, float]]:
+    """Binance REST API üzerinden 1 dakikalık gerçek zamanlı mum verilerini çeker."""
     try:
         clean_sym = symbol.replace("/", "").replace("_", "").upper()
-        url = f"https://api.binance.com/api/v3/klines?symbol={clean_sym}&interval=5m&limit={limit}"
+        url = f"https://api.binance.com/api/v3/klines?symbol={clean_sym}&interval=1m&limit={limit}"
         sess = get_http_session()
-        r = sess.get(url, timeout=5)
+        r = sess.get(url, timeout=3)
         if r.status_code == 200:
             candles = []
             for k in r.json():
@@ -32,7 +32,9 @@ def fetch_5m_candles(symbol: str, limit: int = 6) -> List[Dict[str, float]]:
                     "low": float(k[3]),
                     "close": float(k[4]),
                     "volume": float(k[5]),
-                    "quote_volume": float(k[7])
+                    "quote_volume": float(k[7]),
+                    "trades": int(k[8]),
+                    "taker_buy_quote_volume": float(k[10])
                 })
             return candles
     except Exception:
@@ -40,59 +42,78 @@ def fetch_5m_candles(symbol: str, limit: int = 6) -> List[Dict[str, float]]:
     return []
 
 def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_gain: float) -> Optional[Dict[str, Any]]:
+    """
+    1-3 DAKİKALIK ERKEN DİP VE İLK HACİM PATLAMASI DENETÇİSİ (EARLY DIP ENGINE)
+    Yalnızca dipte (+%0.30 - +%2.00) ve 24s primi <%3.5 olan taze kırılımları seçer.
+    """
     sym = cand.get("symbol", "")
     price_change_24h = float(cand.get("priceChangePercent", 0.0))
-    candles = fetch_5m_candles(sym, limit=7)
-    if len(candles) < 5:
+    
+    # 🔒 KATI ERKEN DİP TAVANI: 24 saatlik primi %3.5'ten fazla olan coinler ASLA ALINMAZ!
+    effective_max_gain = min(3.5, float(max_recent_gain or 3.5))
+    if price_change_24h > effective_max_gain or price_change_24h < -6.0:
         return None
         
-    # Sinyal SIFIR REPAINT: Son kapanmamış mum yerine tamamlanmış en son kapalı mumu kullan
-    closed_candles = candles[:-1]
-    last_candle = closed_candles[-1]
-    prev_candles = closed_candles[:-1]
-    
-    recent_5m_volume = last_candle["quote_volume"]
-    avg_prev_volume = sum(c["quote_volume"] for c in prev_candles) / len(prev_candles) if prev_candles else 1.0
-    
-    if avg_prev_volume <= 0 or last_candle["open"] <= 0:
+    candles = fetch_1m_candles(sym, limit=8)
+    if len(candles) < 7:
         return None
         
-    volume_spike_ratio = recent_5m_volume / avg_prev_volume
-    price_change_5m = ((last_candle["close"] - last_candle["open"]) / last_candle["open"]) * 100.0
-    candle_range = last_candle["high"] - last_candle["low"]
+    recent_3 = candles[-4:-1] # Son 3 dakikalık kapalı mumlar
+    prev_4 = candles[-8:-4]   # Önceki 4 dakikalık baz hacim
     
-    # Mum Formasyonu ve Alıcı Baskısı (Üst Fitil Analizi):
-    upper_wick_ratio = ((last_candle["high"] - last_candle["close"]) / candle_range) if candle_range > 0 else 0.0
+    v_recent = sum(float(k["quote_volume"]) for k in recent_3)
+    v_prev_avg = sum(float(k["quote_volume"]) for k in prev_4) / len(prev_4) if prev_4 else 1.0
+    v_prev_expected = v_prev_avg * 3.0
     
-    # DİNAMİK STRATEJİ VE RİSK PROFİLİ OKUMA:
-    try:
-        from db import get_strategy_config
-        strat = get_strategy_config(use_cache=True)
-        min_spike_req = float(strat.get("volume_spike_multiplier", 1.3))
-        min_vol_req = float(strat.get("min_volume_usd", 25000.0))
-        max_24h_req = float(strat.get("max_recent_gain_24h", max_recent_gain))
-    except Exception:
-        min_spike_req = 1.3
-        min_vol_req = 50000.0
-        max_24h_req = max_recent_gain
+    if v_prev_expected <= 0 or recent_3[0]["open"] <= 0:
+        return None
+        
+    volume_spike_ratio = v_recent / v_prev_expected
+    
+    o = float(recent_3[0]["open"])
+    c = float(recent_3[-1]["close"])
+    h = max(float(k["high"]) for k in recent_3)
+    l = min(float(k["low"]) for k in recent_3)
+    
+    gain_3m = ((c - o) / o) * 100.0
+    candle_range = h - l
+    upper_wick_ratio = ((h - max(o, c)) / candle_range) if candle_range > 0 else 0.0
+    
+    tb_recent = sum(float(k.get("taker_buy_quote_volume", 0.0)) for k in recent_3)
+    taker_buy_ratio = (tb_recent / v_recent * 100.0) if v_recent > 0 else 0.0
 
-    # 🛡️ ANTI-FOMO & AKILLI GİRİŞ KONTROLÜ (Golden Whale Protocol):
-    # 1. 5dk değişim 0.5% ile 3.5% arasında olmalıdır (Erken kırılım)
-    # 2. Üst fitil <= 0.40 olmalıdır (Gövdesi dolu yeşil mum, tepe iğnesi yok)
-    if volume_spike_ratio >= min_spike_req and recent_5m_volume >= min_vol_req and (0.5 <= price_change_5m <= 3.5) and upper_wick_ratio <= 0.40 and (price_change_24h <= max_24h_req):
-        momentum_score = min(10.0, round(5.0 + (volume_spike_ratio * 0.5) + (price_change_5m * 0.4), 1))
+    # 🛡️ MATEMATİKSEL ERKEN DİP GİRİŞ FİLTRELERİ:
+    # 1. 24s Değişim <= %3.5 (Dipte olmalı)
+    # 2. 3dk Erken Yükseliş: +%0.20 ile +%2.20 arasında (Hareketin henüz ilk başlangıcı)
+    # 3. Hacim Patlama Çarpanı >= 1.4x
+    # 4. 3dk Toplam Hacim >= $10,000 USD
+    # 5. Taker Alıcı Baskısı >= %55.0
+    # 6. Üst Fitil <= 0.35 (Tepe satıcı reddi yok)
+    if (
+        volume_spike_ratio >= 1.40 and
+        v_recent >= 10000.0 and
+        (0.20 <= gain_3m <= 2.20) and
+        upper_wick_ratio <= 0.35 and
+        taker_buy_ratio >= 55.0 and
+        (-6.0 <= price_change_24h <= effective_max_gain)
+    ):
+        momentum_score = min(10.0, round(6.5 + (volume_spike_ratio * 0.4) + (gain_3m * 0.5) + (taker_buy_ratio / 100.0 * 1.5), 1))
         clean_base = sym.replace("USDT", "").replace("TRY", "")
         quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
         return {
             "symbol": f"{clean_base}/{quote_suffix}",
-            "price": last_candle["close"],
-            "price_change_5m": round(price_change_5m, 2),
+            "price": c,
+            "price_change_5m": round(gain_3m, 2),
+            "price_change_1m": round(gain_3m, 2),
             "price_change_24h": round(price_change_24h, 2),
             "volume_spike_ratio": round(volume_spike_ratio, 1),
-            "recent_5m_volume_usd": round(recent_5m_volume, 0),
+            "recent_5m_volume_usd": round(v_recent * 1.67, 0),
+            "recent_1m_volume_usd": round(v_recent / 3.0, 0),
+            "taker_buy_ratio": round(taker_buy_ratio, 1),
+            "upper_wick_ratio": round(upper_wick_ratio, 2),
             "momentum_score": momentum_score,
-            "signal": f"🐋 GERÇEK BALİNA KIRILIMI (%{price_change_5m:.1f} Başlangıç / {volume_spike_ratio:.1f}x Hacim / 5dk Hacim: ${recent_5m_volume:,.0f} / Skor: {momentum_score})",
-            "recommendation": f"Sağlıklı Likit Balina Girişi: ${recent_5m_volume:,.0f} 5dk hacimle desteklendi."
+            "signal": f"⚡ ERKEN DİP KIRILIMI (+%{gain_3m:.2f} Başlangıç / {volume_spike_ratio:.1f}x Hacim / Alıcı: %{taker_buy_ratio:.1f} / 24s: %{price_change_24h:+.1f} / Skor: {momentum_score})",
+            "recommendation": f"Taze Dip Girişi: +%{gain_3m:.2f} seviyesinde yakalandı."
         }
     return None
 
@@ -120,7 +141,7 @@ def get_active_trading_symbols():
     return set()
 
 def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", min_volume_usd: float = None, max_recent_gain: float = None, **kwargs) -> List[Dict[str, Any]]:
-    """Binance Global ve TR üzerinde gerçek $50K+ kurumsal balina hacim kırılımlarını tespit eder."""
+    """Binance Spot üzerinde erken dip kırılımlarını paralel olarak tespit eder."""
     breakouts = []
     target_quote = quote or quote_asset or "USDT"
     quote_upper = target_quote.upper()
@@ -129,11 +150,11 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
         try:
             from db import get_strategy_config
             strat = get_strategy_config(use_cache=True)
-            max_24h_req = float(max_recent_gain or strat.get("max_recent_gain_24h", 15.0))
-            min_vol_req = float(min_volume_usd or strat.get("min_volume_usd", 25000.0))
+            max_24h_req = min(3.5, float(max_recent_gain or strat.get("max_recent_gain_24h", 3.5)))
+            min_vol_req = float(min_volume_usd or strat.get("min_volume_usd", 15000.0))
         except Exception:
-            max_24h_req = float(max_recent_gain or 15.0)
-            min_vol_req = float(min_volume_usd or 50000.0)
+            max_24h_req = 3.5
+            min_vol_req = 15000.0
 
         sess = get_http_session()
         r = sess.get("https://api.binance.com/api/v3/ticker/24hr", timeout=6)
@@ -142,8 +163,7 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
             
         tickers = r.json()
         target_tickers = []
-        # LİKİDİTE BARAJI: USDT için en az $500,000 USD, TRY için en az ₺15,000,000 TL 24s hacim şartı
-        min_24h_quote_vol = 500000.0 if quote_upper == "USDT" else 15000000.0
+        min_24h_quote_vol = 300000.0 if quote_upper == "USDT" else 10000000.0
         
         for t in tickers:
             sym = t.get("symbol", "")
@@ -159,16 +179,16 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
             vol = float(t.get("quoteVolume", 0))
             last_p = float(t.get("lastPrice", 0))
             chg = float(t.get("priceChangePercent", 0))
-            if vol >= min_24h_quote_vol and last_p > 0 and (-5.0 <= chg <= max_24h_req):
+            # 🔒 SADECE PRİMSİZ/DİPTEKİ COİNLERİ LİSTEYE AL (24s Değişim <= %3.5)
+            if vol >= min_24h_quote_vol and last_p > 0 and (-6.0 <= chg <= max_24h_req):
                 target_tickers.append(t)
         
-        # Hacmi en dinamik adayları seç (Tüm sıcak altcoinleri kapsayacak şekilde 250 parite)
-        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:250]
+        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:150]
         
         from exchange import get_live_usd_try_rate
         live_fx = get_live_usd_try_rate() or 38.5
         min_vol = min_vol_req if quote_upper == "USDT" else (min_vol_req * live_fx)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
             futures = [executor.submit(_evaluate_candidate, c, min_vol, max_24h_req) for c in candidates]
             for f in concurrent.futures.as_completed(futures):
                 res = f.result()
@@ -176,41 +196,7 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
                     breakouts.append(res)
                     
     except Exception as e:
-        print(f"⚠️ Erken Hacim Dedektörü Uyarısı: {e}")
+        print(f"⚠️ Erken Dip Dedektörü Uyarısı: {e}")
         
     breakouts = sorted(breakouts, key=lambda x: x["volume_spike_ratio"], reverse=True)
     return breakouts[:10]
-
-def fetch_top_volume_gainers(limit: int = 15) -> List[Dict[str, Any]]:
-    """Binance 24s hacimli ve primli çiftleri çeker."""
-    try:
-        r = requests.get("https://api.binance.com/api/v3/ticker/24hr", timeout=4)
-        if r.status_code == 200:
-            tickers = r.json()
-            valid = []
-            for t in tickers:
-                sym = t.get("symbol", "")
-                if sym.endswith("USDT") and not any(sym.startswith(x) for x in ["USDC", "FDUSD", "EUR", "BUSD", "TUSD", "UP", "DOWN"]):
-                    chg = float(t.get("priceChangePercent", 0.0))
-                    vol = float(t.get("quoteVolume", 0.0))
-                    if vol > 500000.0 and -3.0 <= chg <= 8.5:
-                        valid.append({
-                            "symbol": f"{sym[:-4]}/USDT",
-                            "last_price": float(t.get("lastPrice", 1.0)),
-                            "price_change_24h": chg,
-                            "volume": vol,
-                            "momentum_score": min(9.0, 6.0 + (chg / 2.0))
-                        })
-            valid.sort(key=lambda x: x["price_change_24h"], reverse=True)
-            return valid[:limit]
-    except Exception:
-        pass
-    return []
-
-if __name__ == "__main__":
-    t0 = time.time()
-    results = detect_early_volume_breakouts()
-    t1 = time.time()
-    print(f"Tarama tamamlandi ({t1-t0:.2f} sn). Toplam {len(results)} Erken Hacim Patlamasi:")
-    for b in results:
-        print(f"• {b['symbol']}: Fiyat=${b['price']} | 5dk Degisim=+%{b['price_change_5m']}% | Hacim={b['volume_spike_ratio']}x (${b['recent_5m_volume_usd']:,.0f})")
