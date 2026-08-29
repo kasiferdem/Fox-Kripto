@@ -42,14 +42,14 @@ def calculate_rsi(prices: List[float], period: int = 14) -> float:
 _last_market_regime = None
 _last_market_regime_ts = 0
 
-def check_market_regime() -> Dict[str, Any]:
+def check_market_regime(is_scalp: bool = False) -> Dict[str, Any]:
     """
     BTC/USDT 1 Saatlik Mum Verileri Üzerinden Piyasa Rejimini Denetler.
-    BTC EMA(200) altında ise, RSI < 42 ise veya sert düşüş trendindeyse piyasa 'BEARISH' kabul edilir.
+    Scalp modunda daha esnek (RSI < 36), Balina Avı modunda katı (RSI < 42) koruma uygular.
     """
     global _last_market_regime, _last_market_regime_ts
     now = time.time()
-    if _last_market_regime and (now - _last_market_regime_ts < 120):
+    if _last_market_regime and (now - _last_market_regime_ts < 60) and not is_scalp:
         return _last_market_regime
 
     endpoints = [
@@ -82,12 +82,14 @@ def check_market_regime() -> Dict[str, Any]:
         ema200 = calculate_ema(close_prices, 200)
         btc_rsi = calculate_rsi(close_prices, 14)
         
-        # 1. EMA200 Kontrolü: Fiyat EMA200'ün altında veya zayıfsa ayı rejimidir
-        is_below_ema200 = current_btc_price < (ema200 * 0.99)
+        # 1. EMA200 Kontrolü: Scalp modunda %97'ye kadar izin verir, Balina modunda %99
+        ema_multiplier = 0.97 if is_scalp else 0.99
+        is_below_ema200 = current_btc_price < (ema200 * ema_multiplier)
         
         # 2. Son 4 saatlik BTC sert düşüş kontrolü (4 mum aralığı)
+        dump_thresh = -2.5 if is_scalp else -1.8
         recent_4h_change = ((close_prices[-1] - close_prices[-5]) / close_prices[-5]) * 100.0 if len(close_prices) >= 5 else 0.0
-        is_dumping = recent_4h_change < -1.8
+        is_dumping = recent_4h_change < dump_thresh
 
         # 3. Kısa Vadeli Fırtına Kalkanı: BTC 15 Dakikalık Ani Mum Çöküş Kontrolü
         is_15m_dumping = False
@@ -100,21 +102,22 @@ def check_market_regime() -> Dict[str, Any]:
                     c15_last = float(d_15m[-1][4])
                     c15_prev = float(d_15m[-3][1]) # 30 dk önceki açılış
                     pct_15m = ((c15_last - c15_prev) / c15_prev) * 100.0
-                    if pct_15m < -1.0:
+                    if pct_15m < -1.2:
                         is_15m_dumping = True
         except Exception:
             pass
             
-        # 4. RSI Zayıflık Filtresi (BTC 1S RSI < 42 ise sahte kırılımlar çok fazladır)
-        is_rsi_weak = btc_rsi < 42.0
+        # 4. RSI Zayıflık Filtresi
+        rsi_floor = 36.0 if is_scalp else 42.0
+        is_rsi_weak = btc_rsi < rsi_floor
         
         if is_below_ema200 or is_dumping or is_15m_dumping or is_rsi_weak:
             if is_15m_dumping:
-                reason = "BTC son 30 dakikada ani fırtına düşüşü (-%1.0+) başlattı (Fırtına Kalkanı Aktif)"
+                reason = "BTC son 30 dakikada ani fırtına düşüşü (-%1.2+) başlattı (Fırtına Kalkanı Aktif)"
             elif is_below_ema200:
                 reason = f"BTC (${current_btc_price:,.0f}) EMA200 (${ema200:,.0f}) altında (Ayı Rejimi)"
             elif is_rsi_weak:
-                reason = f"BTC 1S RSI ({btc_rsi:.1f}) kritik eşiğin (<42) altında; sahte kırılım riski yüksek (Nakit Koruması)"
+                reason = f"BTC 1S RSI ({btc_rsi:.1f}) kritik eşiğin (<{rsi_floor}) altında; sahte kırılım riski yüksek (Nakit Koruması)"
             else:
                 reason = f"BTC son 4 saatte %{recent_4h_change:.1f} sert düştü"
 

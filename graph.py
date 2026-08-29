@@ -59,19 +59,31 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
             
         # V2 Çok Boyutlu Değerlendirme
         try:
-            ticker_dict = {"symbol": c_sym, "lastPrice": c.get("last_price", 1.0), "quoteVolume": c.get("volume", 50000.0), "priceChangePercent": c.get("gain_24h", 2.0)}
+            p_val = float(c.get("price", c.get("last_price", 1.0)) or 1.0)
+            v5m_val = float(c.get("recent_5m_volume_usd", 25000.0) or 25000.0)
+            g24_val = float(c.get("price_change_24h", c.get("gain_24h", 2.0)) or 2.0)
+            ticker_dict = {
+                "symbol": c_sym,
+                "lastPrice": p_val,
+                "quoteVolume": v5m_val * 288.0,
+                "recent_5m_volume_usd": v5m_val,
+                "priceChangePercent": g24_val,
+                "volume_spike_ratio": float(c.get("volume_spike_ratio", 2.0) or 2.0),
+                "momentum_score": float(c.get("momentum_score", 8.0) or 8.0)
+            }
             if is_scalp:
                 eval_res = engine.evaluate_ticker_data(ticker_dict)
             else:
                 eval_res = engine.evaluate_whale_signal(ticker_dict)
             
             c["v2_evaluation"] = eval_res
-            c["v2_score"] = eval_res.get("final_score", 8.0)
-            if eval_res.get("status") in ["READY", "WAITING_CONFIRMATION"]:
+            c["v2_score"] = float(eval_res.get("final_score") or c.get("momentum_score", 8.0))
+            is_candidate_ok = (eval_res.get("status") in ["READY", "WAITING_CONFIRMATION"]) or (is_scalp and (c.get("momentum_score", 0) >= 6.5 or c["v2_score"] >= 7.0))
+            if is_candidate_ok:
                 clean_candidates.append(c)
-                print(f"   🐋 [V2 Teyit Başarılı]: {c_sym} -> Skor: {c['v2_score']}/10 ({eval_res.get('status')})")
+                print(f"   🐋 [V2 Teyit Başarılı]: {c_sym} -> Skor: {c['v2_score']:.1f}/10 ({eval_res.get('status')})")
             else:
-                print(f"   ⚠️ [V2 Filtre]: {c_sym} -> {eval_res.get('status')} (Skor: {c['v2_score']}/10)")
+                print(f"   ⚠️ [V2 Filtre]: {c_sym} -> {eval_res.get('status')} (Skor: {c['v2_score']:.1f}/10)")
         except Exception as e_v2:
             clean_candidates.append(c)
         
@@ -364,7 +376,10 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         print("   🛑 [Politika Kontrolü]: GLM-5.2 teknik onay vermedi, işlem reddedildi.")
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
         
-    regime = check_market_regime()
+    from db import get_strategy_config
+    strat_cfg = get_strategy_config(use_cache=True)
+    is_scalp_mode = "scalp" in str(strat_cfg.get("active_preset", "")).lower()
+    regime = check_market_regime(is_scalp=is_scalp_mode)
     if shield_active and not regime.get("is_bullish"):
         print(f"   🛑 [BTC Rejim Kalkanı]: {regime.get('reason')} - Yeni alım durduruldu.")
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
