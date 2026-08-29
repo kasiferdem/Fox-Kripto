@@ -45,9 +45,19 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
     
     from v2_scalping_engine import V2ScalpingEngine
     from v2_whale_engine import V2WhaleHuntingEngine
+    from circuit_breaker import check_tenant_circuit_breakers
     
+    # Devre Kesici Kontrolü (Circuit Breaker Gate)
+    existing_holdings = state.get("portfolio_state", {}).get("holdings_details") or {}
+    active_coins_count = len([k for k, v in existing_holdings.items() if str(k).upper() not in ["USDT", "TRY", "BNB", "USDC", "FDUSD"] and (isinstance(v, dict) and v.get("val_usd", 0) > 5.0)]) if isinstance(existing_holdings, dict) else 0
+    cb_check = check_tenant_circuit_breakers(tenant_id=tenant_id, current_active_positions_count=active_coins_count)
+    if not cb_check.get("passed"):
+        print(f"   {cb_check.get('message')}")
+        return {"filtered_candidates": []}
+
     is_scalp = "scalp" in active_preset
-    engine = V2ScalpingEngine(risk_level="BALANCED", custom_params=strat_cfg) if is_scalp else V2WhaleHuntingEngine(risk_level="BALANCED", custom_params=strat_cfg)
+    scalp_engine = V2ScalpingEngine(custom_params=strat_cfg)
+    whale_engine = V2WhaleHuntingEngine(custom_params=strat_cfg)
 
     clean_candidates = []
     for c in raw_candidates:
@@ -57,7 +67,7 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
             print(f"   ⏳ [Soğuma Kilidi]: {c_base} son işlem sonrası dinlenmede, elendi.")
             continue
             
-        # V2 Çok Boyutlu Değerlendirme
+        # V2.3 Çok Boyutlu Değerlendirme
         try:
             p_val = float(c.get("price", c.get("last_price", 1.0)) or 1.0)
             v5m_val = float(c.get("recent_5m_volume_usd", 25000.0) or 25000.0)
@@ -72,22 +82,25 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
                 "momentum_score": float(c.get("momentum_score", 8.0) or 8.0)
             }
             if is_scalp:
-                eval_res = engine.evaluate_ticker_data(ticker_dict)
+                eval_res = scalp_engine.evaluate_candidate(ticker_dict)
+                is_candidate_ok = eval_res.get("is_ready") or (eval_res.get("state_machine_stage") == "READY")
+                c["v2_score"] = float(eval_res.get("strategy_score") or 8.0)
             else:
-                eval_res = engine.evaluate_whale_signal(ticker_dict)
+                eval_res = whale_engine.evaluate_whale_evidence(ticker_dict)
+                is_candidate_ok = eval_res.get("is_whale_confirmed") or (eval_res.get("total_evidence_score", 0) >= 7.5)
+                c["v2_score"] = float(eval_res.get("total_evidence_score") or 8.0)
             
             c["v2_evaluation"] = eval_res
-            c["v2_score"] = float(eval_res.get("final_score") or c.get("momentum_score", 8.0))
-            is_candidate_ok = (eval_res.get("status") in ["READY", "WAITING_CONFIRMATION"]) or (is_scalp and (c.get("momentum_score", 0) >= 6.5 or c["v2_score"] >= 7.0))
             if is_candidate_ok:
                 clean_candidates.append(c)
-                print(f"   🐋 [V2 Teyit Başarılı]: {c_sym} -> Skor: {c['v2_score']:.1f}/10 ({eval_res.get('status')})")
+                print(f"   🐋 [V2.3 Teyit Başarılı]: {c_sym} -> Skor: {c['v2_score']:.1f}/10 (Durum: READY)")
             else:
-                print(f"   ⚠️ [V2 Filtre]: {c_sym} -> {eval_res.get('status')} (Skor: {c['v2_score']:.1f}/10)")
+                stage_str = eval_res.get("state_machine_stage", "REJECTED")
+                print(f"   ⚠️ [V2.3 Filtre]: {c_sym} -> {stage_str} (Skor: {c['v2_score']:.1f}/10)")
         except Exception as e_v2:
             clean_candidates.append(c)
         
-    print(f"   [V2 Ön Filtre Sonucu]: {len(clean_candidates)} adet aday coin teknik heyete gönderildi.")
+    print(f"   [V2.3 Ön Filtre Sonucu]: {len(clean_candidates)} adet aday coin teknik heyete gönderildi.")
     return {"filtered_candidates": clean_candidates}
 
 def node_gemini_news_report(state: CryptoAgentState) -> Dict[str, Any]:
@@ -413,9 +426,9 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     cfg_max_pct = float(strat_cfg.get("max_budget_percent") or 25.0)
     user_max_pct = float(tenant_config.get("max_budget_percent") or cfg_max_pct)
     
-    # Hedef slot sayısı bütçe yüzdesine göre dinamik belirlenir (%33 -> 3 slot, %25 -> 4 slot, %15 -> 6 slot)
+    # Hedef slot sayısı bütçe yüzdesine göre dinamik belirlenir (V2.3 kuralı: En fazla 2 odaklı slot)
     calculated_slots = max(1, int(100.0 / user_max_pct))
-    target_slots = max(calculated_slots, 1) if shield_active else max(1, adaptive_slots)
+    target_slots = min(2, max(calculated_slots, 1)) if shield_active else min(2, max(1, adaptive_slots))
     
     # Aktif açık pozisyon sayısını say ve slot doluluğunu denetle
     if isinstance(existing_holdings, dict):

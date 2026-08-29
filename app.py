@@ -508,7 +508,13 @@ class StrategyConfigRequest(BaseModel):
 # -----------------------------------------
 @app_api.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "Fox-Kripto Multi-Tenant Dashboard", "version": "2.1.0-explain-trade"}
+    return {
+        "status": "healthy",
+        "service": "Fox-Kripto Multi-Tenant Dashboard",
+        "version": "v2.3.0-safe-scalping-whale-engine",
+        "engine_architecture": "V2.3_SAFE_SCALPING_AND_TRUE_WHALE_ENGINE",
+        "timestamp": int(time.time())
+    }
 
 @app_api.get("/api/settings", dependencies=[Depends(authenticate_admin)])
 def get_settings_endpoint():

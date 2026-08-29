@@ -1,101 +1,112 @@
+"""
+Fox-Kripto V2.3 — Devre Kesiciler ve Cooldown Motoru (Circuit Breaker Engine)
+Telif Hakkı (c) 2026 Fox-Kripto Quant Ekibi.
+
+Günlük kayıp limiti, ardışık zarar, maksimum işlem sayısı ve soğuma (cooldown) sürelerini
+kesintisiz denetler. Eşik aşıldığında sistemi güvenli SIGNAL_ONLY moduna düşürür.
+"""
+
 import time
-from typing import Dict, Any, Optional
-from db import get_supabase
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone, timedelta
 
-def get_adaptive_max_slots(total_portfolio_usd: float) -> int:
-    """
-    Kasa büyüklüğüne göre dinamik ve matematiksel olarak en optimal slot sayısını hesaplar:
-    • Kasa < $300 (₺10.000 altı)    : Maksimum 3 Slot ($25 - $100 / pozisyon) -> Sermaye bölünmez, kâr hissedilir.
-    • $300 - $1.000 (₺10.000 - ₺35.000): Maksimum 5 Slot ($60 - $200 / pozisyon) -> Dengeli çeşitlilik.
-    • Kasa >= $1.000 (₺35.000 üzeri) : Maksimum 7 Slot ($150 - $350 / pozisyon) -> Kurumsal portföy dağılımı.
-    """
-    if total_portfolio_usd < 300.0:
-        return 3
-    elif total_portfolio_usd < 1000.0:
-        return 5
-    else:
-        return 7
-
-def check_circuit_breaker(
+def check_tenant_circuit_breakers(
     tenant_id: str,
-    open_positions_count: int,
-    max_concurrent_positions: int = 3,
-    max_daily_loss_percent: float = 3.0
+    exchange_id: str = "binance",
+    daily_loss_limit_pct: float = 1.0,
+    max_consecutive_losses: int = 2,
+    post_stop_cooldown_minutes: int = 90,
+    max_daily_trades: int = 3,
+    max_concurrent_positions: int = 2,
+    current_active_positions_count: int = 0
 ) -> Dict[str, Any]:
     """
-    Devre Kesici (Circuit Breaker) ve Portföy Risk Limiti Denetimi:
-    1. Dinamik Eşzamanlı Pozisyon Sayısı (Küçük kasada 3, büyük kasada 5-7 slot)
-    2. Ardışık Stop Kilidi (Son 2 saatte 3 ardışık zarar varsa 1 saat kilit)
-    3. Günlük Maksimum Zarar Sınırı (%3.0 kümülatif kayıp)
-    Tüm kontroller tenant_id bazında kesin yalıtımla çalışır.
+    Kullanıcının canlı işlem geçmişini ve açık risklerini tarayarak
+    tüm devre kesicileri kontrol eder.
     """
-    # 1. Maksimum Eşzamanlı Pozisyon Sınırı (Kasanın aşırı dağılmasını engeller)
-    if open_positions_count >= max_concurrent_positions:
-        return {
-            "allowed": False,
-            "reason": f"Maksimum açık pozisyon sınırına ({open_positions_count}/{max_concurrent_positions} slot) ulaşıldı. Kasa güvenliği ve kâr yoğunluğu için yeni pozisyon açılmaz."
-        }
-        
-    client = get_supabase()
-    if not client or not tenant_id:
-        return {"allowed": True, "reason": "Devre kesici izni verildi."}
-        
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    
     try:
-        now_ts = time.time()
-        # 2. Son 2 saatlik işlemleri sorgula (Ardışık Stop Kontrolü)
-        two_hours_ago = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(now_ts - 7200))
-        res_recent = client.table("crypto_trade_logs")\
-            .select("direction,status,execution_details,created_at")\
-            .gte("created_at", two_hours_ago)\
+        from db import get_supabase
+        client = get_supabase()
+        if not client:
+            return {"passed": True, "reason": "DB_UNAVAILABLE_FALLBACK"}
+            
+        # 1. Bugünün işlemlerini çek
+        trades_res = client.table("crypto_trade_logs")\
+            .select("*")\
+            .gte("created_at", today_start)\
             .order("created_at", desc=True)\
-            .limit(20)\
             .execute()
             
-        logs_recent = res_recent.data or []
-        consecutive_stops = 0
-        for log in logs_recent:
-            det = log.get("execution_details") or {}
-            log_tid = str(log.get("tenant_id") or det.get("tenant_id") or "")
-            if tenant_id and log_tid and log_tid != str(tenant_id):
-                continue
-            if tenant_id and not log_tid and tenant_id.startswith("test_"):
-                continue
-            reason = str(det.get("reason_type", "")).lower()
-            if "stop-loss" in reason or "stop" in reason:
-                consecutive_stops += 1
-            elif "take-profit" in reason or "kâr" in reason:
-                break
-                
-        if consecutive_stops >= 3:
-            return {
-                "allowed": False,
-                "reason": "🚨 [Devre Kesici Tetiklendi]: Son 2 saatte 3 ardışık Stop-Loss gerçekleşti. Sistem kasa koruma modunda dinlendiriliyor."
-            }
-
-        # 3. Son 24 saatlik Kümülatif Günlük Zarar Limiti (%3.0)
-        one_day_ago = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(now_ts - 86400))
-        res_day = client.table("crypto_trade_logs")\
-            .select("direction,status,execution_details,created_at")\
-            .gte("created_at", one_day_ago)\
-            .execute()
-            
-        logs_day = res_day.data or []
-        daily_pnl_pct = 0.0
-        for log in logs_day:
-            det = log.get("execution_details") or {}
-            log_tid = str(log.get("tenant_id") or det.get("tenant_id") or "")
-            if tenant_id and log_tid and log_tid != str(tenant_id):
-                continue
-            pnl_val = float(det.get("net_profit_pct") or det.get("pnl_percent") or 0.0)
-            daily_pnl_pct += pnl_val
-            
-        if daily_pnl_pct <= -max_daily_loss_percent:
-            return {
-                "allowed": False,
-                "reason": f"🛑 [Günlük Zarar Limiti Devreye Girdi]: Son 24 saatlik net zarar %{daily_pnl_pct:.2f} (Azami limit: %{max_daily_loss_percent:.1f}). Kasa güvenliği için alımlar durduruldu."
-            }
-
-    except Exception as e:
-        print(f"⚠️ [Circuit Breaker Kontrol Uyarısı]: {e}")
+        today_trades = trades_res.data or []
         
-    return {"allowed": True, "reason": "Risk limitleri uygun."}
+        # 2. Günlük Toplam İşlem Sayısı Denetimi
+        daily_executed_count = len([t for t in today_trades if t.get("direction") == "BUY"])
+        if daily_executed_count >= max_daily_trades:
+            return {
+                "passed": False,
+                "circuit_breaker": "MAX_DAILY_TRADES_EXCEEDED",
+                "message": f"🛑 [Devre Kesici]: Günlük azami işlem kotası ({daily_executed_count}/{max_daily_trades}) doldu."
+            }
+            
+        # 3. Maksimum Eşzamanlı Açık Pozisyon Denetimi
+        if current_active_positions_count >= max_concurrent_positions:
+            return {
+                "passed": False,
+                "circuit_breaker": "MAX_CONCURRENT_POSITIONS_FULL",
+                "message": f"🛑 [Devre Kesici]: Eşzamanlı açık pozisyon slotları dolu ({current_active_positions_count}/{max_concurrent_positions})."
+            }
+            
+        # 4. Son İşlemlerdeki Ardışık Zarar ve Cooldown Denetimi
+        recent_sells = [t for t in today_trades if t.get("direction") == "SELL"]
+        consecutive_losses = 0
+        last_stop_time = None
+        
+        for sell in recent_sells:
+            det = sell.get("execution_details") or {}
+            pnl_pct = float(det.get("realized_pnl_pct", 0.0)) or float(det.get("net_profit_pct", 0.0))
+            if pnl_pct < -0.20:
+                consecutive_losses += 1
+                if not last_stop_time:
+                    last_stop_time = sell.get("created_at")
+            else:
+                break # Kârlı satış görünce seriyi kır
+                
+        if consecutive_losses >= max_consecutive_losses:
+            # Cooldown kontrolü
+            if last_stop_time:
+                try:
+                    last_stop_dt = datetime.fromisoformat(last_stop_time.replace("Z", "+00:00"))
+                    elapsed_min = (now - last_stop_dt).total_seconds() / 60.0
+                    if elapsed_min < post_stop_cooldown_minutes:
+                        remaining_min = int(post_stop_cooldown_minutes - elapsed_min)
+                        return {
+                            "passed": False,
+                            "circuit_breaker": "CONSECUTIVE_LOSS_COOLDOWN_ACTIVE",
+                            "message": f"🛑 [Devre Kesici]: {consecutive_losses} ardışık stop sonrası soğuma devrede. Kalan süre: {remaining_min} dakika."
+                        }
+                except Exception:
+                    pass
+                    
+    except Exception as e:
+        print(f"⚠️ Circuit Breaker DB Uyarısı: {e}")
+        
+    return {
+        "passed": True,
+        "circuit_breaker": "NONE",
+        "message": "Tüm devre kesici ve risk kapıları açık."
+    }
+
+def get_adaptive_max_slots(total_equity_usd: float = 200.0, user_max_budget_pct: float = 50.0) -> int:
+    """
+    V2.3 Şartnamesi gereği portföy büyüklüğü ve risk tavanına göre dinamik slot sayısı döner (Maksimum 2 slot).
+    """
+    if total_equity_usd <= 0:
+        return 1
+    if user_max_budget_pct >= 50.0:
+        return 2
+    calculated = max(1, int(100.0 / user_max_budget_pct))
+    return min(2, calculated)
+
