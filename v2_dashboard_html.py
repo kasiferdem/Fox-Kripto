@@ -542,7 +542,7 @@ def generate_v2_dashboard_html(
           <span style="color: var(--fox-flame); font-weight: 800; font-size: 16px;">🦊</span>
         </div>
         <div>
-          <div class="brand-title">Fox-Kripto <span class="badge badge-info" style="margin-left: 4px;" data-i18n="brand_sub">V2.2 Quant</span></div>
+          <div class="brand-title">Fox-Kripto <span class="badge badge-info" style="margin-left: 4px;" data-i18n="brand_sub">V2.3 Quant</span></div>
         </div>
       </div>
 
@@ -602,7 +602,10 @@ def generate_v2_dashboard_html(
         <button id="pill-bal" class="{pill_bal_cls}" onclick="switchRisk('BALANCED')" data-i18n="prof_bal">Dengeli (Önerilen)</button>
         <button id="pill-def" class="{pill_def_cls}" onclick="switchRisk('DEFENSIVE')" data-i18n="prof_def">Defansif</button>
         <button id="pill-cus" class="{pill_cus_cls}" onclick="switchRisk('CUSTOM')" data-i18n="prof_cus">Özel Ayarlar</button>
-        <button class="btn btn-sm btn-primary" onclick="saveV2Strategy()" style="margin-left: auto;" data-i18n="save_btn">💾 Kaydet & Canlıya Al</button>
+        <div style="margin-left: auto; display: flex; gap: 8px;">
+          <button class="btn btn-sm btn-ghost" onclick="saveV2Strategy('DRAFT')">💾 Taslak Kaydet</button>
+          <button class="btn btn-sm btn-primary" onclick="saveV2Strategy('LIVE')">🚀 Canlıya Al (V2.3)</button>
+        </div>
       </div>
 
       <!-- 8 Parametreli İnce Ayar Alanı -->
@@ -770,7 +773,7 @@ def generate_v2_dashboard_html(
 
     const I18N = {{
       tr: {{
-        brand_sub: "V2.2 Quant",
+        brand_sub: "V2.3 Quant",
         v1_link: "🏛️ V1 Klasik",
         v2_link: "⚡ V2 Quant",
         theme_btn: "🌓 Tema",
@@ -788,7 +791,7 @@ def generate_v2_dashboard_html(
         prof_bal: "Dengeli (Önerilen)",
         prof_def: "Defansif",
         prof_cus: "Özel Ayarlar",
-        save_btn: "💾 Kaydet & Canlıya Al",
+        save_btn: "🚀 Canlıya Al (V2.3)",
         p_vol: "Min 5dk Hacim ($ USD)",
         p_spike: "Hacim Patlama Çarpanı (x)",
         p_gain: "Maks 24s Prim Limiti (%)",
@@ -797,17 +800,17 @@ def generate_v2_dashboard_html(
         p_tp: "Hedef Kâr Al (%)",
         p_sl: "Zarar Kes Stop (%)",
         p_cb: "Trailing Çekilme Payı (%)",
-        audit_title: "10 Kurumsal Teyit Matrisi (The Golden Whale Matrix):",
-        a1: "✓ 1. Spot Hacim Patlaması (>1.8x)",
+        audit_title: "V2.3 Çoklu Kanıt ve Risk Doğrulama Matrisi:",
+        a1: "✓ 1. Spot Hacim Patlaması (>1.4x)",
         a2: "✓ 2. Vadeli Açık Faiz (OI Girişi)",
-        a3: "✓ 3. Funding Sıkışma Filtresi (<%0.10)",
+        a3: "✓ 3. Funding Sıkışma Filtresi (<%0.05)",
         a4: "✓ 4. Alış Duvarı Desteği (>60s)",
-        a5: "✓ 5. Taker Alıcı Baskısı (>%62)",
+        a5: "✓ 5. Taker Alıcı Baskısı (>%58)",
         a6: "✓ 6. VWAP / Retest Taban Onayı",
-        a7: "✓ 7. 24s Primsiz Giriş Limiti",
-        a8: "✓ 8. Düşük Spread (<%0.20)",
+        a7: "✓ 7. 24s Primsiz Giriş Limiti (<%3.5)",
+        a8: "✓ 8. Düşük Spread (<%0.25)",
         a9: "✓ 9. Düşük Fitil (Anti-FOMO)",
-        a10: "✓ 10. GLM + Gemini AI Onayı",
+        a10: "✓ 10. Net R/R Maliyet Kapısı (>=1.25)",
         users_title: "Kayıtlı Portföyler & Hesaplar",
         users_sub: "Canlı cüzdan ve açık pozisyonları görmek için kullanıcının üzerine tıklayın.",
         th_user: "Kullanıcı",
@@ -839,7 +842,7 @@ def generate_v2_dashboard_html(
         m_holdings_label: "Açık Pozisyonlar & Varlıklar:"
       }},
       en: {{
-        brand_sub: "V2.2 Quant",
+        brand_sub: "V2.3 Quant",
         v1_link: "🏛️ V1 Classic",
         v2_link: "⚡ V2 Quant",
         theme_btn: "🌓 Theme",
