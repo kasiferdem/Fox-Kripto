@@ -1055,18 +1055,24 @@ def generate_v2_dashboard_html(
         return;
       }}
       try {{
+        function getVal(id1, id2, fallback) {{
+          const el = document.getElementById(id1) || document.getElementById(id2);
+          if (!el || el.value === '' || isNaN(parseFloat(el.value))) return fallback;
+          return parseFloat(el.value);
+        }}
+
         const payload = {{
-          active_preset: currentEngine.toLowerCase() + '_' + currentRisk.toLowerCase(),
-          min_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 25000,
-          volume_spike_multiplier: parseFloat(document.getElementById('param_volume_spike').value) || 1.4,
-          max_recent_gain_24h: parseFloat(document.getElementById('param_max_gain_24h').value) || 3.5,
-          min_ai_score: parseFloat(document.getElementById('param_min_ai_score').value) || 7.5,
-          max_budget_percent: parseFloat(document.getElementById('param_max_budget').value) || 50.0,
-          max_concurrent_positions: parseInt(document.getElementById('param_max_positions').value) || 2,
-          take_profit_pct: parseFloat(document.getElementById('param_tp_pct').value) || 2.4,
-          stop_loss_pct: parseFloat(document.getElementById('param_sl_pct').value) || 1.0,
-          trailing_callback_pct: parseFloat(document.getElementById('param_trailing_callback').value) || 0.5,
-          min_5m_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 25000,
+          active_preset: (currentEngine || 'VOLUME_SCALPING').toLowerCase() + '_' + (currentRisk || 'BALANCED').toLowerCase(),
+          min_volume_usd: getVal('param_min_volume_usd', 'p_vol', 25000),
+          volume_spike_multiplier: getVal('param_volume_spike', 'p_spike', 1.4),
+          max_recent_gain_24h: getVal('param_max_gain_24h', 'p_gain', 3.5),
+          min_ai_score: getVal('param_min_ai_score', 'p_score', 7.5),
+          max_budget_percent: getVal('param_max_budget', 'p_budget', 50.0),
+          max_concurrent_positions: parseInt(getVal('param_max_positions', 'p_slots', 2)),
+          take_profit_pct: getVal('param_tp_pct', 'p_tp', 2.4),
+          stop_loss_pct: getVal('param_sl_pct', 'p_sl', 1.0),
+          trailing_callback_pct: getVal('param_trailing_callback', 'p_cb', 0.5),
+          min_5m_volume_usd: getVal('param_min_volume_usd', 'p_vol', 25000),
           require_futures_oi: true
         }};
 
