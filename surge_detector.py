@@ -50,8 +50,8 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     price_change_24h = float(cand.get("priceChangePercent", 0.0))
     quote_volume_24h = float(cand.get("quoteVolume", 0.0))
     
-    # 🔒 KATI LİKİDİTE VE BALİNA EŞİĞİ: 24s Hacmi $1,500,000 USD altındaki sığ tahtalı coinler ASLA ALINMAZ!
-    if quote_volume_24h < 1500000.0:
+    # 🔒 KATI LİKİDİTE VE BALİNA EŞİĞİ (min24hQuoteVolumeUsd: $5,000,000 USD)
+    if quote_volume_24h < 5000000.0:
         return None
         
     # 🔒 KATI ERKEN DİP TAVANI: 24 saatlik primi %3.5'ten fazla olan coinler ASLA ALINMAZ!
@@ -87,22 +87,22 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     tb_recent = sum(float(k.get("taker_buy_quote_volume", 0.0)) for k in recent_3)
     taker_buy_ratio = (tb_recent / v_recent * 100.0) if v_recent > 0 else 0.0
 
-    # 🛡️ MATEMATİKSEL ERKEN DİP GİRİŞ FİLTRELERİ:
-    # 1. 24s Değişim <= %3.5 (Dipte olmalı)
-    # 2. 3dk Erken Yükseliş: +%0.20 ile +%2.20 arasında (Hareketin henüz ilk başlangıcı)
-    # 3. Hacim Patlama Çarpanı >= 1.4x
-    # 4. 3dk Toplam Hacim >= $10,000 USD
-    # 5. Taker Alıcı Baskısı >= %55.0
-    # 6. Üst Fitil <= 0.35 (Tepe satıcı reddi yok)
+    # 🛡️ KULLANICI ŞARTNAMESİ GİRİŞ FİLTRELERİ:
+    # 1. 24s Hacim >= $5,000,000 USD
+    # 2. 5dk / 3dk Hacim >= $50,000 USD
+    # 3. Hacim Patlama Çarpanı >= 2.4x
+    # 4. 3dk Erken Yükseliş / Chase Limiti: +%0.20 ile +%1.80 arasında (maxEntryChasePct: 0.4%)
+    # 5. Taker Alıcı Baskısı >= %58.0
+    # 6. Üst Fitil <= 0.30 (İlk pump tepesinde kilitlenme yok)
     if (
-        volume_spike_ratio >= 1.40 and
-        v_recent >= 10000.0 and
-        (0.20 <= gain_3m <= 2.20) and
-        upper_wick_ratio <= 0.35 and
-        taker_buy_ratio >= 55.0 and
+        volume_spike_ratio >= 2.40 and
+        v_recent >= 50000.0 and
+        (0.20 <= gain_3m <= 1.80) and
+        upper_wick_ratio <= 0.30 and
+        taker_buy_ratio >= 58.0 and
         (-6.0 <= price_change_24h <= effective_max_gain)
     ):
-        momentum_score = min(10.0, round(6.5 + (volume_spike_ratio * 0.4) + (gain_3m * 0.5) + (taker_buy_ratio / 100.0 * 1.5), 1))
+        momentum_score = min(10.0, round(7.0 + (volume_spike_ratio * 0.4) + (gain_3m * 0.5) + (taker_buy_ratio / 100.0 * 1.5), 1))
         clean_base = sym.replace("USDT", "").replace("TRY", "")
         quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
         return {
