@@ -356,21 +356,21 @@
     <section class="card">
       <div class="card-header">
         <div>
-          <div class="card-title" id="engine-title">1. Hacim Scalping Motoru</div>
+          <div class="card-title" id="engine-title">2. Gerçek Balina Avı Motoru</div>
           <p style="font-size: 12.5px; color: var(--ink-3); margin-top: 2px;" data-i18n="engine_card_sub">Piyasa rejimine uygun otonom işlem stratejisi ve risk profili.</p>
         </div>
-        <span class="badge badge-ok" id="badge-engine">🟢 ⚡ Hacim Scalping · v2.3 CANLI AKTİF</span>
+        <span class="badge badge-ok" id="badge-engine">🟢 🐋 Balina Avı · v2.3 CANLI AKTİF</span>
       </div>
 
       <div class="engine-grid">
-        <div class="engine-btn active" id="btn-engine-scalp" onclick="selectEngine('SCALP', this)">
+        <div class="engine-btn" id="btn-engine-scalp" onclick="selectEngine('SCALP', this)">
           <div>
             <b data-i18n="engine_scalp_name">1. Hacim Scalping Motoru</b>
             <span data-i18n="engine_scalp_desc">1m/3m/5m Hızlı momentum ve mikro-kırılımlar.</span>
           </div>
           <span class="badge badge-info" data-i18n="badge_high_freq">Yüksek Frekans</span>
         </div>
-        <div class="engine-btn" id="btn-engine-whale" onclick="selectEngine('WHALE', this)">
+        <div class="engine-btn active" id="btn-engine-whale" onclick="selectEngine('WHALE', this)">
           <div>
             <b data-i18n="engine_whale_name">2. Gerçek Balina Avı Motoru</b>
             <span data-i18n="engine_whale_desc">Spot + Vadeli Açık Faiz (OI) ve derinlik teyidi.</span>
@@ -745,7 +745,7 @@
       document.documentElement.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
     }
 
-    let currentEngine = 'VOLUME_SCALPING';
+    let currentEngine = 'WHALE_HUNTING';
     let currentRisk = 'BALANCED';
 
     const PRESETS = {
