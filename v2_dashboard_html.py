@@ -41,6 +41,7 @@ def generate_v2_dashboard_html(
     max_gain = float(strategy_config.get("max_recent_gain_24h", 12.0))
     ai_score = float(strategy_config.get("min_ai_score", 7.5 if is_scalp else 8.0))
     max_budget = float(strategy_config.get("max_budget_percent", 25.0))
+    max_positions = int(strategy_config.get("max_concurrent_positions", 2))
     tp_pct = float(strategy_config.get("take_profit_pct", 2.0 if is_scalp else 3.0))
     sl_pct = float(strategy_config.get("stop_loss_pct", 1.2 if is_scalp else 1.5))
     cb_pct = float(strategy_config.get("trailing_callback_pct", 0.5 if is_scalp else 0.6))
@@ -608,22 +609,22 @@ def generate_v2_dashboard_html(
         </div>
       </div>
 
-      <!-- 8 Parametreli İnce Ayar Alanı -->
-      <div class="param-grid">
+      <!-- 9 Parametreli İnce Ayar Alanı -->
+      <div class="param-grid" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));">
         <div class="param-box">
-          <label data-i18n="p_vol">Min 5dk Hacim ($ USD)</label>
+          <label data-i18n="p_vol">Min 5dk Hacim ($)</label>
           <input type="number" id="param_min_volume_usd" value="{min_vol}" onchange="markCustom()">
         </div>
         <div class="param-box">
-          <label data-i18n="p_spike">Hacim Patlama Çarpanı (x)</label>
+          <label data-i18n="p_spike">Hacim Çarpanı (x)</label>
           <input type="number" step="0.1" id="param_volume_spike" value="{spike_mult}" onchange="markCustom()">
         </div>
         <div class="param-box">
-          <label data-i18n="p_gain">Maks 24s Prim Limiti (%)</label>
+          <label data-i18n="p_gain">Maks 24s Prim (%)</label>
           <input type="number" step="0.5" id="param_max_gain_24h" value="{max_gain}" onchange="markCustom()">
         </div>
         <div class="param-box">
-          <label data-i18n="p_score">Min AI & Teyit Skoru</label>
+          <label data-i18n="p_score">Min AI Skoru</label>
           <input type="number" step="0.1" id="param_min_ai_score" value="{ai_score}" onchange="markCustom()">
         </div>
         <div class="param-box">
@@ -631,15 +632,19 @@ def generate_v2_dashboard_html(
           <input type="number" step="1" id="param_max_budget" value="{max_budget}" onchange="markCustom()">
         </div>
         <div class="param-box">
-          <label data-i18n="p_tp">Hedef Kâr Al (%)</label>
+          <label data-i18n="p_slots" style="color: var(--fox-flame); font-weight: 700;">Maks Açık Slot</label>
+          <input type="number" min="1" max="6" step="1" id="param_max_positions" value="{max_positions}" style="border-color: var(--fox-flame); font-weight: 800;" onchange="markCustom()">
+        </div>
+        <div class="param-box">
+          <label data-i18n="p_tp">Hedef Kâr (%)</label>
           <input type="number" step="0.1" id="param_tp_pct" value="{tp_pct}" onchange="markCustom()">
         </div>
         <div class="param-box">
-          <label data-i18n="p_sl">Zarar Kes Stop (%)</label>
+          <label data-i18n="p_sl">Zarar Kes (%)</label>
           <input type="number" step="0.1" id="param_sl_pct" value="{sl_pct}" onchange="markCustom()">
         </div>
         <div class="param-box">
-          <label data-i18n="p_cb">Trailing Çekilme Payı (%)</label>
+          <label data-i18n="p_cb">Trailing SL (%)</label>
           <input type="number" step="0.1" id="param_trailing_callback" value="{cb_pct}" onchange="markCustom()">
         </div>
       </div>
@@ -1057,6 +1062,7 @@ def generate_v2_dashboard_html(
           max_recent_gain_24h: parseFloat(document.getElementById('param_max_gain_24h').value) || 3.5,
           min_ai_score: parseFloat(document.getElementById('param_min_ai_score').value) || 7.5,
           max_budget_percent: parseFloat(document.getElementById('param_max_budget').value) || 50.0,
+          max_concurrent_positions: parseInt(document.getElementById('param_max_positions').value) || 2,
           take_profit_pct: parseFloat(document.getElementById('param_tp_pct').value) || 2.4,
           stop_loss_pct: parseFloat(document.getElementById('param_sl_pct').value) || 1.0,
           trailing_callback_pct: parseFloat(document.getElementById('param_trailing_callback').value) || 0.5,

@@ -28,7 +28,11 @@ def check_tenant_circuit_breakers(
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     
     try:
-        from db import get_supabase
+        from db import get_supabase, get_strategy_config
+        strat_cfg = get_strategy_config(use_cache=True)
+        if strat_cfg and "max_concurrent_positions" in strat_cfg:
+            max_concurrent_positions = int(strat_cfg.get("max_concurrent_positions") or max_concurrent_positions)
+            
         client = get_supabase()
         if not client:
             return {"passed": True, "reason": "DB_UNAVAILABLE_FALLBACK"}

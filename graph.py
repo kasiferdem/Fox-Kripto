@@ -426,9 +426,10 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     cfg_max_pct = float(strat_cfg.get("max_budget_percent") or 25.0)
     user_max_pct = float(tenant_config.get("max_budget_percent") or cfg_max_pct)
     
-    # Hedef slot sayısı bütçe yüzdesine göre dinamik belirlenir (V2.3 kuralı: En fazla 2 odaklı slot)
+    # Hedef slot sayısı bütçe yüzdesine ve paneldeki slot ayarına göre belirlenir
     calculated_slots = max(1, int(100.0 / user_max_pct))
-    target_slots = min(2, max(calculated_slots, 1)) if shield_active else min(2, max(1, adaptive_slots))
+    cfg_slots = int(strat_cfg.get("max_concurrent_positions", 2))
+    target_slots = min(cfg_slots, max(calculated_slots, 1)) if shield_active else cfg_slots
     
     # Aktif açık pozisyon sayısını say ve slot doluluğunu denetle
     if isinstance(existing_holdings, dict):
