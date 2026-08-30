@@ -745,22 +745,67 @@
       document.documentElement.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
     }
 
-    function selectEngine(type, el) {
-      document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
-      el.classList.add('active');
-      const badge = document.getElementById('badge-engine');
-      if (type === 'SCALP') {
-        badge.innerText = '⚡ Hacim Scalping Motoru · Dengeli · v2.3 Aktif';
-        badge.className = 'badge badge-info';
-      } else {
-        badge.innerText = '🐋 Gerçek Balina Avı Motoru · Dengeli · v2.3 Aktif';
-        badge.className = 'badge badge-warn';
+    let currentEngine = 'WHALE_HUNTING';
+    let currentRisk = 'BALANCED';
+
+    const PRESETS = {
+      'SCALP_AGGRESSIVE': { vol: 20000, spike: 1.5, gain: 15.0, score: 7.2, budget: 35.0, tp: 1.8, sl: 1.0, cb: 0.4, slots: 2 },
+      'SCALP_BALANCED':   { vol: 25000, spike: 1.8, gain: 12.0, score: 7.5, budget: 25.0, tp: 2.0, sl: 1.2, cb: 0.5, slots: 2 },
+      'SCALP_DEFENSIVE':  { vol: 35000, spike: 2.2, gain: 8.0,  score: 8.2, budget: 15.0, tp: 2.5, sl: 1.5, cb: 0.6, slots: 1 },
+      'WHALE_AGGRESSIVE': { vol: 50000, spike: 2.0, gain: 15.0, score: 7.8, budget: 35.0, tp: 4.0, sl: 1.5, cb: 0.6, slots: 2 },
+      'WHALE_BALANCED':   { vol: 50000, spike: 2.5, gain: 12.0, score: 8.2, budget: 25.0, tp: 3.0, sl: 1.5, cb: 0.6, slots: 2 },
+      'WHALE_DEFENSIVE':  { vol: 100000, spike: 3.2, gain: 9.0, score: 8.8, budget: 15.0, tp: 5.0, sl: 1.8, cb: 0.8, slots: 1 }
+    };
+
+    function applyPreset() {
+      const key = (currentEngine === 'VOLUME_SCALPING' ? 'SCALP' : 'WHALE') + '_' + currentRisk;
+      const p = PRESETS[key];
+      if (p) {
+        if (document.getElementById('p_vol')) document.getElementById('p_vol').value = p.vol;
+        if (document.getElementById('p_spike')) document.getElementById('p_spike').value = p.spike;
+        if (document.getElementById('p_gain')) document.getElementById('p_gain').value = p.gain;
+        if (document.getElementById('p_score')) document.getElementById('p_score').value = p.score;
+        if (document.getElementById('p_budget')) document.getElementById('p_budget').value = p.budget;
+        if (document.getElementById('p_slots')) document.getElementById('p_slots').value = p.slots;
+        if (document.getElementById('p_tp')) document.getElementById('p_tp').value = p.tp;
+        if (document.getElementById('p_sl')) document.getElementById('p_sl').value = p.sl;
+        if (document.getElementById('p_cb')) document.getElementById('p_cb').value = p.cb;
       }
     }
 
+    function selectEngine(type, el) {
+      currentEngine = (type === 'SCALP' ? 'VOLUME_SCALPING' : 'WHALE_HUNTING');
+      document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      const badge = document.getElementById('badge-engine');
+      const title = document.getElementById('engine-title');
+      if (type === 'SCALP') {
+        if (title) title.innerText = '1. Hacim Scalping Motoru';
+        if (badge) {
+          badge.innerText = '⚡ Hacim Scalping Motoru · ' + currentRisk + ' · v2.3 Aktif';
+          badge.className = 'badge badge-info';
+        }
+      } else {
+        if (title) title.innerText = '2. Gerçek Balina Avı Motoru';
+        if (badge) {
+          badge.innerText = '🐋 Gerçek Balina Avı Motoru · ' + currentRisk + ' · v2.3 Aktif';
+          badge.className = 'badge badge-warn';
+        }
+      }
+      applyPreset();
+    }
+
     function selectProfile(prof, el) {
+      currentRisk = prof;
       document.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
       el.classList.add('active');
+      const badge = document.getElementById('badge-engine');
+      if (badge) {
+        badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + prof + ' · v2.3 Aktif';
+      }
+      if (prof !== 'CUSTOM') {
+        applyPreset();
+      }
     }
 
     function getAuthHeaders() {
