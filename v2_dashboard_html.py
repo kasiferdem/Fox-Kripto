@@ -27,7 +27,7 @@ def generate_v2_dashboard_html(
     scalp_btn_cls = "engine-btn active" if is_scalp else "engine-btn"
     whale_btn_cls = "engine-btn active" if not is_scalp else "engine-btn"
     engine_title_text = "1. Hacim Scalping Motoru" if is_scalp else "2. Gerçek Balina Avı Motoru"
-    engine_badge_text = f"⚡ Hacim Scalping · {active_risk} · v2.2 Aktif" if is_scalp else f"🐋 Balina Avı · {active_risk} · v2.2 Aktif"
+    engine_badge_text = f"⚡ Hacim Scalping · {active_risk} · v2.3 Aktif" if is_scalp else f"🐋 Balina Avı · {active_risk} · v2.3 Aktif"
     engine_badge_cls = "badge badge-info" if is_scalp else "badge badge-warn"
 
     pill_agg_cls = "profile-btn active" if active_risk == "AGGRESSIVE" else "profile-btn"
@@ -1000,13 +1000,13 @@ def generate_v2_dashboard_html(
         btnWhale.className = 'engine-btn';
         title.innerText = dict.engine_scalp_name;
         badge.className = 'badge badge-info';
-        badge.innerText = '⚡ ' + (curLang === 'tr' ? 'Hacim Scalping' : 'Volume Scalp') + ' · ' + currentRisk + ' · v2.2';
+        badge.innerText = '⚡ ' + (curLang === 'tr' ? 'Hacim Scalping' : 'Volume Scalp') + ' · ' + currentRisk + ' · v2.3 Aktif';
       }} else {{
         btnWhale.className = 'engine-btn active';
         btnScalp.className = 'engine-btn';
         title.innerText = dict.engine_whale_name;
         badge.className = 'badge badge-warn';
-        badge.innerText = '🐋 ' + (curLang === 'tr' ? 'Balina Avı' : 'Whale Hunt') + ' · ' + currentRisk + ' · v2.2';
+        badge.innerText = '🐋 ' + (curLang === 'tr' ? 'Balina Avı' : 'Whale Hunt') + ' · ' + currentRisk + ' · v2.3 Aktif';
       }}
     }}
 
@@ -1025,7 +1025,7 @@ def generate_v2_dashboard_html(
       if (cusBtn) cusBtn.classList.add('active');
       currentRisk = 'CUSTOM';
       const badge = document.getElementById('engine-badge');
-      if (badge) badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + (curLang === 'tr' ? 'Özel Ayarlar' : 'Custom') + ' · v2.2';
+      if (badge) badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + (curLang === 'tr' ? 'Özel Ayarlar' : 'Custom') + ' · v2.3 Aktif';
     }}
 
     function switchRisk(risk) {{
@@ -1083,12 +1083,13 @@ def generate_v2_dashboard_html(
         }});
         if (res.ok) {{
           const engineName = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Hacim Scalping Motoru' : '🐋 Gerçek Balina Avı Motoru');
-          showToast(curLang === 'tr' ? '✅ [BAŞARILI]: ' + engineName + ' (' + currentRisk + ') V2.3 Canlıya Alındı!' : '✅ [SUCCESS]: ' + engineName + ' (' + currentRisk + ') V2.3 Applied Live!');
           const badge = document.getElementById('engine-badge');
           if (badge) {{
-            badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + currentRisk + ' · v2.3';
-            badge.className = (currentEngine === 'VOLUME_SCALPING') ? 'badge badge-info' : 'badge badge-warn';
+            badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + currentRisk + ' · v2.3 CANLI AKTİF 🟢';
+            badge.className = 'badge badge-ok';
           }}
+          showToast(curLang === 'tr' ? '✅ [BAŞARILI]: ' + engineName + ' (' + currentRisk + ') V2.3 Canlıya Alındı!' : '✅ [SUCCESS]: ' + engineName + ' (' + currentRisk + ') V2.3 Applied Live!');
+          alert('✅ [BAŞARILI]: ' + engineName + ' (' + currentRisk + ') V2.3 Strateji Ayarlarınız Başarıyla Canlıya Alındı ve Kaydedildi!');
         }} else {{
           alert('❌ Hata: ' + res.statusText + ' (' + res.status + ')');
         }}
