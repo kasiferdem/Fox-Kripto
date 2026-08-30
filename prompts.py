@@ -177,40 +177,28 @@ def formulate_trade_strategy(
     )
     
     raw_response = call_gpt4o(system_prompt, user_content)
+    from db import get_strategy_config
+    cfg = get_strategy_config()
+    tp_pct = float(cfg.get("take_profit_pct", 2.4))
+    sl_pct = float(cfg.get("stop_loss_pct", 1.0))
+    budget_pct = float(cfg.get("max_budget_percent", 25.0))
+    free_usdt = float(portfolio.get("free_usdt", 0.0))
+    trade_amount = round(free_usdt * (budget_pct / 100.0), 2) if free_usdt > 0 else 25.0
+
     if raw_response:
         try:
             clean_json = raw_response.strip("` \n").replace("json", "").strip()
             proposal = json.loads(clean_json)
+            sym = str(proposal.get("symbol", "")).upper()
             
-            valid_base_coins = [
-                "FLM", "WAVES", "CLV", "UTK", "GPS", "ACE", "PORTAL", "TURBO", "NEIRO", "TUT", "PEPE", "BONK", "FLOKI"
-            ]
-            sym = str(proposal.get("symbol", "FLM/USDT")).upper()
-            base = sym.split("/")[0].split("_")[0]
-            
-            # KATI ÇEŞİTLİLİK KURALI: Elde zaten bulunan coini tekrar alma!
-            existing_coins = [c.upper() for c in current_holdings if c.upper() not in ["TRY", "USDT", "BUSD", "USDC"]]
-            if base in existing_coins or base in ["SUI", "RENDER", "NEAR", "SOL", "AVAX", "BTC", "ETH", "ADA"]:
-                available_candidates = [c for c in valid_base_coins if c not in existing_coins]
-                if available_candidates:
-                    base = available_candidates[0]
-                    sym = f"{base}/USDT"
-                    proposal["symbol"] = sym
-                    proposal["risk_justification"] = f"Erken balina hacim adayı {base} seçildi."
-            
-            if base not in valid_base_coins:
-                sym = "FLM/USDT"
-            proposal["symbol"] = sym
-            
-            proposal["amount_usd"] = 10.0
-            sl_pct = float(proposal.get("stop_loss_percent", 1.2))
-            if sl_pct < 1.0: sl_pct = 1.0
-            if sl_pct > 1.5: sl_pct = 1.5
-            proposal["stop_loss_percent"] = sl_pct
-            proposal["stop_loss_price"] = round(current_price * (1 - (sl_pct / 100)), 4)
-            proposal["take_profit_price"] = round(current_price * 1.015, 4)
-            proposal["should_trade"] = True
-            return proposal
+            if sym and "/" in sym:
+                proposal["symbol"] = sym
+                proposal["amount_usd"] = trade_amount
+                proposal["stop_loss_percent"] = sl_pct
+                proposal["stop_loss_price"] = round(current_price * (1 - (sl_pct / 100)), 4)
+                proposal["take_profit_price"] = round(current_price * (1 + (tp_pct / 100)), 4)
+                proposal["should_trade"] = True
+                return proposal
         except Exception:
             pass
             
@@ -218,31 +206,34 @@ def formulate_trade_strategy(
     from exchange import fetch_top_volume_gainers
     active_gainers = fetch_top_volume_gainers(limit=15)
     top_active_symbols = [g["symbol"] for g in active_gainers if g.get("symbol")]
-    fallback_pool = top_active_symbols if top_active_symbols else ["GPS/USDT", "TUT/USDT", "ACE/USDT", "HEMI/USDT", "ALLO/USDT"]
-    chosen_symbol = fallback_pool[0]
     
-    # Portföyde olmayan taze bir canlı balina adayına geç
-    for cand in fallback_pool:
+    if not top_active_symbols:
+        return {
+            "should_trade": False,
+            "reason": "NO_VALID_LIVE_VOLUME_CANDIDATES",
+            "symbol": "BTC/USDT"
+        }
+    
+    chosen_symbol = top_active_symbols[0]
+    for cand in top_active_symbols:
         c_b = cand.split("/")[0]
         if c_b not in current_holdings:
             chosen_symbol = cand
             break
             
-    max_budget = 10.0
-    sl_pct = 1.2
     sl_price = round(current_price * (1 - (sl_pct / 100)), 4)
-    tp_price = round(current_price * 1.015, 4)
+    tp_price = round(current_price * (1 + (tp_pct / 100)), 4)
     
     return {
         "should_trade": True,
         "symbol": chosen_symbol,
         "direction": "BUY" if sentiment_score > 0 else "SELL",
-        "amount_usd": max_budget,
+        "amount_usd": trade_amount,
         "entry_price": current_price,
         "stop_loss_percent": sl_pct,
         "stop_loss_price": sl_price,
         "take_profit_price": tp_price,
-        "risk_justification": f"Yüksek volatilite ve ivme avcısı: Sıcak meme/altcoin {chosen_symbol} seçildi."
+        "risk_justification": f"Dinamik Hacim ve Balina Teyidi: Canlı piyasa lideri {chosen_symbol} seçildi."
     }
 
 if __name__ == "__main__":
