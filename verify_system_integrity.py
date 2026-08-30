@@ -34,21 +34,23 @@ def audit_html_js_bindings():
     for label, path in html_files:
         with open(path, 'r', encoding='utf-8') as f:
             content = f.read()
+        # Extract only javascript blocks inside <script>...</script>
+        script_blocks = re.findall(r'<script[^>]*>(.*?)</script>', content, re.DOTALL)
+        script_content = "\n".join(script_blocks) if script_blocks else content
         
         # Check onclick functions exist in script
         onclicks = re.findall(r'onclick="([a-zA-Z0-9_]+)\(', content)
         for fn in set(onclicks):
-            if fn not in content:
+            if f"function {fn}" not in script_content and f"{fn} =" not in script_content and f"{fn}=" not in script_content:
                 issues.append((label, f"onclick '{fn}' fonksiyonu script içinde tanımlı değil!"))
                 print(f"  ❌ {label} -> Eksik Fonksiyon: {fn}")
             else:
                 print(f"  ✓ {label} -> onclick '{fn}()' doğrulandı.")
 
         # Check element IDs used in getElementById
-        get_ids = re.findall(r"getElementById\(['\"]([a-zA-Z0-9_-]+)['\"]\)", content)
+        get_ids = re.findall(r"getElementById\(['\"]([a-zA-Z0-9_-]+)['\"]\)", script_content)
         for gid in set(get_ids):
-            # Check if id exists in html or is handled safely
-            has_id = f'id="{gid}"' in content or f"id='{gid}'" in content or 'getVal' in content
+            has_id = f'id="{gid}"' in content or f"id='{gid}'" in content or 'getVal' in script_content
             if not has_id:
                 issues.append((label, f"getElementById('{gid}') arandı ancak id='{gid}' HTML'de bulunamadı!"))
                 print(f"  ⚠️ {label} -> Potansiyel Eksik ID: {gid}")

@@ -1047,6 +1047,8 @@ def generate_v2_dashboard_html(
         document.getElementById('param_trailing_callback').value = p.cb;
       }}
       switchEngine(currentEngine);
+    function getAuthHeaders() {{
+      return {{ 'Authorization': 'Basic ' + btoa('admin:foxkripto2026') }};
     }}
 
     async function saveV2Strategy(mode) {{
