@@ -363,14 +363,14 @@
       </div>
 
       <div class="engine-grid">
-        <div class="engine-btn" id="btn-engine-scalp" onclick="selectEngine('SCALP', this)">
+        <div class="engine-btn" id="btn-engine-scalp" onclick="selectEngine('SCALP')">
           <div>
             <b data-i18n="engine_scalp_name">1. Hacim Scalping Motoru</b>
             <span data-i18n="engine_scalp_desc">1m/3m/5m Hızlı momentum ve mikro-kırılımlar.</span>
           </div>
           <span class="badge badge-info" data-i18n="badge_high_freq">Yüksek Frekans</span>
         </div>
-        <div class="engine-btn active" id="btn-engine-whale" onclick="selectEngine('WHALE', this)">
+        <div class="engine-btn active" id="btn-engine-whale" onclick="selectEngine('WHALE')">
           <div>
             <b data-i18n="engine_whale_name">2. Gerçek Balina Avı Motoru</b>
             <span data-i18n="engine_whale_desc">Spot + Vadeli Açık Faiz (OI) ve derinlik teyidi.</span>
@@ -773,19 +773,25 @@
       }
     }
 
-    function selectEngine(type, el) {
+    function selectEngine(type) {
       currentEngine = (type === 'SCALP' ? 'VOLUME_SCALPING' : 'WHALE_HUNTING');
-      document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
-      el.classList.add('active');
-      const badge = document.getElementById('badge-engine');
+      const btnScalp = document.getElementById('btn-engine-scalp');
+      const btnWhale = document.getElementById('btn-engine-whale');
       const title = document.getElementById('engine-title');
+      const badge = document.getElementById('badge-engine');
+
+      if (btnScalp) btnScalp.classList.remove('active');
+      if (btnWhale) btnWhale.classList.remove('active');
+
       if (type === 'SCALP') {
+        if (btnScalp) btnScalp.classList.add('active');
         if (title) title.innerText = '1. Hacim Scalping Motoru';
         if (badge) {
           badge.innerText = '🟢 ⚡ Hacim Scalping · v2.3 CANLI AKTİF';
           badge.className = 'badge badge-ok';
         }
       } else {
+        if (btnWhale) btnWhale.classList.add('active');
         if (title) title.innerText = '2. Gerçek Balina Avı Motoru';
         if (badge) {
           badge.innerText = '🟢 🐋 Balina Avı · v2.3 CANLI AKTİF';
