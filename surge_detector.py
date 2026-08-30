@@ -48,7 +48,12 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     """
     sym = cand.get("symbol", "")
     price_change_24h = float(cand.get("priceChangePercent", 0.0))
+    quote_volume_24h = float(cand.get("quoteVolume", 0.0))
     
+    # 🔒 KATI LİKİDİTE VE BALİNA EŞİĞİ: 24s Hacmi $1,500,000 USD altındaki sığ tahtalı coinler ASLA ALINMAZ!
+    if quote_volume_24h < 1500000.0:
+        return None
+        
     # 🔒 KATI ERKEN DİP TAVANI: 24 saatlik primi %3.5'ten fazla olan coinler ASLA ALINMAZ!
     effective_max_gain = min(3.5, float(max_recent_gain or 3.5))
     if price_change_24h > effective_max_gain or price_change_24h < -6.0:
