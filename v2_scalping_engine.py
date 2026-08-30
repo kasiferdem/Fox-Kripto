@@ -28,9 +28,9 @@ class V2ScalpingEngine:
             "retest_required": True,
             "first_pump_candle_blocked": True,
             "min_strategy_score": 7.5,
-            "target_take_profit_pct": 2.2,
-            "target_stop_loss_pct": 1.1,
-            "min_net_rr": 1.50
+            "target_take_profit_pct": 2.4,
+            "target_stop_loss_pct": 1.0,
+            "min_net_rr": 1.25
         }
         if custom_params:
             self.params.update(custom_params)
@@ -40,8 +40,8 @@ class V2ScalpingEngine:
         ticker: Dict[str, Any],
         klines_1m: Optional[List[Any]] = None,
         depth_data: Optional[Dict[str, Any]] = None,
-        user_tp: float = 2.2,
-        user_sl: float = 1.1
+        user_tp: float = 2.4,
+        user_sl: float = 1.0
     ) -> Dict[str, Any]:
         """
         Spot pariteyi V2.3 kurallarına göre analiz eder, puanlar ve durum makinesi durumunu belirler.
@@ -129,7 +129,19 @@ class V2ScalpingEngine:
                 state_machine_stage = "IDLE"
                 scores["momentum_score"] = 5.0
         else:
-            scores["momentum_score"] = 6.0
+            # Ticker ve erken hacim (surge detector) verilerinden durum analizi
+            spike_ratio = float(ticker.get("volume_spike_ratio", ticker.get("spike_ratio", 1.5)) or 1.5)
+            gain_recent_pct = float(ticker.get("gain_5m", ticker.get("price_change_24h", 1.0)) or 1.0)
+            taker_buy_pct = float(ticker.get("taker_buy_ratio", ticker.get("taker_buy_pct", 62.0)) or 62.0)
+            
+            if spike_ratio >= self.params.get("min_spike_multiplier", 1.4) and (-4.0 <= gain_recent_pct <= self.params.get("max_24h_premium_pct", 3.5)):
+                state_machine_stage = "READY"
+                passed_criteria.append(f"Erken hacim patlaması ({spike_ratio:.1f}x) ve dip momentumu onaylandı.")
+                scores["momentum_score"] = 8.8
+            else:
+                state_machine_stage = "WATCH"
+                passed_criteria.append(f"Hacim akışı izleniyor ({spike_ratio:.1f}x).")
+                scores["momentum_score"] = 6.5
 
         # 4. Taker Alıcı Baskısı Skoru
         min_taker = self.params.get("min_taker_buy_pct", 58.0)
@@ -146,7 +158,7 @@ class V2ScalpingEngine:
             gross_take_profit_pct=user_tp,
             gross_stop_loss_pct=user_sl,
             round_trip_cost_pct=round_trip["total_round_trip_cost_pct"],
-            min_net_rr_required=self.params.get("min_net_rr", 1.50)
+            min_net_rr_required=self.params.get("min_net_rr", 1.25)
         )
 
         if not cost_gate["passed"]:
