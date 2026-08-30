@@ -987,6 +987,33 @@ def generate_v2_dashboard_html(
     let currentEngine = '{active_engine}';
     let currentRisk = '{active_risk}';
 
+    const PRESETS_MAP = {{
+      'VOLUME_SCALPING_AGGRESSIVE': {{ min_vol: 20000, spike: 1.3, gain: 4.0, score: 7.0, budget: 75.0, slots: 3, tp: 2.2, sl: 1.0, cb: 0.4 }},
+      'VOLUME_SCALPING_BALANCED':   {{ min_vol: 25000, spike: 1.4, gain: 3.5, score: 7.5, budget: 50.0, slots: 2, tp: 2.4, sl: 1.0, cb: 0.5 }},
+      'VOLUME_SCALPING_DEFENSIVE':  {{ min_vol: 35000, spike: 1.8, gain: 2.5, score: 8.0, budget: 25.0, slots: 1, tp: 2.6, sl: 1.0, cb: 0.6 }},
+      'WHALE_HUNTING_AGGRESSIVE':   {{ min_vol: 50000, spike: 2.0, gain: 4.0, score: 7.5, budget: 50.0, slots: 3, tp: 4.0, sl: 1.5, cb: 0.6 }},
+      'WHALE_HUNTING_BALANCED':     {{ min_vol: 50000, spike: 2.2, gain: 3.5, score: 8.0, budget: 35.0, slots: 2, tp: 3.2, sl: 1.2, cb: 0.6 }},
+      'WHALE_HUNTING_DEFENSIVE':    {{ min_vol: 100000, spike: 2.6, gain: 2.5, score: 8.5, budget: 25.0, slots: 1, tp: 3.0, sl: 1.0, cb: 0.5 }}
+    }};
+
+    function applyPresetValues() {{
+      if (currentRisk === 'CUSTOM') return;
+      const key = currentEngine + '_' + currentRisk;
+      const p = PRESETS_MAP[key];
+      if (p) {{
+        const setV = (id, v) => {{ const el = document.getElementById(id); if (el) el.value = v; }};
+        setV('param_min_volume_usd', p.min_vol);
+        setV('param_volume_spike', p.spike);
+        setV('param_max_gain_24h', p.gain);
+        setV('param_min_ai_score', p.score);
+        setV('param_max_budget', p.budget);
+        setV('param_max_positions', p.slots || 2);
+        setV('param_tp_pct', p.tp);
+        setV('param_sl_pct', p.sl);
+        setV('param_trailing_callback', p.cb);
+      }}
+    }}
+
     function switchEngine(engine) {{
       currentEngine = engine;
       const btnScalp = document.getElementById('btn-engine-scalp');
@@ -996,28 +1023,24 @@ def generate_v2_dashboard_html(
       const dict = I18N[curLang] || I18N.tr;
 
       if (engine === 'VOLUME_SCALPING') {{
-        btnScalp.className = 'engine-btn active';
-        btnWhale.className = 'engine-btn';
-        title.innerText = dict.engine_scalp_name;
-        badge.className = 'badge badge-info';
-        badge.innerText = '⚡ ' + (curLang === 'tr' ? 'Hacim Scalping' : 'Volume Scalp') + ' · ' + currentRisk + ' · v2.3 Aktif';
+        if (btnScalp) btnScalp.className = 'engine-btn active';
+        if (btnWhale) btnWhale.className = 'engine-btn';
+        if (title) title.innerText = dict.engine_scalp_name;
+        if (badge) {{
+          badge.className = 'badge badge-info';
+          badge.innerText = '⚡ ' + (curLang === 'tr' ? 'Hacim Scalping' : 'Volume Scalp') + ' · ' + currentRisk + ' · v2.3 Aktif';
+        }}
       }} else {{
-        btnWhale.className = 'engine-btn active';
-        btnScalp.className = 'engine-btn';
-        title.innerText = dict.engine_whale_name;
-        badge.className = 'badge badge-warn';
-        badge.innerText = '🐋 ' + (curLang === 'tr' ? 'Balina Avı' : 'Whale Hunt') + ' · ' + currentRisk + ' · v2.3 Aktif';
+        if (btnWhale) btnWhale.className = 'engine-btn active';
+        if (btnScalp) btnScalp.className = 'engine-btn';
+        if (title) title.innerText = dict.engine_whale_name;
+        if (badge) {{
+          badge.className = 'badge badge-warn';
+          badge.innerText = '🐋 ' + (curLang === 'tr' ? 'Balina Avı' : 'Whale Hunt') + ' · ' + currentRisk + ' · v2.3 Aktif';
+        }}
       }}
+      applyPresetValues();
     }}
-
-    const PRESETS_MAP = {{
-      'VOLUME_SCALPING_AGGRESSIVE': {{ min_vol: 20000, spike: 1.5, gain: 15.0, score: 7.2, budget: 35.0, tp: 1.8, sl: 1.0, cb: 0.4 }},
-      'VOLUME_SCALPING_BALANCED':   {{ min_vol: 25000, spike: 1.8, gain: 12.0, score: 7.5, budget: 25.0, tp: 2.0, sl: 1.2, cb: 0.5 }},
-      'VOLUME_SCALPING_DEFENSIVE':  {{ min_vol: 35000, spike: 2.2, gain: 8.0,  score: 8.2, budget: 15.0, tp: 2.5, sl: 1.5, cb: 0.6 }},
-      'WHALE_HUNTING_AGGRESSIVE':   {{ min_vol: 50000, spike: 2.0, gain: 15.0, score: 7.8, budget: 35.0, tp: 4.0, sl: 1.5, cb: 0.6 }},
-      'WHALE_HUNTING_BALANCED':     {{ min_vol: 50000, spike: 2.5, gain: 12.0, score: 8.2, budget: 25.0, tp: 3.0, sl: 1.5, cb: 0.6 }},
-      'WHALE_HUNTING_DEFENSIVE':    {{ min_vol: 100000, spike: 3.2, gain: 9.0, score: 8.8, budget: 15.0, tp: 5.0, sl: 1.8, cb: 0.8 }}
-    }};
 
     function markCustom() {{
       document.querySelectorAll('.profile-btn').forEach(btn => btn.classList.remove('active'));
@@ -1033,20 +1056,11 @@ def generate_v2_dashboard_html(
       document.querySelectorAll('.profile-btn').forEach(btn => {{
         btn.classList.toggle('active', btn.getAttribute('data-i18n') === ('prof_' + risk.toLowerCase().slice(0,3)));
       }});
-      
-      const key = currentEngine + '_' + risk;
-      const p = PRESETS_MAP[key];
-      if (p) {{
-        document.getElementById('param_min_volume_usd').value = p.min_vol;
-        document.getElementById('param_volume_spike').value = p.spike;
-        document.getElementById('param_max_gain_24h').value = p.gain;
-        document.getElementById('param_min_ai_score').value = p.score;
-        document.getElementById('param_max_budget').value = p.budget;
-        document.getElementById('param_tp_pct').value = p.tp;
-        document.getElementById('param_sl_pct').value = p.sl;
-        document.getElementById('param_trailing_callback').value = p.cb;
+      applyPresetValues();
+      const badge = document.getElementById('engine-badge');
+      if (badge) {{
+        badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + risk + ' · v2.3 Aktif';
       }}
-      switchEngine(currentEngine);
     }}
 
     function getAuthHeaders() {{
