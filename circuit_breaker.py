@@ -110,3 +110,34 @@ def get_adaptive_max_slots(total_equity_usd: float = 200.0, user_max_budget_pct:
     calculated = max(1, int(100.0 / user_max_budget_pct))
     return min(2, calculated)
 
+def can_place_live_order(
+    profile_status: str,
+    execution_mode: str,
+    live_validation_status: str,
+    global_kill_switch: bool = False,
+    tenant_kill_switch: bool = False,
+    user_kill_switch: bool = False,
+    data_quality_status: str = "PASS",
+    risk_engine_healthy: bool = True,
+    execution_engine_healthy: bool = True
+) -> Dict[str, Any]:
+    """
+    V2.3 Şartnamesi Bölüm 2.2 ve 9.1 — Backend Canlı Emir İnfaz Kapısı:
+    Tüm güvenlik kriterleri eksiksiz karşılanmadan canlı emir üretilemez.
+    """
+    if global_kill_switch or tenant_kill_switch or user_kill_switch:
+        return {"can_trade": False, "reason": "🛑 Kill Switch Devrede (Yeni Alımlar Durduruldu)."}
+    if profile_status != "ACTIVE":
+        return {"can_trade": False, "reason": f"🛑 Profil durumu aktif değil ({profile_status})."}
+    if execution_mode not in ["LIVE_CANARY", "LIVE_TRADING"]:
+        return {"can_trade": False, "reason": f"ℹ️ Canlı emir yetkisi yok (Mod: {execution_mode}). Yalnızca sinyal veya paper üretilir."}
+    if live_validation_status != "PASSED":
+        return {"can_trade": False, "reason": f"🛑 Canlı uygunluk testi geçilmedi ({live_validation_status})."}
+    if data_quality_status != "PASS":
+        return {"can_trade": False, "reason": f"🛑 Veri kalitesi yetersiz ({data_quality_status})."}
+    if not risk_engine_healthy or not execution_engine_healthy:
+        return {"can_trade": False, "reason": "🛑 Risk veya infaz motoru sağlık kontrolünden geçemedi."}
+        
+    return {"can_trade": True, "reason": "✅ Tüm canlı işlem güvenlik kapıları başarıyla geçildi."}
+
+
