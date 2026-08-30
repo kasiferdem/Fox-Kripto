@@ -27,8 +27,8 @@ def generate_v2_dashboard_html(
     scalp_btn_cls = "engine-btn active" if is_scalp else "engine-btn"
     whale_btn_cls = "engine-btn active" if not is_scalp else "engine-btn"
     engine_title_text = "1. Hacim Scalping Motoru" if is_scalp else "2. Gerçek Balina Avı Motoru"
-    engine_badge_text = f"⚡ Hacim Scalping · {active_risk} · v2.3 Aktif" if is_scalp else f"🐋 Balina Avı · {active_risk} · v2.3 Aktif"
-    engine_badge_cls = "badge badge-info" if is_scalp else "badge badge-warn"
+    engine_badge_text = "🟢 ⚡ Hacim Scalping · v2.3 CANLI AKTİF" if is_scalp else "🟢 🐋 Balina Avı · v2.3 CANLI AKTİF"
+    engine_badge_cls = "badge badge-ok"
 
     pill_agg_cls = "profile-btn active" if active_risk == "AGGRESSIVE" else "profile-btn"
     pill_bal_cls = "profile-btn active" if active_risk == "BALANCED" else "profile-btn"
@@ -1027,16 +1027,16 @@ def generate_v2_dashboard_html(
         if (btnWhale) btnWhale.className = 'engine-btn';
         if (title) title.innerText = dict.engine_scalp_name;
         if (badge) {{
-          badge.className = 'badge badge-info';
-          badge.innerText = '⚡ ' + (curLang === 'tr' ? 'Hacim Scalping' : 'Volume Scalp') + ' · ' + currentRisk + ' · v2.3 Aktif';
+          badge.className = 'badge badge-ok';
+          badge.innerText = '🟢 ⚡ ' + (curLang === 'tr' ? 'Hacim Scalping' : 'Volume Scalp') + ' · v2.3 CANLI AKTİF';
         }}
       }} else {{
         if (btnWhale) btnWhale.className = 'engine-btn active';
         if (btnScalp) btnScalp.className = 'engine-btn';
         if (title) title.innerText = dict.engine_whale_name;
         if (badge) {{
-          badge.className = 'badge badge-warn';
-          badge.innerText = '🐋 ' + (curLang === 'tr' ? 'Balina Avı' : 'Whale Hunt') + ' · ' + currentRisk + ' · v2.3 Aktif';
+          badge.className = 'badge badge-ok';
+          badge.innerText = '🟢 🐋 ' + (curLang === 'tr' ? 'Balina Avı' : 'Whale Hunt') + ' · v2.3 CANLI AKTİF';
         }}
       }}
       applyPresetValues();

@@ -359,7 +359,7 @@
           <div class="card-title" id="engine-title">1. Hacim Scalping Motoru</div>
           <p style="font-size: 12.5px; color: var(--ink-3); margin-top: 2px;" data-i18n="engine_card_sub">Piyasa rejimine uygun otonom işlem stratejisi ve risk profili.</p>
         </div>
-        <span class="badge badge-info" id="badge-engine">⚡ Hacim Scalping · Dengeli · v2.3</span>
+        <span class="badge badge-ok" id="badge-engine">🟢 ⚡ Hacim Scalping · v2.3 CANLI AKTİF</span>
       </div>
 
       <div class="engine-grid">
@@ -782,14 +782,14 @@
       if (type === 'SCALP') {
         if (title) title.innerText = '1. Hacim Scalping Motoru';
         if (badge) {
-          badge.innerText = '⚡ Hacim Scalping Motoru · ' + currentRisk + ' · v2.3 Aktif';
-          badge.className = 'badge badge-info';
+          badge.innerText = '🟢 ⚡ Hacim Scalping · v2.3 CANLI AKTİF';
+          badge.className = 'badge badge-ok';
         }
       } else {
         if (title) title.innerText = '2. Gerçek Balina Avı Motoru';
         if (badge) {
-          badge.innerText = '🐋 Gerçek Balina Avı Motoru · ' + currentRisk + ' · v2.3 Aktif';
-          badge.className = 'badge badge-warn';
+          badge.innerText = '🟢 🐋 Balina Avı · v2.3 CANLI AKTİF';
+          badge.className = 'badge badge-ok';
         }
       }
       applyPreset();
