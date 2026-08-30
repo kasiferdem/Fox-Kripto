@@ -40,7 +40,7 @@ def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens
                 {"role": "user", "content": user_content}
             ],
             "temperature": 0.2,
-            "max_tokens": min(max_tokens, 300)
+            "max_tokens": max_tokens
         }
         try:
             res = requests.post(url, json=payload, headers=headers, timeout=12)
