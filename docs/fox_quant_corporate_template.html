@@ -392,12 +392,14 @@
       </div>
 
       <div class="param-grid" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));">
-        <div class="param-box"><label data-i18n="p_vol">Min 5dk Hacim ($)</label><input type="number" id="p_vol" value="25000"></div>
-        <div class="param-box"><label data-i18n="p_spike">Hacim Çarpanı (x)</label><input type="number" step="0.1" id="p_spike" value="1.4"></div>
+        <div class="param-box"><label data-i18n="p_vol24">Min 24s Hacim ($)</label><input type="number" id="p_vol24" value="5000000"></div>
+        <div class="param-box"><label data-i18n="p_vol">Min 5dk Hacim ($)</label><input type="number" id="p_vol" value="100000"></div>
+        <div class="param-box"><label data-i18n="p_spike">Hacim Çarpanı (x)</label><input type="number" step="0.1" id="p_spike" value="2.4"></div>
+        <div class="param-box"><label data-i18n="p_daily">Günlük İşlem Kotası</label><input type="number" min="1" max="50" step="1" id="p_daily" value="2"></div>
         <div class="param-box"><label data-i18n="p_gain">Maks 24s Prim (%)</label><input type="number" step="0.5" id="p_gain" value="3.5"></div>
-        <div class="param-box"><label data-i18n="p_score">Min AI Skoru</label><input type="number" step="0.1" id="p_score" value="7.5"></div>
-        <div class="param-box"><label data-i18n="p_budget">Kasa Bütçesi (%)</label><input type="number" step="1" id="p_budget" value="50.0"></div>
-        <div class="param-box"><label data-i18n="p_slots" style="color: var(--fox-flame); font-weight: 700;">Maks Açık Slot</label><input type="number" min="1" max="6" step="1" id="p_slots" value="3" style="border-color: var(--fox-flame); font-weight: 800;"></div>
+        <div class="param-box"><label data-i18n="p_score">Min AI Skoru</label><input type="number" step="0.1" id="p_score" value="8.0"></div>
+        <div class="param-box"><label data-i18n="p_budget">Kasa Bütçesi (%)</label><input type="number" step="1" id="p_budget" value="25.0"></div>
+        <div class="param-box"><label data-i18n="p_slots" style="color: var(--fox-flame); font-weight: 700;">Maks Açık Slot</label><input type="number" min="1" max="6" step="1" id="p_slots" value="1" style="border-color: var(--fox-flame); font-weight: 800;"></div>
         <div class="param-box"><label data-i18n="p_tp">Hedef Kâr (%)</label><input type="number" step="0.1" id="p_tp" value="2.4"></div>
         <div class="param-box"><label data-i18n="p_sl">Zarar Kes (%)</label><input type="number" step="0.1" id="p_sl" value="1.0"></div>
         <div class="param-box"><label data-i18n="p_cb">Trailing SL (%)</label><input type="number" step="0.1" id="p_cb" value="0.5"></div>
@@ -749,20 +751,22 @@
     let currentRisk = 'BALANCED';
 
     const PRESETS = {
-      'SCALP_AGGRESSIVE': { vol: 20000, spike: 1.5, gain: 15.0, score: 7.2, budget: 35.0, tp: 1.8, sl: 1.0, cb: 0.4, slots: 2 },
-      'SCALP_BALANCED':   { vol: 25000, spike: 1.8, gain: 12.0, score: 7.5, budget: 25.0, tp: 2.0, sl: 1.2, cb: 0.5, slots: 2 },
-      'SCALP_DEFENSIVE':  { vol: 35000, spike: 2.2, gain: 8.0,  score: 8.2, budget: 15.0, tp: 2.5, sl: 1.5, cb: 0.6, slots: 1 },
-      'WHALE_AGGRESSIVE': { vol: 50000, spike: 2.0, gain: 15.0, score: 7.8, budget: 35.0, tp: 4.0, sl: 1.5, cb: 0.6, slots: 2 },
-      'WHALE_BALANCED':   { vol: 50000, spike: 2.5, gain: 12.0, score: 8.2, budget: 25.0, tp: 3.0, sl: 1.5, cb: 0.6, slots: 2 },
-      'WHALE_DEFENSIVE':  { vol: 100000, spike: 3.2, gain: 9.0, score: 8.8, budget: 15.0, tp: 5.0, sl: 1.8, cb: 0.8, slots: 1 }
+      'SCALP_AGGRESSIVE': { vol24: 3000000, vol: 20000, spike: 1.5, daily: 5, gain: 15.0, score: 7.2, budget: 35.0, tp: 1.8, sl: 1.0, cb: 0.4, slots: 2 },
+      'SCALP_BALANCED':   { vol24: 5000000, vol: 25000, spike: 1.8, daily: 3, gain: 12.0, score: 7.5, budget: 25.0, tp: 2.0, sl: 1.2, cb: 0.5, slots: 2 },
+      'SCALP_DEFENSIVE':  { vol24: 10000000, vol: 35000, spike: 2.2, daily: 2, gain: 8.0,  score: 8.2, budget: 15.0, tp: 2.5, sl: 1.5, cb: 0.6, slots: 1 },
+      'WHALE_AGGRESSIVE': { vol24: 5000000, vol: 50000, spike: 2.0, daily: 3, gain: 15.0, score: 7.8, budget: 35.0, tp: 4.0, sl: 1.5, cb: 0.6, slots: 2 },
+      'WHALE_BALANCED':   { vol24: 5000000, vol: 50000, spike: 2.5, daily: 2, gain: 12.0, score: 8.2, budget: 25.0, tp: 3.0, sl: 1.5, cb: 0.6, slots: 2 },
+      'WHALE_DEFENSIVE':  { vol24: 10000000, vol: 100000, spike: 3.2, daily: 1, gain: 9.0, score: 8.8, budget: 15.0, tp: 5.0, sl: 1.8, cb: 0.8, slots: 1 }
     };
 
     function applyPreset() {
       const key = (currentEngine === 'VOLUME_SCALPING' ? 'SCALP' : 'WHALE') + '_' + currentRisk;
       const p = PRESETS[key];
       if (p) {
+        if (document.getElementById('p_vol24')) document.getElementById('p_vol24').value = p.vol24 || 5000000;
         if (document.getElementById('p_vol')) document.getElementById('p_vol').value = p.vol;
         if (document.getElementById('p_spike')) document.getElementById('p_spike').value = p.spike;
+        if (document.getElementById('p_daily')) document.getElementById('p_daily').value = p.daily || 2;
         if (document.getElementById('p_gain')) document.getElementById('p_gain').value = p.gain;
         if (document.getElementById('p_score')) document.getElementById('p_score').value = p.score;
         if (document.getElementById('p_budget')) document.getElementById('p_budget').value = p.budget;
@@ -836,16 +840,20 @@
 
       const payload = {
         active_preset: isScalp ? 'volume_scalping_v23' : 'whale_hunting_v23',
-        min_volume_usd: getVal('p_vol', 25000),
-        volume_spike_multiplier: getVal('p_spike', 1.4),
+        min_24h_quote_volume_usd: getVal('p_vol24', 5000000.0),
+        min_volume_usd: getVal('p_vol', 100000),
+        volume_spike_multiplier: getVal('p_spike', 2.4),
+        max_daily_trades: parseInt(getVal('p_daily', 2)),
         max_recent_gain_24h: getVal('p_gain', 3.5),
-        min_ai_score: getVal('p_score', 7.5),
-        max_budget_percent: getVal('p_budget', 50.0),
+        min_ai_score: getVal('p_score', 8.0),
+        max_budget_percent: getVal('p_budget', 25.0),
         max_concurrent_positions: parseInt(getVal('p_slots', 1)),
         take_profit_pct: getVal('p_tp', 2.4),
         stop_loss_pct: getVal('p_sl', 1.0),
         trailing_callback_pct: getVal('p_cb', 0.5),
-        min_5m_volume_usd: getVal('p_vol', 25000),
+        min_5m_volume_usd: getVal('p_vol', 100000),
+        first_pump_candle_entry_blocked: true,
+        retest_required: true,
         require_futures_oi: true
       };
 

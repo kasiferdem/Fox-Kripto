@@ -36,15 +36,17 @@ def generate_v2_dashboard_html(
     pill_cus_cls = "profile-btn active" if active_risk == "CUSTOM" else "profile-btn"
 
     # Strategy Config Defaults
+    min_24h_vol = int(strategy_config.get("min_24h_quote_volume_usd", 5000000))
     min_vol = int(strategy_config.get("min_volume_usd", 25000 if is_scalp else 50000))
     spike_mult = float(strategy_config.get("volume_spike_multiplier", 1.8 if is_scalp else 2.5))
-    max_gain = float(strategy_config.get("max_recent_gain_24h", 12.0))
+    max_daily = int(strategy_config.get("max_daily_trades", 2))
+    max_gain = float(strategy_config.get("max_recent_gain_24h", 3.5))
     ai_score = float(strategy_config.get("min_ai_score", 7.5 if is_scalp else 8.0))
     max_budget = float(strategy_config.get("max_budget_percent", 25.0))
-    max_positions = int(strategy_config.get("max_concurrent_positions", 2))
-    tp_pct = float(strategy_config.get("take_profit_pct", 2.0 if is_scalp else 3.0))
-    sl_pct = float(strategy_config.get("stop_loss_pct", 1.2 if is_scalp else 1.5))
-    cb_pct = float(strategy_config.get("trailing_callback_pct", 0.5 if is_scalp else 0.6))
+    max_positions = int(strategy_config.get("max_concurrent_positions", 1))
+    tp_pct = float(strategy_config.get("take_profit_pct", 2.4 if is_scalp else 3.0))
+    sl_pct = float(strategy_config.get("stop_loss_pct", 1.0 if is_scalp else 1.2))
+    cb_pct = float(strategy_config.get("trailing_callback_pct", 0.5 if is_scalp else 0.5))
 
     # Tenants Tablosu SSR HTML (Tıklanabilir Satırlar)
     tenants_ssr_html = ""
@@ -609,8 +611,12 @@ def generate_v2_dashboard_html(
         </div>
       </div>
 
-      <!-- 9 Parametreli İnce Ayar Alanı -->
+      <!-- İnce Ayar Parametre Alanı -->
       <div class="param-grid" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));">
+        <div class="param-box">
+          <label data-i18n="p_vol24">Min 24s Hacim ($)</label>
+          <input type="number" id="param_min_24h_vol" value="{min_24h_vol}" onchange="markCustom()">
+        </div>
         <div class="param-box">
           <label data-i18n="p_vol">Min 5dk Hacim ($)</label>
           <input type="number" id="param_min_volume_usd" value="{min_vol}" onchange="markCustom()">
@@ -618,6 +624,10 @@ def generate_v2_dashboard_html(
         <div class="param-box">
           <label data-i18n="p_spike">Hacim Çarpanı (x)</label>
           <input type="number" step="0.1" id="param_volume_spike" value="{spike_mult}" onchange="markCustom()">
+        </div>
+        <div class="param-box">
+          <label data-i18n="p_daily">Günlük İşlem Kotası</label>
+          <input type="number" min="1" max="50" step="1" id="param_max_daily_trades" value="{max_daily}" onchange="markCustom()">
         </div>
         <div class="param-box">
           <label data-i18n="p_gain">Maks 24s Prim (%)</label>
@@ -988,12 +998,12 @@ def generate_v2_dashboard_html(
     let currentRisk = '{active_risk}';
 
     const PRESETS_MAP = {{
-      'VOLUME_SCALPING_AGGRESSIVE': {{ min_vol: 20000, spike: 1.3, gain: 4.0, score: 7.0, budget: 75.0, slots: 3, tp: 2.2, sl: 1.0, cb: 0.4 }},
-      'VOLUME_SCALPING_BALANCED':   {{ min_vol: 25000, spike: 1.4, gain: 3.5, score: 7.5, budget: 50.0, slots: 2, tp: 2.4, sl: 1.0, cb: 0.5 }},
-      'VOLUME_SCALPING_DEFENSIVE':  {{ min_vol: 35000, spike: 1.8, gain: 2.5, score: 8.0, budget: 25.0, slots: 1, tp: 2.6, sl: 1.0, cb: 0.6 }},
-      'WHALE_HUNTING_AGGRESSIVE':   {{ min_vol: 50000, spike: 2.0, gain: 4.0, score: 7.5, budget: 50.0, slots: 3, tp: 4.0, sl: 1.5, cb: 0.6 }},
-      'WHALE_HUNTING_BALANCED':     {{ min_vol: 50000, spike: 2.2, gain: 3.5, score: 8.0, budget: 35.0, slots: 2, tp: 3.2, sl: 1.2, cb: 0.6 }},
-      'WHALE_HUNTING_DEFENSIVE':    {{ min_vol: 100000, spike: 2.6, gain: 2.5, score: 8.5, budget: 25.0, slots: 1, tp: 3.0, sl: 1.0, cb: 0.5 }}
+      'VOLUME_SCALPING_AGGRESSIVE': {{ min_24h_vol: 3000000, min_vol: 20000, spike: 1.5, daily: 5, gain: 4.0, score: 7.0, budget: 75.0, slots: 3, tp: 2.2, sl: 1.0, cb: 0.4 }},
+      'VOLUME_SCALPING_BALANCED':   {{ min_24h_vol: 5000000, min_vol: 25000, spike: 1.8, daily: 3, gain: 3.5, score: 7.5, budget: 50.0, slots: 2, tp: 2.4, sl: 1.0, cb: 0.5 }},
+      'VOLUME_SCALPING_DEFENSIVE':  {{ min_24h_vol: 10000000, min_vol: 35000, spike: 2.2, daily: 2, gain: 2.5, score: 8.0, budget: 25.0, slots: 1, tp: 2.6, sl: 1.0, cb: 0.6 }},
+      'WHALE_HUNTING_AGGRESSIVE':   {{ min_24h_vol: 5000000, min_vol: 50000, spike: 2.0, daily: 3, gain: 4.0, score: 7.5, budget: 50.0, slots: 3, tp: 4.0, sl: 1.5, cb: 0.6 }},
+      'WHALE_HUNTING_BALANCED':     {{ min_24h_vol: 5000000, min_vol: 50000, spike: 2.5, daily: 2, gain: 3.5, score: 8.0, budget: 35.0, slots: 2, tp: 3.2, sl: 1.2, cb: 0.6 }},
+      'WHALE_HUNTING_DEFENSIVE':    {{ min_24h_vol: 10000000, min_vol: 100000, spike: 3.2, daily: 1, gain: 2.5, score: 8.5, budget: 25.0, slots: 1, tp: 3.0, sl: 1.0, cb: 0.5 }}
     }};
 
     function applyPresetValues() {{
@@ -1002,12 +1012,14 @@ def generate_v2_dashboard_html(
       const p = PRESETS_MAP[key];
       if (p) {{
         const setV = (id, v) => {{ const el = document.getElementById(id); if (el) el.value = v; }};
+        setV('param_min_24h_vol', p.min_24h_vol || 5000000);
         setV('param_min_volume_usd', p.min_vol);
         setV('param_volume_spike', p.spike);
+        setV('param_max_daily_trades', p.daily || 2);
         setV('param_max_gain_24h', p.gain);
         setV('param_min_ai_score', p.score);
         setV('param_max_budget', p.budget);
-        setV('param_max_positions', p.slots || 2);
+        setV('param_max_positions', p.slots || 1);
         setV('param_tp_pct', p.tp);
         setV('param_sl_pct', p.sl);
         setV('param_trailing_callback', p.cb);
@@ -1081,16 +1093,20 @@ def generate_v2_dashboard_html(
 
         const payload = {{
           active_preset: (currentEngine || 'VOLUME_SCALPING').toLowerCase() + '_' + (currentRisk || 'BALANCED').toLowerCase(),
-          min_volume_usd: getVal('param_min_volume_usd', 'p_vol', 25000),
-          volume_spike_multiplier: getVal('param_volume_spike', 'p_spike', 1.4),
+          min_24h_quote_volume_usd: getVal('param_min_24h_vol', 'p_vol24', 5000000.0),
+          min_volume_usd: getVal('param_min_volume_usd', 'p_vol', 100000),
+          volume_spike_multiplier: getVal('param_volume_spike', 'p_spike', 2.4),
+          max_daily_trades: parseInt(getVal('param_max_daily_trades', 'p_daily', 2)),
           max_recent_gain_24h: getVal('param_max_gain_24h', 'p_gain', 3.5),
-          min_ai_score: getVal('param_min_ai_score', 'p_score', 7.5),
-          max_budget_percent: getVal('param_max_budget', 'p_budget', 50.0),
-          max_concurrent_positions: parseInt(getVal('param_max_positions', 'p_slots', 2)),
+          min_ai_score: getVal('param_min_ai_score', 'p_score', 8.0),
+          max_budget_percent: getVal('param_max_budget', 'p_budget', 25.0),
+          max_concurrent_positions: parseInt(getVal('param_max_positions', 'p_slots', 1)),
           take_profit_pct: getVal('param_tp_pct', 'p_tp', 2.4),
           stop_loss_pct: getVal('param_sl_pct', 'p_sl', 1.0),
           trailing_callback_pct: getVal('param_trailing_callback', 'p_cb', 0.5),
-          min_5m_volume_usd: getVal('param_min_volume_usd', 'p_vol', 25000),
+          min_5m_volume_usd: getVal('param_min_volume_usd', 'p_vol', 100000),
+          first_pump_candle_entry_blocked: true,
+          retest_required: true,
           require_futures_oi: true
         }};
 

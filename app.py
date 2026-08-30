@@ -531,6 +531,8 @@ class StrategyConfigRequest(BaseModel):
     active_preset: str = "volume_scalping_v23"
     volume_spike_multiplier: float = 1.4
     min_volume_usd: float = 25000.0
+    min_24h_quote_volume_usd: Optional[float] = 5000000.0
+    max_daily_trades: Optional[int] = 2
     max_recent_gain_24h: float = 3.5
     min_ai_score: float = 7.5
     max_budget_percent: float = 50.0
@@ -539,6 +541,8 @@ class StrategyConfigRequest(BaseModel):
     take_profit_pct: Optional[float] = 2.4
     stop_loss_pct: Optional[float] = 1.0
     min_5m_volume_usd: Optional[float] = 25000.0
+    first_pump_candle_entry_blocked: Optional[bool] = True
+    retest_required: Optional[bool] = True
     require_futures_oi: Optional[bool] = True
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
@@ -554,6 +558,8 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "active_preset": req.active_preset,
         "volume_spike_multiplier": req.volume_spike_multiplier,
         "min_volume_usd": req.min_volume_usd,
+        "min_24h_quote_volume_usd": req.min_24h_quote_volume_usd or 5000000.0,
+        "max_daily_trades": req.max_daily_trades or 2,
         "max_recent_gain_24h": req.max_recent_gain_24h,
         "min_ai_score": req.min_ai_score,
         "max_budget_percent": req.max_budget_percent,
@@ -562,6 +568,8 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "take_profit_pct": req.take_profit_pct,
         "stop_loss_pct": req.stop_loss_pct,
         "min_5m_volume_usd": req.min_5m_volume_usd or req.min_volume_usd,
+        "first_pump_candle_entry_blocked": req.first_pump_candle_entry_blocked if req.first_pump_candle_entry_blocked is not None else True,
+        "retest_required": req.retest_required if req.retest_required is not None else True,
         "require_futures_oi": req.require_futures_oi
     }
     ok = save_strategy_config(payload)
