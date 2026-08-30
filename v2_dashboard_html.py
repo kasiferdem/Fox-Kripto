@@ -1112,7 +1112,7 @@ def generate_v2_dashboard_html(
           alert('❌ Hata: ' + res.statusText + ' (' + res.status + ')');
         }}
       }} catch(e) {{ 
-        alert('Sunucu Bağlantı Uyarısı: ' + e + '\nLütfen sayfayı yenileyip tekrar deneyiniz.'); 
+        alert('Sunucu Bağlantı Uyarısı: ' + e + '. Lütfen sayfayı yenileyip tekrar deneyiniz.'); 
       }}
     }}
 

@@ -31,13 +31,38 @@ def audit_html_js_bindings():
         ('fox_quant_corporate_template.html', 'c:/Projects/Fox-Kripto/docs/fox_quant_corporate_template.html')
     ]
     issues = []
+    import subprocess, tempfile
     for label, path in html_files:
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        if path.endswith('.py'):
+            from v2_dashboard_html import generate_v2_dashboard_html
+            content = generate_v2_dashboard_html(tenants=[], logs=[], active_engine='WHALE_HUNTING', active_risk='BALANCED')
+        else:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
         # Extract only javascript blocks inside <script>...</script>
         script_blocks = re.findall(r'<script[^>]*>(.*?)</script>', content, re.DOTALL)
         script_content = "\n".join(script_blocks) if script_blocks else content
         
+        # Test real syntax check with Node.js
+        with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8') as tf:
+            tf.write(script_content)
+            tf_path = tf.name
+            
+        try:
+            res_node = subprocess.run(['node', '-c', tf_path], capture_output=True, text=True)
+            if res_node.returncode == 0:
+                print(f"  ✓ {label} -> JavaScript Sözdizimi Node.js ile Doğrulandı (0 Hata).")
+            else:
+                err_clean = res_node.stderr.strip().split('\n')[0]
+                issues.append((label, f"JavaScript SyntaxError: {err_clean}"))
+                print(f"  ❌ {label} -> JS Sözdizimi Hatası: {err_clean}")
+        except Exception as ex:
+            print(f"  ⚠️ {label} -> Node.js kontrolü atlandı: {ex}")
+        finally:
+            try: os.remove(tf_path)
+            except Exception: pass
+
         # Check onclick functions exist in script
         onclicks = re.findall(r'onclick="([a-zA-Z0-9_]+)\(', content)
         for fn in set(onclicks):
