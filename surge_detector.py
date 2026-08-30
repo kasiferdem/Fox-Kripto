@@ -50,13 +50,20 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     price_change_24h = float(cand.get("priceChangePercent", 0.0))
     quote_volume_24h = float(cand.get("quoteVolume", 0.0))
     
-    # 🔒 KATI LİKİDİTE VE BALİNA EŞİĞİ (min24hQuoteVolumeUsd: $5,000,000 USD)
-    if quote_volume_24h < 5000000.0:
+    # 🎛️ AKTİF PROFİLDEN DİNAMİK PARAMETRE OKUMA:
+    from db import get_strategy_config
+    strat_cfg = get_strategy_config(use_cache=True) or {}
+    min_24h_vol = float(strat_cfg.get("min_24h_quote_volume_usd") or 5000000.0)
+    min_5m_vol = float(strat_cfg.get("min_5m_volume_usd") or min_volume_usd or 50000.0)
+    vol_spike_req = float(strat_cfg.get("volume_spike_multiplier") or 2.4)
+    cfg_max_gain = float(strat_cfg.get("max_recent_gain_24h") or max_recent_gain or 3.5)
+    
+    # 🔒 DİNAMİK LİKİDİTE EŞİĞİ (Profil Değişince Otomatik Güncellenir)
+    if quote_volume_24h < min_24h_vol:
         return None
         
-    # 🔒 KATI ERKEN DİP TAVANI: 24 saatlik primi %3.5'ten fazla olan coinler ASLA ALINMAZ!
-    effective_max_gain = min(3.5, float(max_recent_gain or 3.5))
-    if price_change_24h > effective_max_gain or price_change_24h < -6.0:
+    # 🔒 DİNAMİK ERKEN DİP TAVANI
+    if price_change_24h > cfg_max_gain or price_change_24h < -6.0:
         return None
         
     candles = fetch_1m_candles(sym, limit=8)
@@ -87,20 +94,14 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     tb_recent = sum(float(k.get("taker_buy_quote_volume", 0.0)) for k in recent_3)
     taker_buy_ratio = (tb_recent / v_recent * 100.0) if v_recent > 0 else 0.0
 
-    # 🛡️ KULLANICI ŞARTNAMESİ GİRİŞ FİLTRELERİ:
-    # 1. 24s Hacim >= $5,000,000 USD
-    # 2. 5dk / 3dk Hacim >= $50,000 USD
-    # 3. Hacim Patlama Çarpanı >= 2.4x
-    # 4. 3dk Erken Yükseliş / Chase Limiti: +%0.20 ile +%1.80 arasında (maxEntryChasePct: 0.4%)
-    # 5. Taker Alıcı Baskısı >= %58.0
-    # 6. Üst Fitil <= 0.30 (İlk pump tepesinde kilitlenme yok)
+    # 🛡️ AKTİF PROFİL FİLTRELERİ:
     if (
-        volume_spike_ratio >= 2.40 and
-        v_recent >= 50000.0 and
+        volume_spike_ratio >= vol_spike_req and
+        v_recent >= min_5m_vol and
         (0.20 <= gain_3m <= 1.80) and
         upper_wick_ratio <= 0.30 and
         taker_buy_ratio >= 58.0 and
-        (-6.0 <= price_change_24h <= effective_max_gain)
+        (-6.0 <= price_change_24h <= cfg_max_gain)
     ):
         momentum_score = min(10.0, round(7.0 + (volume_spike_ratio * 0.4) + (gain_3m * 0.5) + (taker_buy_ratio / 100.0 * 1.5), 1))
         clean_base = sym.replace("USDT", "").replace("TRY", "")
