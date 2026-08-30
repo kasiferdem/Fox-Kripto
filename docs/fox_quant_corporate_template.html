@@ -814,39 +814,47 @@
 
     async function saveV2Strategy(mode) {
       const badge = document.getElementById('badge-engine');
+      const isScalp = (currentEngine === 'VOLUME_SCALPING');
+      const engineName = isScalp ? '⚡ Hacim Scalping' : '🐋 Balina Avı';
+      
       if (badge) {
-        badge.innerText = '🟢 ⚡ Hacim Scalping · v2.3 CANLI AKTİF';
+        badge.innerText = '🟢 ' + engineName + ' · v2.3 CANLI AKTİF';
         badge.className = 'badge badge-ok';
       }
-      showToast('✅ [BAŞARILI]: V2.3 Strateji Ayarlarınız Başarıyla Canlıya Alındı!');
-      alert('✅ [BAŞARILI]: V2.3 Strateji Ayarlarınız (3 Slot, %50 Bütçe, %2.4 Kâr Al, %1.0 Stop-Loss) Başarıyla Canlıya Alındı ve Kaydedildi!');
 
+      function getVal(id, fallback) {
+        const el = document.getElementById(id);
+        if (!el || el.value === '' || isNaN(parseFloat(el.value))) return fallback;
+        return parseFloat(el.value);
+      }
+
+      const payload = {
+        active_preset: isScalp ? 'volume_scalping_v23' : 'whale_hunting_v23',
+        min_volume_usd: getVal('p_vol', 25000),
+        volume_spike_multiplier: getVal('p_spike', 1.4),
+        max_recent_gain_24h: getVal('p_gain', 3.5),
+        min_ai_score: getVal('p_score', 7.5),
+        max_budget_percent: getVal('p_budget', 50.0),
+        max_concurrent_positions: parseInt(getVal('p_slots', 1)),
+        take_profit_pct: getVal('p_tp', 2.4),
+        stop_loss_pct: getVal('p_sl', 1.0),
+        trailing_callback_pct: getVal('p_cb', 0.5),
+        min_5m_volume_usd: getVal('p_vol', 25000),
+        require_futures_oi: true
+      };
+
+      showToast('✅ [BAŞARILI]: ' + engineName + ' Ayarları (' + payload.max_concurrent_positions + ' Slot, %' + payload.max_budget_percent + ' Bütçe) Canlıya Alındı!');
+      
       try {
-        function getVal(id, fallback) {
-          const el = document.getElementById(id);
-          if (!el || el.value === '' || isNaN(parseFloat(el.value))) return fallback;
-          return parseFloat(el.value);
-        }
-        const payload = {
-          active_preset: 'volume_scalping_v23',
-          min_volume_usd: getVal('p_vol', 25000),
-          volume_spike_multiplier: getVal('p_spike', 1.4),
-          max_recent_gain_24h: getVal('p_gain', 3.5),
-          min_ai_score: getVal('p_score', 7.5),
-          max_budget_percent: getVal('p_budget', 50.0),
-          max_concurrent_positions: parseInt(getVal('p_slots', 3)),
-          take_profit_pct: getVal('p_tp', 2.4),
-          stop_loss_pct: getVal('p_sl', 1.0),
-          trailing_callback_pct: getVal('p_cb', 0.5),
-          min_5m_volume_usd: getVal('p_vol', 25000),
-          require_futures_oi: true
-        };
-        await fetch('/api/strategy-config', {
+        const baseUrl = (window.location.protocol === 'file:' ? 'https://fox-kripto-m7n46.ondigitalocean.app' : '');
+        await fetch(baseUrl + '/api/strategy-config', {
           method: 'POST',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-      } catch(e) {}
+      } catch(e) {
+        console.log('Save strategy config request finished:', e);
+      }
     }
 
     function openBalanceModal(name, exch, tot, free) {
