@@ -1044,13 +1044,13 @@ def generate_v2_dashboard_html(
       switchEngine(currentEngine);
     }}
 
-    async function saveV2Strategy(mode) {
-      if (window.location.protocol === 'file:') {
+    async function saveV2Strategy(mode) {{
+      if (window.location.protocol === 'file:') {{
         alert('⚠️ Bu sayfayı yerel HTML dosyası olarak açtınız. Lütfen canlı FastAPI/DigitalOcean web adresi (veya http://localhost:8000/v2/dashboard) üzerinden işlem yapınız.');
         return;
-      }
-      try {
-        const payload = {
+      }}
+      try {{
+        const payload = {{
           active_preset: currentEngine.toLowerCase() + '_' + currentRisk.toLowerCase(),
           min_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 25000,
           volume_spike_multiplier: parseFloat(document.getElementById('param_volume_spike').value) || 1.4,
@@ -1062,28 +1062,28 @@ def generate_v2_dashboard_html(
           trailing_callback_pct: parseFloat(document.getElementById('param_trailing_callback').value) || 0.5,
           min_5m_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 25000,
           require_futures_oi: true
-        };
+        }};
 
-        const res = await fetch('/api/strategy-config', {
+        const res = await fetch('/api/strategy-config', {{
           method: 'POST',
-          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
           body: JSON.stringify(payload)
-        });
-        if (res.ok) {
+        }});
+        if (res.ok) {{
           const engineName = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Hacim Scalping Motoru' : '🐋 Gerçek Balina Avı Motoru');
           showToast(curLang === 'tr' ? '✅ [BAŞARILI]: ' + engineName + ' (' + currentRisk + ') V2.3 Canlıya Alındı!' : '✅ [SUCCESS]: ' + engineName + ' (' + currentRisk + ') V2.3 Applied Live!');
           const badge = document.getElementById('engine-badge');
-          if (badge) {
+          if (badge) {{
             badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + currentRisk + ' · v2.3';
             badge.className = (currentEngine === 'VOLUME_SCALPING') ? 'badge badge-info' : 'badge badge-warn';
-          }
-        } else {
+          }}
+        }} else {{
           alert('❌ Hata: ' + res.statusText + ' (' + res.status + ')');
-        }
-      } catch(e) { 
+        }}
+      }} catch(e) {{ 
         alert('Sunucu Bağlantı Uyarısı: ' + e + '\nLütfen sayfayı yenileyip tekrar deneyiniz.'); 
-      }
-    }
+      }}
+    }}
 
     async function openTenantPortfolioModal(tenantId, tenantName) {{
       const modal = document.getElementById('portfolio-modal');
