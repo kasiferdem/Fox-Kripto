@@ -54,7 +54,8 @@ def audit_html_js_bindings():
             if res_node.returncode == 0:
                 print(f"  ✓ {label} -> JavaScript Sözdizimi Node.js ile Doğrulandı (0 Hata).")
             else:
-                err_clean = res_node.stderr.strip().split('\n')[0]
+                err_raw = res_node.stderr or res_node.stdout or "SyntaxError"
+                err_clean = err_raw.strip().split('\n')[0]
                 issues.append((label, f"JavaScript SyntaxError: {err_clean}"))
                 print(f"  ❌ {label} -> JS Sözdizimi Hatası: {err_clean}")
         except Exception as ex:
