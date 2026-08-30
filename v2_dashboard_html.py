@@ -1044,40 +1044,46 @@ def generate_v2_dashboard_html(
       switchEngine(currentEngine);
     }}
 
-    async function saveV2Strategy() {{
-      try {{
-        const payload = {{
+    async function saveV2Strategy(mode) {
+      if (window.location.protocol === 'file:') {
+        alert('⚠️ Bu sayfayı yerel HTML dosyası olarak açtınız. Lütfen canlı FastAPI/DigitalOcean web adresi (veya http://localhost:8000/v2/dashboard) üzerinden işlem yapınız.');
+        return;
+      }
+      try {
+        const payload = {
           active_preset: currentEngine.toLowerCase() + '_' + currentRisk.toLowerCase(),
           min_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 25000,
-          volume_spike_multiplier: parseFloat(document.getElementById('param_volume_spike').value) || 1.8,
-          max_recent_gain_24h: parseFloat(document.getElementById('param_max_gain_24h').value) || 12.0,
+          volume_spike_multiplier: parseFloat(document.getElementById('param_volume_spike').value) || 1.4,
+          max_recent_gain_24h: parseFloat(document.getElementById('param_max_gain_24h').value) || 3.5,
           min_ai_score: parseFloat(document.getElementById('param_min_ai_score').value) || 7.5,
-          max_budget_percent: parseFloat(document.getElementById('param_max_budget').value) || 25.0,
-          take_profit_pct: parseFloat(document.getElementById('param_tp_pct').value) || 2.0,
-          stop_loss_pct: parseFloat(document.getElementById('param_sl_pct').value) || 1.2,
+          max_budget_percent: parseFloat(document.getElementById('param_max_budget').value) || 50.0,
+          take_profit_pct: parseFloat(document.getElementById('param_tp_pct').value) || 2.4,
+          stop_loss_pct: parseFloat(document.getElementById('param_sl_pct').value) || 1.0,
           trailing_callback_pct: parseFloat(document.getElementById('param_trailing_callback').value) || 0.5,
           min_5m_volume_usd: parseFloat(document.getElementById('param_min_volume_usd').value) || 25000,
           require_futures_oi: true
-        }};
+        };
 
-        const res = await fetch('/api/strategy-config', {{
+        const res = await fetch('/api/strategy-config', {
           method: 'POST',
-          headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }});
-        if (res.ok) {{
+        });
+        if (res.ok) {
           const engineName = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Hacim Scalping Motoru' : '🐋 Gerçek Balina Avı Motoru');
-          showToast(curLang === 'tr' ? '✅ [BAŞARILI]: ' + engineName + ' (' + currentRisk + ') Canlıya Alındı!' : '✅ [SUCCESS]: ' + engineName + ' (' + currentRisk + ') Applied Live!');
+          showToast(curLang === 'tr' ? '✅ [BAŞARILI]: ' + engineName + ' (' + currentRisk + ') V2.3 Canlıya Alındı!' : '✅ [SUCCESS]: ' + engineName + ' (' + currentRisk + ') V2.3 Applied Live!');
           const badge = document.getElementById('engine-badge');
-          if (badge) {{
-            badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + currentRisk + ' · v2.2';
+          if (badge) {
+            badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + currentRisk + ' · v2.3';
             badge.className = (currentEngine === 'VOLUME_SCALPING') ? 'badge badge-info' : 'badge badge-warn';
-          }}
-        }} else {{
-          alert('❌ Error: ' + res.statusText);
-        }}
-      }} catch(e) {{ alert('Error: ' + e); }}
-    }}
+          }
+        } else {
+          alert('❌ Hata: ' + res.statusText + ' (' + res.status + ')');
+        }
+      } catch(e) { 
+        alert('Sunucu Bağlantı Uyarısı: ' + e + '\nLütfen sayfayı yenileyip tekrar deneyiniz.'); 
+      }
+    }
 
     async function openTenantPortfolioModal(tenantId, tenantName) {{
       const modal = document.getElementById('portfolio-modal');
