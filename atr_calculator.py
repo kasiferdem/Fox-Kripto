@@ -24,6 +24,19 @@ def calculate_atr(candles: List[Dict[str, float]], period: int = 14) -> float:
     recent_tr = true_ranges[-period:]
     return sum(recent_tr) / len(recent_tr)
 
+def format_price_precision(price: float) -> float:
+    """Micro coinler (PEPE, SHIB vb. 8 basamak) için hassas fiyat yuvarlama."""
+    if price <= 0:
+        return 0.0
+    if price < 0.0001:
+        return round(price, 8)
+    elif price < 0.1:
+        return round(price, 6)
+    elif price < 1.0:
+        return round(price, 4)
+    else:
+        return round(price, 2)
+
 def calculate_atr_sl_tp(
     symbol: str,
     entry_price: float,
@@ -71,16 +84,16 @@ def calculate_atr_sl_tp(
                 if user_tp_override and user_tp_override > 0:
                     calc_tp_pct = max(calc_tp_pct, user_tp_override)
                     
-                sl_price = round(entry_price * (1.0 - (calc_sl_pct / 100.0)), 6 if entry_price < 1.0 else 4)
-                tp_price = round(entry_price * (1.0 + (calc_tp_pct / 100.0)), 6 if entry_price < 1.0 else 4)
+                sl_price = format_price_precision(entry_price * (1.0 - (calc_sl_pct / 100.0)))
+                tp_price = format_price_precision(entry_price * (1.0 + (calc_tp_pct / 100.0)))
                 
                 return tp_price, sl_price, round(calc_tp_pct, 2), round(calc_sl_pct, 2)
     except Exception as e:
         print(f"⚠️ [ATR Hesabı Hatası]: {e}")
         
-    # Varsayılan Matematiksel Güvenli Değerler (SL: %2.0, TP: %4.0 -> R:R 1:2)
+    # Varsayılan Matematiksel Güvenli Değerler
     def_sl = user_sl_override if (user_sl_override and user_sl_override > 0) else 2.0
     def_tp = user_tp_override if (user_tp_override and user_tp_override > 0) else (def_sl * 2.0)
-    sl_price = round(entry_price * (1.0 - (def_sl / 100.0)), 6 if entry_price < 1.0 else 4)
-    tp_price = round(entry_price * (1.0 + (def_tp / 100.0)), 6 if entry_price < 1.0 else 4)
+    sl_price = format_price_precision(entry_price * (1.0 - (def_sl / 100.0)))
+    tp_price = format_price_precision(entry_price * (1.0 + (def_tp / 100.0)))
     return tp_price, sl_price, round(def_tp, 2), round(def_sl, 2)

@@ -259,8 +259,9 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                                     buys = [t for t in r_h.json() if t.get("isBuyer")]
                                     if buys:
                                         recorded_buy_p = float(buys[-1]["price"])
-                                        pos_sl_price = round(recorded_buy_p * (1 - (user_sl/100.0)), 6)
-                                        pos_tp_price = round(recorded_buy_p * (1 + (user_tp/100.0)), 6)
+                                        from atr_calculator import format_price_precision
+                                        pos_sl_price = format_price_precision(recorded_buy_p * (1 - (user_sl/100.0)))
+                                        pos_tp_price = format_price_precision(recorded_buy_p * (1 + (user_tp/100.0)))
                                         highest_p = max(recorded_buy_p, curr_p)
                                         save_position_to_db(
                                             tenant_id=tenant_id, exchange_id=exch_name, symbol=target_symbol,
@@ -269,14 +270,15 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                                             take_profit_price=pos_tp_price,
                                             highest_price=highest_p, stage="INITIAL"
                                         )
-                                        print(f"📖 [Binance Defteri]: {asset_upper} son gerçek alış fiyatı borsadan senkronize edildi: ${recorded_buy_p:,.4f}")
+                                        print(f"📖 [Binance Defteri]: {asset_upper} son gerçek alış fiyatı borsadan senkronize edildi: ${recorded_buy_p:,.8f}")
                             except Exception as e_hist:
                                 print(f"⚠️ myTrades okuma uyarısı ({asset_upper}): {e_hist}")
                                 
                     if recorded_buy_p <= 0.0:
                         recorded_buy_p = curr_p
-                        pos_sl_price = round(curr_p * (1 - (user_sl/100.0)), 6)
-                        pos_tp_price = round(curr_p * (1 + (user_tp/100.0)), 6)
+                        from atr_calculator import format_price_precision
+                        pos_sl_price = format_price_precision(curr_p * (1 - (user_sl/100.0)))
+                        pos_tp_price = format_price_precision(curr_p * (1 + (user_tp/100.0)))
                         highest_p = curr_p
                         
                     gross_change_pct = ((curr_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
