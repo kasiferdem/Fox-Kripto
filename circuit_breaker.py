@@ -110,16 +110,20 @@ def check_tenant_circuit_breakers(
         "message": "Tüm devre kesici ve risk kapıları açık."
     }
 
-def get_adaptive_max_slots(total_equity_usd: float = 200.0, user_max_budget_pct: float = 50.0) -> int:
+def get_adaptive_max_slots(total_equity_usd: float = 200.0, user_max_budget_pct: float = 30.0) -> int:
     """
-    V2.3 Şartnamesi gereği portföy büyüklüğü ve risk tavanına göre dinamik slot sayısı döner (Maksimum 2 slot).
+    Kullanıcının panelden belirlediği azami eşzamanlı pozisyon slotunu dinamik olarak döndürür.
     """
-    if total_equity_usd <= 0:
-        return 1
+    try:
+        from db import get_strategy_config
+        strat_cfg = get_strategy_config(use_cache=True)
+        if strat_cfg and "max_concurrent_positions" in strat_cfg:
+            return int(strat_cfg.get("max_concurrent_positions") or 3)
+    except Exception:
+        pass
     if user_max_budget_pct >= 50.0:
         return 2
-    calculated = max(1, int(100.0 / user_max_budget_pct))
-    return min(2, calculated)
+    return max(1, int(100.0 / user_max_budget_pct)) if user_max_budget_pct > 0 else 3
 
 def can_place_live_order(
     profile_status: str,
