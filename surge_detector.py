@@ -156,7 +156,7 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
         try:
             from db import get_strategy_config
             strat = get_strategy_config(use_cache=True)
-            max_24h_req = min(3.5, float(max_recent_gain or strat.get("max_recent_gain_24h", 3.5)))
+            max_24h_req = float(max_recent_gain or strat.get("max_recent_gain_24h", 3.5))
             min_vol_req = float(min_volume_usd or strat.get("min_volume_usd", 15000.0))
         except Exception:
             max_24h_req = 3.5
