@@ -130,12 +130,41 @@ class V2WhaleHuntingEngine:
             "weight": 20
         }
 
-        # 4. TEKNİK YAPI VE RETEST KANITI (Technical Structure)
-        tech_passed = (-4.0 <= gain_24h <= 4.0) # Dip seviyesinde konsolidasyon
+        # 4. TEKNİK YAPI VE TABAN RETEST KANITI (Technical Structure & Retest Evidence)
+        retest_confirmed = True
+        is_first_pump_blocked = False
+        retest_note = "Dip taban retesti teyitli."
+        
+        if klines_5m and len(klines_5m) >= 4:
+            c_last = float(klines_5m[-1][4])
+            o_last = float(klines_5m[-1][1])
+            h_prev = float(klines_5m[-2][2])
+            l_last = float(klines_5m[-1][3])
+            o_prev = float(klines_5m[-2][1])
+            
+            # İlk mum fırlaması kontrolü: Eğer önceki mum %2.5'ten fazla fırladıysa ve henüz geri çekilme olmadıysa
+            prev_candle_gain = ((h_prev - o_prev) / o_prev * 100.0) if o_prev > 0 else 0.0
+            if prev_candle_gain > 2.5 and c_last >= h_prev:
+                # Fiyat hâlâ tepede, henüz retest tabanına oturmadı
+                is_first_pump_blocked = True
+                retest_confirmed = False
+                retest_note = f"İlk fırlama mumu (+%{prev_candle_gain:.1f}) tepesinde; taban retesti bekleniyor."
+            elif l_last < o_prev * 0.985:
+                # Retest tabanı kırıldı, destek tutunamadı
+                retest_confirmed = False
+                retest_note = "Retest destek tabanı tutunamadı, aşağı kırıldı."
+            else:
+                retest_confirmed = True
+                retest_note = "Kırılım sonrası destek tabanı test edildi ve onaylandı."
+
+        tech_passed = (-4.0 <= gain_24h <= float(self.params.get("max_recent_gain_24h", 25.0))) and retest_confirmed and not is_first_pump_blocked
         if tech_passed: passed_evidence_count += 1
         evidence_groups["TechnicalStructureEvidence"] = {
             "status": "PASS" if tech_passed else "FAIL",
             "24h_gain_pct": round(gain_24h, 2),
+            "retest_confirmed": retest_confirmed,
+            "first_pump_blocked": is_first_pump_blocked,
+            "note": retest_note,
             "weight": 15
         }
 
