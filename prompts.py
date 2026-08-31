@@ -12,10 +12,36 @@ def _get_api_key():
     raise ValueError("CRITICAL: OPENROUTER_API_KEY is not configured in environment variables.")
 
 # -----------------------------------------
-# OPENROUTER ÇOKLU MODEL ÇAĞRI YARDIMCISI
 # -----------------------------------------
+# OPENROUTER & OPENAI ÇOKLU MODEL YEDEKLEME ZİNCİRİ (AI FAILOVER MESH)
+# -----------------------------------------
+MODEL_FALLBACK_CHAINS = {
+    "z-ai/glm-5.2": [
+        "google/gemini-2.5-flash",
+        "google/gemini-2.0-flash-001",
+        "openai/gpt-4o-mini",
+        "meta-llama/llama-3.3-70b-instruct"
+    ],
+    "google/gemini-3.7-flash": [
+        "google/gemini-2.5-flash",
+        "google/gemini-2.0-flash-001",
+        "openai/gpt-4o-mini",
+        "z-ai/glm-5.2"
+    ],
+    "stealth/ox-alpha": [
+        "google/gemini-2.5-flash",
+        "openai/gpt-4o-mini",
+        "meta-llama/llama-3.3-70b-instruct"
+    ]
+}
+
 def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens: int = 250) -> str:
-    """Belirtilen modele OpenRouter üzerinden güvenli çağrı yapar. Hata durumunda otomatik yedek modellere (Gemini 2.5 Flash / Llama 3.3) geçer."""
+    """
+    Çok Kademeli Yapay Zeka Çağrı Motoru:
+    1. İstenen birincil modele çağrı yapar.
+    2. Model meşgulse/hata verirse (429/402 vb.) sırasıyla Gemini, GPT-4o-mini ve Llama yedeklerine geçer.
+    3. OpenRouter erişilemezse doğrudan OpenAI API üzerinden gpt-4o-mini ile işlemi tamamlar.
+    """
     url = "https://openrouter.ai/api/v1/chat/completions"
     key = _get_api_key()
     headers = {
@@ -25,12 +51,9 @@ def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens
         "X-Title": "Fox Multi-Agent Council"
     }
     
-    # Model Çağrı Sırası (Otomatik Yedekleme Zinciri)
-    target_models = [model]
-    if "gemini" in model.lower():
-        target_models.extend(["google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct"])
-    else:
-        target_models.extend(["google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct"])
+    # Model Çağrı Sırası (Birincil Model + Yedek Modeller)
+    fallbacks = MODEL_FALLBACK_CHAINS.get(model, ["google/gemini-2.5-flash", "openai/gpt-4o-mini", "meta-llama/llama-3.3-70b-instruct"])
+    target_models = [model] + [m for m in fallbacks if m != model]
         
     for m in target_models:
         payload = {
@@ -43,19 +66,43 @@ def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens
             "max_tokens": max_tokens
         }
         try:
-            res = requests.post(url, json=payload, headers=headers, timeout=12)
+            res = requests.post(url, json=payload, headers=headers, timeout=10)
             if res.status_code == 200:
                 data = res.json()
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
+                if content and content.strip():
+                    return content
             else:
-                print(f"⚠️ LLM Yanıt Uyarısı ({m} - Status {res.status_code}), sonraki modele geçiliyor...")
+                print(f"⚠️ LLM Yanıt Uyarısı ({m} - Status {res.status_code}), sonraki yedek modele geçiliyor...")
         except Exception as e:
             print(f"❌ LLM Çağrı Hatası ({m}): {e}")
+            
+    # Son Çare: Doğrudan OpenAI API Yedek Kapısı
+    openai_key = os.environ.get("OPENAI_API_KEY", "")
+    if openai_key and not openai_key.startswith("your_"):
+        try:
+            o_url = "https://api.openai.com/v1/chat/completions"
+            o_headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
+            o_payload = {
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                "temperature": 0.2,
+                "max_tokens": max_tokens
+            }
+            o_res = requests.post(o_url, json=o_payload, headers=o_headers, timeout=10)
+            if o_res.status_code == 200:
+                print("⚡ [Yedek Başarılı]: Doğrudan OpenAI (gpt-4o-mini) üzerinden yanıt alındı.")
+                return o_res.json()["choices"][0]["message"]["content"]
+        except Exception as o_err:
+            print(f"❌ Doğrudan OpenAI API Hatası: {o_err}")
             
     return ""
 
 def call_gpt4o(system_prompt: str, user_content: str, max_tokens: int = 1500) -> str:
-    """Gemini 3.7 Flash modeline doğrudan güvenli HTTP çağrısı yapar."""
+    """Gemini 3.7 Flash ve yedek zincirine doğrudan güvenli çağrı yapar."""
     return call_llm_model("google/gemini-3.7-flash", system_prompt, user_content, max_tokens=max_tokens)
 
 # -----------------------------------------
