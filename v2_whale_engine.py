@@ -19,14 +19,14 @@ class V2WhaleHuntingEngine:
         self.params = {
             "name": "WHALE_BALANCED_RESEARCH_V1",
             "min_volume_multiplier": 2.2,
-            "min_taker_buy_pct": 63.0,
-            "min_24h_volume_usd": 10000000.0,
-            "min_evidence_groups_required": 5,
+            "min_taker_buy_pct": 58.0,
+            "min_24h_volume_usd": 5000000.0,
+            "min_evidence_groups_required": 4,
             "max_spread_pct": 0.20,
-            "min_net_rr": 1.75,
-            "min_strategy_score": 8.0,
-            "target_take_profit_pct": 3.0,
-            "target_stop_loss_pct": 1.2
+            "min_net_rr": 1.50,
+            "min_strategy_score": 7.5,
+            "target_take_profit_pct": 2.4,
+            "target_stop_loss_pct": 1.0
         }
         if custom_params:
             self.params.update(custom_params)
@@ -52,8 +52,8 @@ class V2WhaleHuntingEngine:
         manipulation_penalties = 0.0
         
         # 1. SPOT AKIŞ KANITI (Spot Flow Evidence)
-        spot_taker_pct = 65.0
-        spot_volume_spike = 1.5
+        spot_taker_pct = float(ticker.get("taker_buy_ratio", 65.0) or 65.0)
+        spot_volume_spike = float(ticker.get("volume_spike_ratio", 2.2) or 2.2)
         if klines_5m and len(klines_5m) >= 4:
             recent = klines_5m[-1]
             prev = klines_5m[-4:-1]
@@ -63,7 +63,7 @@ class V2WhaleHuntingEngine:
             tb_vol = float(recent[10]) if len(recent) > 10 else (v_now * 0.65)
             spot_taker_pct = (tb_vol / v_now * 100.0) if v_now > 0 else 60.0
 
-        spot_passed = (spot_volume_spike >= self.params["min_volume_multiplier"] and spot_taker_pct >= self.params["min_taker_buy_pct"])
+        spot_passed = (spot_volume_spike >= float(self.params.get("volume_spike_multiplier", self.params.get("min_volume_multiplier", 2.2))) and spot_taker_pct >= float(self.params.get("min_taker_buy_pct", 58.0)))
         if spot_passed: passed_evidence_count += 1
         evidence_groups["SpotFlowEvidence"] = {
             "status": "PASS" if spot_passed else "FAIL",

@@ -79,6 +79,7 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
                 "recent_5m_volume_usd": v5m_val,
                 "priceChangePercent": g24_val,
                 "volume_spike_ratio": float(c.get("volume_spike_ratio", 2.0) or 2.0),
+                "taker_buy_ratio": float(c.get("taker_buy_ratio", 65.0) or 65.0),
                 "momentum_score": float(c.get("momentum_score", 8.0) or 8.0)
             }
             if is_scalp:
