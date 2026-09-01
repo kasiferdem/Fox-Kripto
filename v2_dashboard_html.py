@@ -57,13 +57,8 @@ def generate_v2_dashboard_html(
         user_tp = t.get("take_profit_percent", tp_pct)
         user_sl = t.get("stop_loss_percent", sl_pct)
         user_budget = t.get("max_budget_percent", max_budget)
-        is_paper = t.get("is_paper_trading", False)
-        exch_badge = "🇹🇷 Binance TR" if t.get("exchange_id") == "binancetr" else "🌍 Binance Global"
-        user_lang = str(t.get("preferred_language", "tr")).lower()
-        sel_tr = "selected" if user_lang == "tr" else ""
-        sel_en = "selected" if user_lang == "en" else ""
-
-        status_badge = '<span class="badge badge-warn">🧪 Sanal</span>' if is_paper else '<span class="badge badge-ok">🟢 Canlı</span>'
+        is_active = bool(t.get("is_active", True))
+        active_toggle_btn = f"""<button class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: {'rgba(34, 197, 94, 0.15)' if is_active else 'rgba(239, 68, 68, 0.15)'}; color: {'#22c55e' if is_active else '#ef4444'}; border: 1px solid {'#22c55e' if is_active else '#ef4444'};" onclick="toggleTenantActive('{tid}', {str(not is_active).lower()}, event)">{'🟢 Aktif' if is_active else '🔴 Pasif'}</button>"""
 
         tenants_ssr_html += f"""
         <tr data-id="{tid}" class="clickable">
@@ -84,7 +79,7 @@ def generate_v2_dashboard_html(
                     <option value="en" {sel_en}>🇬🇧 EN</option>
                 </select>
             </td>
-            <td>{status_badge}</td>
+            <td>{active_toggle_btn}</td>
             <td>
                 <button class="btn btn-sm btn-ghost" onclick="updateTenantSettings('{tid}', event)" data-i18n="save_row">💾 Kaydet</button>
             </td>
@@ -1312,6 +1307,27 @@ def generate_v2_dashboard_html(
         if (res.ok) showToast(curLang === 'tr' ? '✅ Kullanıcı risk ve dil parametreleri güncellendi!' : '✅ User risk & language settings updated!');
         else alert('Error updating tenant.');
       }} catch(e) {{ alert('Error: ' + e); }}
+    }}
+
+    async function toggleTenantActive(tenantId, newStatus, event) {{
+      if (event) event.stopPropagation();
+      try {{
+        showToast(newStatus ? (curLang === 'tr' ? '🟢 Kullanıcı aktif ediliyor...' : '🟢 Activating user...') : (curLang === 'tr' ? '🔴 Kullanıcı pasife alınıyor...' : '🔴 Deactivating user...'));
+        const res = await fetch('/api/tenants/' + tenantId + '/toggle-active', {{
+          method: 'POST',
+          headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ is_active: newStatus }})
+        }});
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {{
+          showToast(newStatus ? (curLang === 'tr' ? '🟢 Kullanıcı Canlı İşlemlere Açıldı (Aktif)!' : '🟢 User Activated for Live Trading!') : (curLang === 'tr' ? '🔴 Kullanıcı İşlemleri Durduruldu (Pasif)!' : '🔴 User Deactivated!'));
+          setTimeout(() => window.location.reload(), 700);
+        }} else {{
+          alert('Hata: ' + (data.detail || data.error || 'İşlem başarısız'));
+        }}
+      }} catch(e) {{
+        alert('Bağlantı Hatası: ' + e);
+      }}
     }}
 
     async function triggerDustClean() {{

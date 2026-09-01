@@ -724,6 +724,29 @@ def direct_update_tenant_endpoint(req: DirectUpdateTenantRequest):
     )
     return update_tenant_settings(req.tenant_id, sub_req)
 
+class ToggleTenantActiveRequest(BaseModel):
+    is_active: bool
+
+@app_api.post("/api/tenants/{tenant_id}/toggle-active", dependencies=[Depends(authenticate_admin)])
+def toggle_tenant_active(tenant_id: str, req: ToggleTenantActiveRequest):
+    """Admin panelinden kullanıcının aktif/pasif durumunu tek tıkla günceller."""
+    client = get_supabase()
+    if not client:
+        raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
+    try:
+        res = client.table("user_tenants").update({"is_active": req.is_active}).eq("id", tenant_id).execute()
+        from db import _tenant_cache
+        _tenant_cache.clear()
+        status_str = "AKTİF 🟢" if req.is_active else "PASİF 🔴"
+        return {
+            "status": "success",
+            "message": f"Kullanıcı durumu başarıyla {status_str} yapıldı.",
+            "is_active": req.is_active,
+            "data": res.data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app_api.delete("/api/tenants/{tenant_id}", dependencies=[Depends(authenticate_admin)])
 def delete_tenant(tenant_id: str):
     """Kullanıcıyı pasife alır / siler."""
@@ -732,6 +755,8 @@ def delete_tenant(tenant_id: str):
         raise HTTPException(status_code=500, detail="Supabase bağlantı hatası.")
     try:
         client.table("user_tenants").update({"is_active": False}).eq("id", tenant_id).execute()
+        from db import _tenant_cache
+        _tenant_cache.clear()
         return {"status": "success", "message": "Kullanıcı başarıyla pasife alındı."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -875,6 +900,8 @@ def get_v2_dashboard_html():
                 mb = float(user.get("max_budget_percent") or 25)
                 exch = str(user.get("exchange_id") or "binance")
                 tg_id = user.get("telegram_chat_id")
+                is_active = bool(user.get("is_active", True))
+                status_btn = f'<button class="btn btn-sm" style="padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; background: {"rgba(34,197,94,0.2)" if is_active else "rgba(239,68,68,0.2)"}; color: {"#22c55e" if is_active else "#ef4444"}; border: 1px solid {"#22c55e" if is_active else "#ef4444"}; border-radius: 4px;" onclick="toggleTenantActive(\'{safe_id}\', {str(not is_active).lower()}, event)">{"🟢 Aktif" if is_active else "🔴 Pasif"}</button>'
                 tenants_ssr_html += f"""
                 <tr>
                     <td><strong style="color: #38bdf8;">{user.get('tenant_name')}</strong></td>
@@ -884,7 +911,7 @@ def get_v2_dashboard_html():
                     <td><input type="number" step="1" class="input-inline" id="mb_{{idx}}" value="{mb}"></td>
                     <td><span class="mono" style="color: #60a5fa;">{exch.upper()}</span></td>
                     <td>🇹🇷 TR</td>
-                    <td><span style="color: var(--success); font-weight: bold;">🟢 Aktif</span></td>
+                    <td>{status_btn}</td>
                     <td>
                         <button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="updateSettings('{safe_id}', {{idx}}, '{safe_name}')">💾 Kaydet</button>
                     </td>
