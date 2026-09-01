@@ -318,6 +318,42 @@ class BinanceGlobalRESTClient:
                 pass
         return self._ccxt
 
+_lot_size_cache = {}
+
+def get_lot_size_step(symbol: str) -> float:
+    """Binance REST API üzerinden paritenin anlık kesin LOT_SIZE (stepSize) değerini çeker ve önbelleğe alır."""
+    clean = symbol.replace("/", "").replace("_", "").upper()
+    if clean in _lot_size_cache:
+        return _lot_size_cache[clean]
+    try:
+        r = requests.get(f"https://api.binance.com/api/v3/exchangeInfo?symbol={clean}", timeout=3)
+        if r.status_code == 200:
+            for s in r.json().get("symbols", []):
+                for f in s.get("filters", []):
+                    if f.get("filterType") == "LOT_SIZE":
+                        step = float(f.get("stepSize", 1.0))
+                        _lot_size_cache[clean] = step
+                        return step
+    except Exception:
+        pass
+    return 1.0
+
+def format_quantity_by_step(amount: float, symbol: str) -> str:
+    """Borsanın kabul ettiği kesin basamak hassasiyetine göre pozisyonun %100'ünü satacak güvenli miktar dizgisi üretir."""
+    if amount <= 0:
+        return "0"
+    step = get_lot_size_step(symbol)
+    if step <= 0:
+        return f"{amount:.4f}"
+    import math
+    steps_count = math.floor(amount / step)
+    safe_amount = steps_count * step
+    if step >= 1.0:
+        return str(int(safe_amount))
+    else:
+        dec = len(str(step).split(".")[1].rstrip("0"))
+        return f"{safe_amount:.{dec}f}"
+
     @classmethod
     def _sync_time(cls):
         """Binance sunucusu ile milisaniye bazında zaman farkını senkronize eder."""
@@ -467,37 +503,7 @@ class BinanceGlobalRESTClient:
             except Exception:
                 pass
                 
-            step_map = {
-                "BTC": 5, "ETH": 4, "SOL": 2, "AVAX": 2, "BNB": 3, 
-                "SHIB": 0, "PEPE": 0, "BONK": 0, "DOGE": 0, "FLOKI": 0, "PLUME": 0,
-                "FLM": 1, "WAVES": 2, "CLV": 1, "UTK": 1, "GPS": 0, "ACE": 2, "PORTAL": 2,
-                "OPN": 1, "LA": 1, "TUT": 0, "RED": 1, "MUBARAK": 0,
-                "HEMI": 0, "GNO": 3, "PROM": 2, "ZRO": 2, "HEI": 0
-            }
-            dec = step_map.get(base_c)
-            if dec is None:
-                try:
-                    clean_target = clean_symbol.upper()
-                    r_info = requests.get("https://api.binance.com/api/v3/exchangeInfo", params={"symbol": clean_target}, timeout=2)
-                    if r_info.status_code == 200:
-                        for s_item in r_info.json().get("symbols", []):
-                            for f_item in s_item.get("filters", []):
-                                if f_item.get("filterType") == "LOT_SIZE":
-                                    step_v = float(f_item.get("stepSize", 1.0))
-                                    if step_v >= 1.0:
-                                        dec = 0
-                                    else:
-                                        dec = len(str(step_v).split(".")[1].rstrip("0"))
-                except Exception:
-                    pass
-            if dec is None:
-                dec = 0 if amount >= 10.0 else (1 if amount >= 1.0 else 2)
-                
-            import math
-            mult = 10 ** dec
-            safe_qty = math.floor(amount * mult) / float(mult) if mult > 1 else int(amount)
-            qty_str = f"{safe_qty:.{dec}f}" if dec > 0 else str(int(safe_qty))
-            
+            qty_str = format_quantity_by_step(amount, clean_symbol)
             params = {
                 "symbol": clean_symbol,
                 "side": "SELL",
