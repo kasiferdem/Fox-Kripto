@@ -285,39 +285,6 @@ class BinanceTRClient:
         except Exception as e:
             return {"status": "failed", "error": str(e)}
 
-class BinanceGlobalRESTClient:
-    """Binance Global (api.binance.com) Doğrudan REST API İstemcisi"""
-    _time_offset = 0
-    _last_time_sync = 0
-
-    def __init__(self, api_key: str, secret_key: str):
-        self.id = "binance"
-        self.apiKey = str(api_key or "").strip()
-        self.secret = str(secret_key or "").strip()
-        self.base_url = "https://api.binance.com"
-        self.endpoints = [
-            "https://api.binance.com",
-            "https://api1.binance.com",
-            "https://api2.binance.com",
-            "https://api3.binance.com",
-            "https://api4.binance.com"
-        ]
-        self._ccxt = None
-
-    def get_ccxt(self):
-        if not self._ccxt and self.apiKey and self.secret:
-            try:
-                import ccxt
-                self._ccxt = ccxt.binance({
-                    'apiKey': self.apiKey,
-                    'secret': self.secret,
-                    'enableRateLimit': True,
-                    'options': {'adjustForTimeDifference': True, 'recvWindow': 60000}
-                })
-            except Exception:
-                pass
-        return self._ccxt
-
 _lot_size_cache = {}
 
 def get_lot_size_step(symbol: str) -> float:
@@ -353,6 +320,39 @@ def format_quantity_by_step(amount: float, symbol: str) -> str:
     else:
         dec = len(str(step).split(".")[1].rstrip("0"))
         return f"{safe_amount:.{dec}f}"
+
+class BinanceGlobalRESTClient:
+    """Binance Global (api.binance.com) Doğrudan REST API İstemcisi"""
+    _time_offset = 0
+    _last_time_sync = 0
+
+    def __init__(self, api_key: str, secret_key: str):
+        self.id = "binance"
+        self.apiKey = str(api_key or "").strip()
+        self.secret = str(secret_key or "").strip()
+        self.base_url = "https://api.binance.com"
+        self.endpoints = [
+            "https://api.binance.com",
+            "https://api1.binance.com",
+            "https://api2.binance.com",
+            "https://api3.binance.com",
+            "https://api4.binance.com"
+        ]
+        self._ccxt = None
+
+    def get_ccxt(self):
+        if not self._ccxt and self.apiKey and self.secret:
+            try:
+                import ccxt
+                self._ccxt = ccxt.binance({
+                    'apiKey': self.apiKey,
+                    'secret': self.secret,
+                    'enableRateLimit': True,
+                    'options': {'adjustForTimeDifference': True, 'recvWindow': 60000}
+                })
+            except Exception:
+                pass
+        return self._ccxt
 
     @classmethod
     def _sync_time(cls):
