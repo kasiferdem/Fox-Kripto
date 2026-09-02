@@ -47,10 +47,10 @@ def estimate_round_trip_cost(
     entry_comm = DEFAULT_TAKER_FEE_PCT if is_market_entry else DEFAULT_MAKER_FEE_PCT
     exit_comm = DEFAULT_TAKER_FEE_PCT if is_market_exit else DEFAULT_MAKER_FEE_PCT
     
-    spread_crossing = max(0.02, spread_pct) # En az 2 bps spread
-    expected_entry_slippage = max(0.03, slippage_buffer_pct / 2.0)
-    expected_exit_slippage = max(0.03, slippage_buffer_pct / 2.0)
-    stop_slippage_buffer = 0.05 # Ani stop tetiklenmesinde ek kayma payı
+    spread_crossing = max(0.04, spread_pct) # En az 4 bps spread
+    expected_entry_slippage = max(0.05, slippage_buffer_pct / 2.0)
+    expected_exit_slippage = max(0.05, slippage_buffer_pct / 2.0)
+    stop_slippage_buffer = 0.10 # Ani stop tetiklenmesinde ek kayma tamponu
     
     total_cost_pct = (
         entry_comm +
@@ -77,7 +77,7 @@ def evaluate_net_reward_risk_gate(
     gross_take_profit_pct: float,
     gross_stop_loss_pct: float,
     round_trip_cost_pct: float,
-    min_net_rr_required: float = 1.25,
+    min_net_rr_required: float = 1.50,
     max_cost_to_tp_ratio: float = 0.35
 ) -> Dict[str, Any]:
     """

@@ -130,40 +130,96 @@ class V2WhaleHuntingEngine:
             "weight": 20
         }
 
-        # 4. TEKNİK YAPI VE TABAN RETEST KANITI (Technical Structure & Retest Evidence)
-        retest_confirmed = True
+        # 4. TEKNİK YAPI VE DİNAMİK RETEST KANITI (13 Maddelik Çok Aşamalı Retest Motoru)
+        retest_confirmed = False
         is_first_pump_blocked = False
-        retest_note = "Dip taban retesti teyitli."
+        action_state = "WATCH" # Varsayılan olarak açık canlı mumda sadece İZLEME / CONFIRMING
+        retest_note = "Retest teyidi bekleniyor."
         
-        if klines_5m and len(klines_5m) >= 4:
+        live_metrics = {
+            "current_candle_change_pct": 0.0,
+            "price_change_since_signal_pct": 0.0,
+            "distance_from_vwap_pct": 0.0,
+            "distance_from_breakout_pct": 0.0,
+            "max_entry_chase_pct": 0.30,
+            "signal_age_seconds": float(ticker.get("signal_age_seconds", 10.0)),
+            "action_state": "WATCH",
+            "retest_zone": [0.0, 0.0]
+        }
+        
+        if klines_5m and len(klines_5m) >= 5:
+            # A. Metrik ve Fiyat Hesaplamaları
             c_last = float(klines_5m[-1][4])
             o_last = float(klines_5m[-1][1])
             h_last = float(klines_5m[-1][2])
             l_last = float(klines_5m[-1][3])
-            h_prev = float(klines_5m[-2][2])
-            o_prev = float(klines_5m[-2][1])
-            c_prev = float(klines_5m[-2][4])
+            v_last = float(klines_5m[-1][7])
+            
+            # VWAP Hesabı (Son mumlar)
+            cum_vol = sum(float(k[7]) for k in klines_5m[-5:])
+            cum_pv = sum(((float(k[2]) + float(k[3]) + float(k[4])) / 3.0) * float(k[7]) for k in klines_5m[-5:])
+            vwap = (cum_pv / cum_vol) if cum_vol > 0 else c_last
+            
+            # Breakout Level (Kırılım öncesi tepe seviyesi)
+            breakout_level = max(float(k[2]) for k in klines_5m[-5:-2])
+            
+            # ATR (Ortalama Gerçek Aralık)
+            atr_vals = []
+            for i in range(1, len(klines_5m)):
+                h = float(klines_5m[i][2])
+                l = float(klines_5m[i][3])
+                cp = float(klines_5m[i-1][4])
+                atr_vals.append(max(h - l, abs(h - cp), abs(l - cp)))
+            atr = (sum(atr_vals) / len(atr_vals)) if atr_vals else (c_last * 0.01)
+            
+            # Dinamik Retest Bölgesi: [Breakout - 0.4*ATR, Breakout + 0.3*ATR]
+            retest_zone_low = breakout_level - (0.4 * atr)
+            retest_zone_high = breakout_level + (0.3 * atr)
             
             curr_candle_gain = ((c_last - o_last) / o_last * 100.0) if o_last > 0 else 0.0
-            prev_candle_gain = ((h_prev - o_prev) / o_prev * 100.0) if o_prev > 0 else 0.0
+            dist_vwap_pct = ((c_last - vwap) / vwap * 100.0) if vwap > 0 else 0.0
+            dist_breakout_pct = ((c_last - breakout_level) / breakout_level * 100.0) if breakout_level > 0 else 0.0
             
-            # 🛑 1. Canlı Mum Fırlama Engeli: Eğer mevcut 5dk mumu %0.8'den fazla fırlamış ve tepede ise
-            if curr_candle_gain > 0.8:
+            live_metrics.update({
+                "current_candle_change_pct": round(curr_candle_gain, 2),
+                "distance_from_vwap_pct": round(dist_vwap_pct, 2),
+                "distance_from_breakout_pct": round(dist_breakout_pct, 2),
+                "retest_zone": [round(retest_zone_low, 4), round(retest_zone_high, 4)]
+            })
+            
+            # B. 🛑 KESİN CANLI PUMP ENGELİ: Canlı mum fırlıyorken alım YASAK
+            if curr_candle_gain > 0.40 or dist_breakout_pct > 0.40:
                 is_first_pump_blocked = True
                 retest_confirmed = False
-                retest_note = f"Canlı fırlama mumu tepesinde (+%{curr_candle_gain:.2f}); taban desteğine geri çekilme (retest) bekleniyor."
-            # 🛑 2. Önceki Mum Fırlama Engeli: Önceki mum %1.2+ yükselmiş ve fiyat hâlâ tepede asılıysa
-            elif prev_candle_gain > 1.2 and c_last >= h_prev * 0.995:
-                is_first_pump_blocked = True
-                retest_confirmed = False
-                retest_note = f"1. fırlama mumu (+%{prev_candle_gain:.1f}) sonrası taban testi henüz tamamlanmadı; 2. dalga bekleniyor."
-            elif l_last < o_prev * 0.985:
-                # Retest tabanı kırıldı, destek tutunamadı
-                retest_confirmed = False
-                retest_note = "Retest destek tabanı tutunamadı, aşağı kırıldı."
+                action_state = "WAITING_PULLBACK"
+                retest_note = f"Canlı fırlama mumu (+%{curr_candle_gain:.2f}) tepesinde; ilk pump mumundan alım engellendi, retest bekleniyor."
+            
+            # C. 🛡️ RETEST DOĞRULAMA KRİTERLERİ (Madde 8)
             else:
-                retest_confirmed = True
-                retest_note = "Destek tabanı geri çekilmesi (Retest) başarıyla teyit edildi."
+                # 1. Fiyat retest bölgesinde mi?
+                is_in_retest_zone = (retest_zone_low <= c_last <= retest_zone_high * 1.005) or (retest_zone_low <= l_last <= retest_zone_high)
+                
+                # 2. Yeni düşük dip oluşmamalı
+                no_lower_low = (l_last >= retest_zone_low * 0.995)
+                
+                # 3. Satış baskısı sönümlendi mi? (Geri çekilme hacmi patlama hacminden düşük olmalı)
+                v_breakout = float(klines_5m[-2][7])
+                sell_vol_decay = (v_last < v_breakout * 0.70) if v_breakout > 0 else True
+                
+                # 4. Taker alış oranı yeniden toparlandı mı?
+                tb_rebound = (spot_taker_pct >= 58.0)
+                
+                # 5. Maksimum kovalamaca (Chase) limiti aşılmamış olmalı (<= %0.30)
+                chase_valid = (dist_breakout_pct <= 0.35)
+                
+                if is_in_retest_zone and no_lower_low and sell_vol_decay and tb_rebound and chase_valid:
+                    retest_confirmed = True
+                    action_state = "BUY_READY"
+                    retest_note = f"Retest Bölgesi (${retest_zone_low:.4f} - ${retest_zone_high:.4f}) teyit edildi, satış hacmi sönümlendi, alıcı baskısı (%{spot_taker_pct:.1f}) toparlandı."
+                else:
+                    retest_confirmed = False
+                    action_state = "CONFIRMING"
+                    retest_note = "Retest bölgesi veya toparlanma şartları henüz eksiksiz sağlanmadı (Beklemede)."
 
         tech_passed = (-4.0 <= gain_24h <= float(self.params.get("max_recent_gain_24h", 25.0))) and retest_confirmed and not is_first_pump_blocked
         if tech_passed: passed_evidence_count += 1
@@ -172,8 +228,10 @@ class V2WhaleHuntingEngine:
             "24h_gain_pct": round(gain_24h, 2),
             "retest_confirmed": retest_confirmed,
             "first_pump_blocked": is_first_pump_blocked,
+            "action_state": action_state,
+            "live_metrics": live_metrics,
             "note": retest_note,
-            "weight": 15
+            "weight": 20
         }
 
         # 5. MALİYET VE NET R/R KAPISI (Cost & Edge Evidence)
@@ -182,14 +240,14 @@ class V2WhaleHuntingEngine:
             gross_take_profit_pct=user_tp,
             gross_stop_loss_pct=user_sl,
             round_trip_cost_pct=round_trip["total_round_trip_cost_pct"],
-            min_net_rr_required=self.params.get("min_net_rr", 1.75)
+            min_net_rr_required=self.params.get("min_net_rr", 1.50)
         )
         cost_passed = cost_gate["passed"]
         if cost_passed: passed_evidence_count += 1
         evidence_groups["CostAndEdgeEvidence"] = {
             "status": "PASS" if cost_passed else "FAIL",
             "net_rr": cost_gate["net_reward_risk_ratio"],
-            "weight": 20
+            "weight": 15
         }
 
         # Toplam Kanıt Skoru Hesabı (Ağırlıklar Toplamı 100 - Manipülasyon Cezaları)
@@ -204,7 +262,9 @@ class V2WhaleHuntingEngine:
             passed_evidence_count >= self.params["min_evidence_groups_required"] and
             final_score >= self.params["min_strategy_score"] and
             not spoofing_detected and
-            cost_passed
+            cost_passed and
+            retest_confirmed and
+            (action_state == "BUY_READY")
         )
 
         return {
@@ -213,6 +273,8 @@ class V2WhaleHuntingEngine:
             "symbol": symbol,
             "price": last_p,
             "is_whale_confirmed": is_whale_confirmed,
+            "action_state": action_state,
+            "live_metrics": live_metrics,
             "passed_evidence_groups_count": passed_evidence_count,
             "required_evidence_groups_count": self.params["min_evidence_groups_required"],
             "total_evidence_score": final_score,

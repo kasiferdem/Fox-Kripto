@@ -146,22 +146,95 @@ V2_WHALE_RESEARCH_PRESET = {
 }
 
 # =====================================================================
-# 4. EFFECTIVE STRATEGY CONFIGURATION MODELİ (Section 11.4 & 17)
+# 4. ENTRY STATE MACHINE VE RETEST MODELLERİ (Bölüm 4, 5, 7, 8, 9)
+# =====================================================================
+class EntryStateMachineState(str, Enum):
+    IDLE = "IDLE"
+    WATCH = "WATCH"
+    IMPULSE_DETECTED = "IMPULSE_DETECTED"
+    WAITING_PULLBACK = "WAITING_PULLBACK"
+    RETEST_TOUCHED = "RETEST_TOUCHED"
+    RETEST_CONFIRMING = "RETEST_CONFIRMED"
+    RETEST_CONFIRMED = "RETEST_CONFIRMED"
+    ABSORPTION_CONFIRMED = "ABSORPTION_CONFIRMED"
+    RISK_CHECKED = "RISK_CHECKED"
+    ORDER_PENDING = "ORDER_PENDING"
+    POSITION_OPEN = "POSITION_OPEN"
+    PROTECTED_OPEN = "PROTECTED_OPEN"
+    UNPROTECTED_POSITION = "UNPROTECTED_POSITION"
+    CLOSED = "CLOSED"
+    CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+
+class LiveCandleMetrics(BaseModel):
+    signal_reference_price: float
+    current_price: float
+    current_candle_open: float
+    current_candle_high: float
+    current_candle_low: float
+    current_candle_change_pct: float
+    price_change_since_signal_pct: float
+    breakout_level: float
+    distance_from_breakout_pct: float
+    vwap: float
+    distance_from_vwap_pct: float
+    atr: float
+    spread_pct: float
+    estimated_entry_slippage_pct: float
+    signal_age_seconds: float
+    maximum_entry_chase_pct: float = 0.40
+
+class RetestZone(BaseModel):
+    retest_center: float
+    retest_tolerance: float
+    retest_zone_low: float
+    retest_zone_high: float
+    breakout_level: float
+    vwap: float
+    atr: float
+
+class RetestConfirmationReport(BaseModel):
+    state: EntryStateMachineState
+    is_confirmed: bool = False
+    is_absorption: bool = False
+    dwell_time_seconds: float = 0.0
+    no_lower_low: bool = False
+    sell_volume_decay: bool = False
+    taker_buy_rebound: bool = False
+    spread_valid: bool = False
+    slippage_valid: bool = False
+    data_freshness_valid: bool = False
+    rejection_reason: Optional[str] = None
+    note: str = ""
+
+# =====================================================================
+# 5. EFFECTIVE STRATEGY CONFIGURATION MODELİ (Bölüm 2 & 17)
 # =====================================================================
 class EffectiveStrategySnapshot(BaseModel):
     tenant_id: str
     symbol: str
+    signal_id: Optional[str] = None
+    profile_id: str = "WHALE_HUNTING_V23"
+    profile_version: str = STRATEGY_PROFILE_VERSION
     application_version: str = APPLICATION_VERSION
     strategy_engine_version: str = SIGNAL_ENGINE_VERSION
-    profile_version: str = STRATEGY_PROFILE_VERSION
     risk_policy_version: str = RISK_POLICY_VERSION
     execution_mode: str = ExecutionMode.PAPER_TRADING.value
     live_validation_status: str = LiveValidationStatus.NOT_TESTED.value
-    max_budget_percent: float = 50.0
+    max_budget_percent: float = 30.0
     risk_per_trade_pct: float = 0.25
-    take_profit_pct: float = 2.4
-    stop_loss_pct: float = 1.0
-    trailing_callback_pct: float = 0.5
-    min_volume_usd: float = 25000.0
+    take_profit_pct: float = 3.2
+    stop_loss_pct: float = 1.2
+    trailing_callback_pct: float = 0.6
+    min_volume_usd: float = 50000.0
+    min_24h_quote_volume_usd: float = 1000000.0
     max_recent_gain_24h: float = 3.5
+    volume_multiplier: float = 2.2
+    retest_required: bool = True
+    first_pump_candle_entry_blocked: bool = True
+    maximum_entry_chase_pct: float = 0.40
+    order_type: str = "MARKETABLE_LIMIT_IOC"
+    maximum_fill_deviation_pct: float = 0.15
+    order_timeout_seconds: int = 3
+    partial_fill_policy: str = "ACCEPT_FILLED_AND_CANCEL_REMAINDER"
     created_at_timestamp: int = Field(default_factory=lambda: int(time.time()))

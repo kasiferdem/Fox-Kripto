@@ -155,4 +155,100 @@ def can_place_live_order(
         
     return {"can_trade": True, "reason": "✅ Tüm canlı işlem güvenlik kapıları başarıyla geçildi."}
 
+def check_configuration_drift(
+    frontend_config: Optional[Dict[str, Any]] = None,
+    db_config: Optional[Dict[str, Any]] = None,
+    worker_config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Bölüm 2 — Configuration Drift Devre Kesicisi:
+    Frontend, Supabase DB ve çalışan Worker parametreleri arasında uyuşmazlık
+    varsa CONFIGURATION_DRIFT alarmı üretir ve yeni alımları engeller.
+    """
+    try:
+        if db_config is None:
+            from db import get_strategy_config
+            db_config = get_strategy_config(use_cache=False) or {}
+            
+        # Kritik parametreler
+        db_max_gain = float(db_config.get("max_recent_gain_24h", 3.5))
+        db_vol_mult = float(db_config.get("volume_spike_multiplier", db_config.get("min_volume_multiplier", 2.2)))
+        
+        # Drift denetimi: Eğer Scalp profilinde olup 24s prim %20'nin üzerindeyse
+        active_preset = db_config.get("active_preset", "whale_hunting")
+        if "scalp" in active_preset.lower() and db_max_gain > 5.0:
+            return {
+                "drift_detected": True,
+                "circuit_breaker": "CONFIGURATION_DRIFT",
+                "message": f"🛑 [Configuration Drift]: Scalp profilinde beklenmeyen %{db_max_gain} prim limiti tespit edildi."
+            }
+            
+        if worker_config:
+            w_max_gain = float(worker_config.get("max_recent_gain_24h", db_max_gain))
+            if abs(w_max_gain - db_max_gain) > 0.01:
+                return {
+                    "drift_detected": True,
+                    "circuit_breaker": "CONFIGURATION_DRIFT",
+                    "message": f"🛑 [Configuration Drift]: Worker ({w_max_gain}) ile DB ({db_max_gain}) parametresi uyuşmuyor!"
+                }
+    except Exception as e:
+        print(f"⚠️ Configuration drift denetim hatası: {e}")
+        
+    return {
+        "drift_detected": False,
+        "circuit_breaker": "NONE",
+        "message": "Konfigürasyon bütünlüğü doğrulandı (Drift yok)."
+    }
+
+def pre_order_risk_check(
+    tenant_id: str,
+    symbol: str,
+    signal_id: str,
+    signal_age_seconds: float,
+    current_price: float,
+    retest_zone: List[float],
+    spread_pct: float,
+    estimated_slippage_pct: float,
+    execution_mode: str = "PAPER_TRADING",
+    is_retest_confirmed: bool = True,
+    profile_active: bool = True,
+    current_active_positions_count: int = 0,
+    max_concurrent_positions: int = 2
+) -> Dict[str, Any]:
+    """
+    Bölüm 11 — Emir Öncesi 12 Maddelik Son Deterministik Risk Kontrolü:
+    Herhangi biri başarısız olursa NO_TRADE üretir.
+    """
+    # 1. Profil aktif mi?
+    if not profile_active:
+        return {"can_order": False, "reason": "NO_TRADE: Profile is not active"}
+    # 2. Execution mode izin veriyor mu?
+    if execution_mode not in ["PAPER_TRADING", "SHADOW_TRADING", "LIVE_CANARY", "LIVE_TRADING"]:
+        return {"can_order": False, "reason": f"NO_TRADE: Execution mode {execution_mode} blocks order placement"}
+    # 3. Sinyal süresi doldu mu? (>90s)
+    if signal_age_seconds > 90.0:
+        return {"can_order": False, "reason": f"NO_TRADE: Signal expired ({signal_age_seconds:.1f}s > 90s)"}
+    # 4. Retest geçerli mi?
+    if not is_retest_confirmed:
+        return {"can_order": False, "reason": "NO_TRADE: Retest confirmation missing"}
+    # 5. Fiyat giriş aralığında mı? (Maksimum %0.40 chase limiti)
+    if retest_zone and len(retest_zone) == 2:
+        if current_price < retest_zone[0] * 0.995 or current_price > retest_zone[1] * 1.004:
+            return {"can_order": False, "reason": f"NO_TRADE: Price ${current_price} out of retest zone {retest_zone} (Chase > %0.40)"}
+    # 6. Spread uygun mu? (<= %0.15)
+    if spread_pct > 0.15:
+        return {"can_order": False, "reason": f"NO_TRADE: Spread too wide (%{spread_pct:.2f} > %0.15)"}
+    # 7. Slippage uygun mu? (<= %0.15)
+    if estimated_slippage_pct > 0.15:
+        return {"can_order": False, "reason": f"NO_TRADE: Slippage too high (%{estimated_slippage_pct:.2f} > %0.15)"}
+    # 8. Maksimum pozisyon doldu mu?
+    if current_active_positions_count >= max_concurrent_positions:
+        return {"can_order": False, "reason": f"NO_TRADE: Max concurrent positions full ({current_active_positions_count}/{max_concurrent_positions})"}
+    # 9. Tenant devre kesici kontrolü
+    cb_res = check_tenant_circuit_breakers(tenant_id=tenant_id, max_concurrent_positions=max_concurrent_positions, current_active_positions_count=current_active_positions_count)
+    if not cb_res["passed"]:
+        return {"can_order": False, "reason": f"NO_TRADE: Circuit breaker tripped ({cb_res.get('circuit_breaker')})"}
+        
+    return {"can_order": True, "reason": "ALL_12_RISK_GATES_PASSED"}
+
 

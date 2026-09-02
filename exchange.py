@@ -568,6 +568,65 @@ class BinanceGlobalRESTClient:
         else:
             raise Exception(f"Binance Global Error ({data.get('code')}): {data.get('msg')}")
 
+    def execute_marketable_limit_ioc(
+        self,
+        symbol: str,
+        side: str,
+        amount_coin: float,
+        reference_price: float,
+        max_fill_deviation_pct: float = 0.15,
+        timeout_seconds: int = 3
+    ) -> dict:
+        """
+        Bölüm 10 — Fiyat Korumalı Marketable Limit IOC Emri:
+        Maksimum %0.15 sapma tavanlı limit emir gönderir, dolmayan kısmı anında iptal eder.
+        """
+        clean_symbol = symbol.replace("/", "").replace("_", "").upper()
+        step_size, min_qty = get_lot_size_step(clean_symbol)
+        qty_str = format_quantity_by_step(amount_coin, step_size)
+        
+        # Fiyat sapma tavanı hesabı
+        if side.upper() == "BUY":
+            capped_price = reference_price * (1.0 + (max_fill_deviation_pct / 100.0))
+        else:
+            capped_price = reference_price * (1.0 - (max_fill_deviation_pct / 100.0))
+            
+        p_dec = 2 if capped_price >= 1.0 else (4 if capped_price >= 0.01 else 6)
+        price_str = f"{capped_price:.{p_dec}f}"
+        
+        params = {
+            "symbol": clean_symbol,
+            "side": side.upper(),
+            "type": "LIMIT",
+            "timeInForce": "IOC",
+            "quantity": qty_str,
+            "price": price_str
+        }
+        
+        query_str = self._sign(params)
+        url = f"{self.base_url}/api/v3/order?{query_str}"
+        headers = {"X-MBX-APIKEY": self.apiKey}
+        
+        res = requests.post(url, headers=headers, timeout=timeout_seconds + 2)
+        data = res.json()
+        
+        if "orderId" in data:
+            exec_qty = float(data.get("executedQty", 0.0))
+            cum_quote = float(data.get("cummulativeQuoteQty", 0.0))
+            exec_price = (cum_quote / exec_qty) if exec_qty > 0 else reference_price
+            
+            return {
+                "id": str(data["orderId"]),
+                "symbol": symbol,
+                "price": exec_price,
+                "executed_qty": exec_qty,
+                "status": data.get("status", "FILLED"),
+                "partial_fill_accepted": (exec_qty > 0),
+                "info": data
+            }
+        else:
+            raise Exception(f"Marketable Limit IOC Error ({data.get('code')}): {data.get('msg')}")
+
     def create_stop_order(self, symbol: str, quantity: float, stop_price: float, limit_price: Optional[float] = None) -> dict:
         """Binance Global üzerinde fiziksel STOP_LOSS_LIMIT emri kurar."""
         clean_symbol = symbol.replace("/", "").replace("_", "").upper()
