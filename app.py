@@ -403,6 +403,10 @@ def run_autonomous_trading_loop():
                                 profit_label = "📈 *Net Profit:*" if is_en_user else "📈 *Net Kâr / Kazanç:*"
                                 profit_badge = "+%1.50+ Net Profit" if is_en_user else "+%1.50+ Net Kazanç"
                             
+                            if (raw_action not in ["BUY", "ALIM"]) and (not is_stop_loss) and (net_pct <= 0.05):
+                                action_title = "🛡️ BREAKEVEN CAPITAL EXIT" if is_en_user else "🛡️ MALİYET KORUMA (BREAKEVEN ÇIKIŞ)"
+                                status_title = f"🛡️ Breakeven Exit & Capital Preserved in {wallet_label} Wallet" if is_en_user else f"🛡️ Başa Baş Çıkış Gerçekleşti ve Sermaye {wallet_label} Cüzdanına Alındı"
+
                             if is_en_user:
                                 price_detail_line = (
                                     f"\n📥 *Entry Unit Price:* `{entry_str}`\n"

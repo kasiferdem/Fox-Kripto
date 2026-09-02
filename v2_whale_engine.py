@@ -138,24 +138,32 @@ class V2WhaleHuntingEngine:
         if klines_5m and len(klines_5m) >= 4:
             c_last = float(klines_5m[-1][4])
             o_last = float(klines_5m[-1][1])
-            h_prev = float(klines_5m[-2][2])
+            h_last = float(klines_5m[-1][2])
             l_last = float(klines_5m[-1][3])
+            h_prev = float(klines_5m[-2][2])
             o_prev = float(klines_5m[-2][1])
+            c_prev = float(klines_5m[-2][4])
             
-            # İlk mum fırlaması kontrolü: Eğer önceki mum %2.5'ten fazla fırladıysa ve henüz geri çekilme olmadıysa
+            curr_candle_gain = ((c_last - o_last) / o_last * 100.0) if o_last > 0 else 0.0
             prev_candle_gain = ((h_prev - o_prev) / o_prev * 100.0) if o_prev > 0 else 0.0
-            if prev_candle_gain > 2.5 and c_last >= h_prev:
-                # Fiyat hâlâ tepede, henüz retest tabanına oturmadı
+            
+            # 🛑 1. Canlı Mum Fırlama Engeli: Eğer mevcut 5dk mumu %0.8'den fazla fırlamış ve tepede ise
+            if curr_candle_gain > 0.8:
                 is_first_pump_blocked = True
                 retest_confirmed = False
-                retest_note = f"İlk fırlama mumu (+%{prev_candle_gain:.1f}) tepesinde; taban retesti bekleniyor."
+                retest_note = f"Canlı fırlama mumu tepesinde (+%{curr_candle_gain:.2f}); taban desteğine geri çekilme (retest) bekleniyor."
+            # 🛑 2. Önceki Mum Fırlama Engeli: Önceki mum %1.2+ yükselmiş ve fiyat hâlâ tepede asılıysa
+            elif prev_candle_gain > 1.2 and c_last >= h_prev * 0.995:
+                is_first_pump_blocked = True
+                retest_confirmed = False
+                retest_note = f"1. fırlama mumu (+%{prev_candle_gain:.1f}) sonrası taban testi henüz tamamlanmadı; 2. dalga bekleniyor."
             elif l_last < o_prev * 0.985:
                 # Retest tabanı kırıldı, destek tutunamadı
                 retest_confirmed = False
                 retest_note = "Retest destek tabanı tutunamadı, aşağı kırıldı."
             else:
                 retest_confirmed = True
-                retest_note = "Kırılım sonrası destek tabanı test edildi ve onaylandı."
+                retest_note = "Destek tabanı geri çekilmesi (Retest) başarıyla teyit edildi."
 
         tech_passed = (-4.0 <= gain_24h <= float(self.params.get("max_recent_gain_24h", 25.0))) and retest_confirmed and not is_first_pump_blocked
         if tech_passed: passed_evidence_count += 1
