@@ -58,6 +58,13 @@ def generate_v2_dashboard_html(
         user_sl = t.get("stop_loss_percent", sl_pct)
         user_budget = t.get("max_budget_percent", max_budget)
         is_active = bool(t.get("is_active", True))
+        
+        exch_id = str(t.get("exchange_id") or "binance").lower()
+        exch_badge = "BINANCE.TR 🇹🇷" if "tr" in exch_id else "BINANCE GLOBAL 🌍"
+        ulang = str(t.get("preferred_language") or "tr").lower()
+        sel_tr = "selected" if ulang == "tr" else ""
+        sel_en = "selected" if ulang == "en" else ""
+        
         active_toggle_btn = f"""<button class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: {'rgba(34, 197, 94, 0.15)' if is_active else 'rgba(239, 68, 68, 0.15)'}; color: {'#22c55e' if is_active else '#ef4444'}; border: 1px solid {'#22c55e' if is_active else '#ef4444'};" onclick="toggleTenantActive('{tid}', {str(not is_active).lower()}, event)">{'🟢 Aktif' if is_active else '🔴 Pasif'}</button>"""
 
         tenants_ssr_html += f"""
