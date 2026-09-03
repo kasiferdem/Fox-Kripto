@@ -1017,6 +1017,7 @@ class StockOrderRequest(BaseModel):
 @app_api.post("/api/stock/order", dependencies=[Depends(authenticate_admin)])
 def place_stock_order_endpoint(req: StockOrderRequest):
     from alpaca_client import AlpacaClient
+    from stock_telegram_bot import notify_stock_trade
     alpaca = AlpacaClient()
     # %3 TP, %1.5 SL ile Bracket Order
     bars = alpaca.get_latest_bars([req.symbol])
@@ -1030,6 +1031,17 @@ def place_stock_order_endpoint(req: StockOrderRequest):
         stop_loss_price=sl_p,
         side=req.side
     )
+    if res.get("status") == "success":
+        # S kullanıcısına (8739367825) bildirim gönder
+        notify_stock_trade(
+            chat_id=8739367825,
+            action=req.side,
+            symbol=req.symbol,
+            qty=float(res.get("qty", 0.0)),
+            price=cur_p,
+            amount_usd=req.amount_usd,
+            order_id=str(res.get("order_id"))
+        )
     return res
 
 @app_api.post("/api/stock/positions/{symbol}/close", dependencies=[Depends(authenticate_admin)])
