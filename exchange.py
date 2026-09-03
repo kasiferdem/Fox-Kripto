@@ -1160,7 +1160,18 @@ def execute_spot_trade(
     if live_fx <= 0:
         return {"status": "FAILED", "error": "Canlı USD/TRY kuru alınamadı (Fail-Closed)."}
 
-    is_paper = bool((tenant_config or {}).get("is_paper_trading"))
+    from db import get_system_setting
+    exec_mode = str(get_system_setting("execution_mode", "PAPER_TRADING")).upper()
+    new_buys_enabled = bool(get_system_setting("new_buy_orders_enabled", False))
+    tenant_mode = str((tenant_config or {}).get("trading_mode", "")).lower()
+
+    # 🛑 1. GÜVENLİ MOD ALIM KİLİDİ: Eğer yeni alımlar kapalıysa kesinlikle alım gönderme
+    if side.lower() in ["buy", "alim"] and not new_buys_enabled:
+        print(f"🛑 [Güvenli Mod Kalkanı]: Yeni alımlar kapalı (new_buy_orders_enabled=False). {symbol} alımı engellendi.")
+        return {"status": "BLOCKED_BY_SAFE_MODE", "error": "🛑 Yeni alımlar sistem güvenlik kilidiyle kapatılmıştır (new_buy_orders_enabled=False)."}
+
+    # 🛡️ 2. PAPER / SIGNAL TRADING KONTROLÜ
+    is_paper = bool((tenant_config or {}).get("is_paper_trading")) or (tenant_mode == "paper") or (exec_mode in ["SIGNAL_ONLY", "PAPER_TRADING"])
     is_testnet = os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true"
 
     # TRY Çiftlerini Doğrudan Binance TR İstemcisine Yönlendir (Eğer canlı modda ise)
