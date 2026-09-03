@@ -554,7 +554,8 @@ def generate_v2_dashboard_html(
       <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
         <!-- Sürüm Seçici -->
         <a href="/v1/dashboard" class="btn btn-sm btn-ghost" data-i18n="v1_link">🏛️ V1 Klasik</a>
-        <a href="/v2/dashboard" class="btn btn-sm btn-primary" data-i18n="v2_link">⚡ V2 Quant</a>
+        <a href="/v2/dashboard" class="btn btn-sm btn-primary" data-i18n="v2_link">⚡ V2 Kripto</a>
+        <a href="/borsa/dashboard" class="btn btn-sm btn-ghost" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; font-weight: 700;">🏛️ Fox-Borsa (Alpaca)</a>
 
         <!-- Trailing SL -->
         <div style="display: flex; align-items: center; gap: 6px; background: var(--card-2); padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line);">

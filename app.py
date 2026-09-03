@@ -979,6 +979,66 @@ def get_v2_dashboard_html():
     )
     return HTMLResponse(content=content)
 
+# -----------------------------------------------------------------------------
+# 🏛️ FOX-BORSA: ABD HİSSE SENEDİ & WALL STREET QUANT PANELİ (/borsa/dashboard)
+# -----------------------------------------------------------------------------
+@app_api.get("/borsa/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/borsa", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/wallstreet/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/wallstreet", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+def get_stock_dashboard_html_route():
+    from alpaca_client import AlpacaClient
+    from stock_momentum_engine import StockMomentumEngine
+    from stock_dashboard_html import generate_stock_dashboard_html
+    
+    alpaca = AlpacaClient()
+    engine = StockMomentumEngine(alpaca)
+    
+    account_info = alpaca.get_account()
+    market_clock = alpaca.get_market_clock()
+    positions = alpaca.get_positions()
+    opportunities = engine.scan_opportunities()
+    
+    html = generate_stock_dashboard_html(
+        account_info=account_info,
+        market_clock=market_clock,
+        positions=positions,
+        opportunities=opportunities,
+        tenants=[],
+        strategy_config=engine.params
+    )
+    return HTMLResponse(content=html)
+
+class StockOrderRequest(BaseModel):
+    symbol: str
+    amount_usd: float = 500.0
+    side: str = "buy"
+
+@app_api.post("/api/stock/order", dependencies=[Depends(authenticate_admin)])
+def place_stock_order_endpoint(req: StockOrderRequest):
+    from alpaca_client import AlpacaClient
+    alpaca = AlpacaClient()
+    # %3 TP, %1.5 SL ile Bracket Order
+    bars = alpaca.get_latest_bars([req.symbol])
+    cur_p = bars.get(req.symbol, {}).get("price", 100.0)
+    tp_p = cur_p * 1.03
+    sl_p = cur_p * 0.985
+    res = alpaca.create_bracket_order(
+        symbol=req.symbol,
+        amount_usd=req.amount_usd,
+        take_profit_price=tp_p,
+        stop_loss_price=sl_p,
+        side=req.side
+    )
+    return res
+
+@app_api.post("/api/stock/positions/{symbol}/close", dependencies=[Depends(authenticate_admin)])
+def close_stock_position_endpoint(symbol: str):
+    from alpaca_client import AlpacaClient
+    alpaca = AlpacaClient()
+    res = alpaca.close_position(symbol)
+    return res
+
 @app_api.get("/v1/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/V1/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/v1", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
