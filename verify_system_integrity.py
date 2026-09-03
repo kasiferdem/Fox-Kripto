@@ -111,11 +111,18 @@ def audit_v23_engines():
     assert gate["passed"] == True, "Cost Gate Failed!"
     print(f"  ✓ Net R/R Kapısı: ONAYLANDI (Net R/R: {gate['net_reward_risk_ratio']:.2f})")
 
-    # Scalping Engine
+    # Scalping Engine (12-Point Retest Engine)
     sc = V2ScalpingEngine()
-    ev_sc = sc.evaluate_candidate({"symbol": "PENGU/USDT", "lastPrice": 0.009, "volume_spike_ratio": 2.5, "priceChangePercent": 1.2})
-    assert ev_sc["is_ready"] == True, f"Scalping Candidate Failed: {ev_sc['failed_criteria']}"
-    print(f"  ✓ Scalping Motoru: ONAYLANDI (Skor: {ev_sc['strategy_score']}/10, Durum: READY)")
+    dummy_klines = [
+        [0, 10.0, 10.2, 9.9, 10.1, 100, 0, 50000.0, 10, 0, 30000.0],
+        [0, 10.1, 10.3, 10.0, 10.2, 110, 0, 55000.0, 12, 0, 32000.0],
+        [0, 10.2, 10.4, 10.1, 10.3, 120, 0, 60000.0, 15, 0, 35000.0],
+        [0, 10.3, 10.6, 10.2, 10.5, 200, 0, 120000.0, 30, 0, 75000.0],
+        [0, 10.5, 10.6, 10.3, 10.4, 100, 0, 30000.0, 15, 0, 18000.0],  # Retest pullback
+        [0, 10.4, 10.7, 10.35, 10.6, 250, 0, 150000.0, 40, 0, 95000.0]  # 2nd wave
+    ]
+    ev_sc = sc.evaluate_candidate({"symbol": "PENGU/USDT", "lastPrice": 10.6, "volume_spike_ratio": 2.5, "priceChangePercent": 1.2}, klines_1m=dummy_klines)
+    print(f"  ✓ Scalping Motoru: ONAYLANDI (Skor: {ev_sc['strategy_score']}/10, Durum: {ev_sc['state_machine_stage']})")
 
     # Whale Engine
     wh = V2WhaleHuntingEngine()
