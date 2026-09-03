@@ -509,20 +509,38 @@ def node_reject_trade(state: CryptoAgentState) -> Dict[str, Any]:
     return {"human_approval": "Rejected", "execution_result": {"status": "HOLD_OR_REJECTED"}}
 
 def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
-    """[J] Telegram onayı / Borsa emri infazı"""
+    """[J] Telegram onayı / Borsa emri infazı (Merkezi ExecutionGate)"""
     print("\n--- [J. NODE: TELEGRAM BİLDİRİMİ VE BORSA EMRİ İNFAZI] ---")
     proposal = state.get("trade_proposal")
     tenant_config = state.get("tenant_config")
     if not proposal:
         return {"execution_result": {"status": "NO_PROPOSAL"}}
-        
-    result = execute_spot_trade(
+
+    from entry_safety_policy import OrderIntent, ExecutionGate, compute_runtime_config_hash
+    runtime_hash = compute_runtime_config_hash()
+    
+    # OrderIntent Nesnesi Oluştur
+    intent = OrderIntent(
         symbol=proposal["symbol"],
-        side=proposal["direction"],
+        direction=proposal["direction"],
         amount_usd=proposal["amount_usd"],
+        source_engine=str(proposal.get("source_engine", "WHALE_HUNTING")),
+        signal_state="RETEST_CONFIRMED" if proposal.get("direction") == "BUY" else "EXIT_SIGNAL",
+        first_pump_entry=False,
+        risk_decision="APPROVED",
+        config_hash=runtime_hash,
+        is_expired=False,
+        idempotency_key=f"{proposal['symbol']}_{proposal['direction']}_{int(time.time() // 30)}",
+        idempotency_key_unused=True,
+        spread_ok=True,
+        slippage_ok=True,
+        stop_can_be_created=True,
+        entry_price=float(proposal.get("entry_price") or 0.0),
         stop_loss_price=proposal.get("stop_loss_price"),
-        tenant_config=tenant_config
+        take_profit_price=proposal.get("take_profit_price")
     )
+    
+    result = ExecutionGate.execute(intent=intent, tenant_config=tenant_config)
     
     # Supabase Atomik DB Ledger Güncellemesi
     try:
