@@ -533,6 +533,7 @@ def get_settings_endpoint():
 
 class StrategyConfigRequest(BaseModel):
     active_preset: str = "volume_scalping_v23"
+    execution_mode: Optional[str] = None
     volume_spike_multiplier: float = 1.4
     min_volume_usd: float = 25000.0
     min_24h_quote_volume_usd: Optional[float] = 5000000.0
@@ -551,13 +552,15 @@ class StrategyConfigRequest(BaseModel):
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
-    from db import get_strategy_config, STRATEGY_PRESETS
+    from db import get_strategy_config, STRATEGY_PRESETS, get_system_setting
     cfg = get_strategy_config(use_cache=False)
+    cfg["execution_mode"] = get_system_setting("execution_mode", "PAPER_TRADING")
+    cfg["new_buy_orders_enabled"] = bool(get_system_setting("new_buy_orders_enabled", False))
     return {"status": "success", "config": cfg, "presets": STRATEGY_PRESETS}
 
 @app_api.post("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def save_strategy_config_endpoint(req: StrategyConfigRequest):
-    from db import save_strategy_config
+    from db import save_strategy_config, set_system_setting
     payload = {
         "active_preset": req.active_preset,
         "volume_spike_multiplier": req.volume_spike_multiplier,
@@ -577,6 +580,13 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "require_futures_oi": req.require_futures_oi
     }
     ok = save_strategy_config(payload)
+    if req.execution_mode:
+        m = str(req.execution_mode).upper()
+        set_system_setting("execution_mode", m)
+        if m in ["LIVE_TRADING", "LIVE_CANARY"]:
+            set_system_setting("new_buy_orders_enabled", True)
+        elif m in ["SIGNAL_ONLY", "PAPER_TRADING", "SHADOW_TRADING"]:
+            set_system_setting("new_buy_orders_enabled", False)
     return {"status": "success" if ok else "error", "config": payload}
 
 @app_api.post("/api/settings", dependencies=[Depends(authenticate_admin)])
