@@ -83,12 +83,13 @@ class V2ScalpingEngine:
             passed_criteria.append(f"Spread (%{spread_pct:.2f}) dar ve scalping için güvenli.")
             scores["liquidity_score"] = 9.2
 
-        # 3. 1m / 3m Hacim ve İvme Analizi (Retest & Anti-Pump Kontrolü)
+        # 3. 1m / 3m / 5m Hacim ve İvme Analizi (12 Maddelik Zırhlı Retest Motoru)
         spike_ratio = 1.0
         gain_recent_pct = 0.0
         taker_buy_pct = 60.0
         upper_wick_ratio = 0.10
         state_machine_stage = "IDLE"
+        retest_confirmed = False
 
         if klines_1m and len(klines_1m) >= 6:
             recent_3 = klines_1m[-4:-1]
@@ -110,17 +111,37 @@ class V2ScalpingEngine:
             tb_vol = sum(float(k[10]) for k in recent_3)
             taker_buy_pct = (tb_vol / v_recent * 100.0) if v_recent > 0 else 55.0
 
-            # Durum Makinesi Geçişleri:
-            # - Tek mum fırlaması > %2.2 -> İlk mum kovalanmaz (WAITING_RETEST)
-            # - 3dk artış %0.3 - %2.0 ve alıcı baskısı > %58 -> READY
-            if gain_recent_pct > self.params.get("max_single_candle_spike_pct", 2.20):
-                state_machine_stage = "WAITING_RETEST"
-                failed_criteria.append(f"İlk sıçrama (%{gain_recent_pct:.2f}) çok agresif; retest bekleniyor (Anti-FOMO).")
+            # VWAP & Breakout & ATR Hesabı
+            cum_vol = sum(float(k[7]) for k in klines_1m[-6:])
+            cum_pv = sum(((float(k[2]) + float(k[3]) + float(k[4])) / 3.0) * float(k[7]) for k in klines_1m[-6:])
+            vwap = (cum_pv / cum_vol) if cum_vol > 0 else c
+            breakout_level = max(float(k[2]) for k in klines_1m[-6:-2]) if len(klines_1m) >= 6 else o
+            atr = (sum(max(float(k[2]) - float(k[3]), 0.0001) for k in klines_1m[-6:]) / 6.0)
+            
+            retest_zone_low = breakout_level - (0.35 * atr)
+            retest_zone_high = breakout_level + (0.35 * atr)
+            dist_breakout_pct = ((c - breakout_level) / breakout_level * 100.0) if breakout_level > 0 else 0.0
+
+            # 🛑 1. CANLI / İLK PUMP MUMU ENGELİ: Fırlayan muma tepeden alım YASAK
+            if gain_recent_pct > 0.40 or dist_breakout_pct > 0.40:
+                state_machine_stage = "WAITING_PULLBACK"
+                failed_criteria.append(f"Canlı mum fırlamasında (+%{gain_recent_pct:.2f}); ilk pump mumundan alım engellendi, retest bekleniyor.")
                 scores["momentum_score"] = 6.0
-            elif spike_ratio >= self.params.get("min_spike_multiplier", 1.4) and (0.20 <= gain_recent_pct <= 2.20) and upper_wick_ratio <= 0.35:
-                state_machine_stage = "READY"
-                passed_criteria.append(f"Taze kırılım (%{gain_recent_pct:.2f} 3dk) ve {spike_ratio:.1f}x hacim patlaması onaylandı.")
-                scores["momentum_score"] = 9.0
+            # 🛡️ 2. RETEST DOĞRULAMA (2. Çıkış Dalgası)
+            elif spike_ratio >= self.params.get("min_spike_multiplier", 1.4) and (retest_zone_low <= c <= retest_zone_high * 1.004):
+                no_lower_low = (l >= retest_zone_low * 0.995)
+                sell_decay = (float(recent_3[-1][7]) < v_prev * 0.80)
+                tb_rebound = (taker_buy_pct >= 58.0)
+                
+                if no_lower_low and sell_decay and tb_rebound:
+                    state_machine_stage = "READY"
+                    retest_confirmed = True
+                    passed_criteria.append(f"Retest tabanı (${retest_zone_low:.4f} - ${retest_zone_high:.4f}) teyit edildi, alıcılar (%{taker_buy_pct:.1f}) 2. dalgayı başlattı.")
+                    scores["momentum_score"] = 9.2
+                else:
+                    state_machine_stage = "WAITING_RETEST"
+                    failed_criteria.append("Retest tabanı henüz eksiksiz teyit edilmedi (Satış baskısı / Taker toparlanması bekleniyor).")
+                    scores["momentum_score"] = 7.0
             elif spike_ratio >= 1.2:
                 state_machine_stage = "WATCH"
                 passed_criteria.append(f"İntrabar hacim kıpırdanması ({spike_ratio:.1f}x) izleme listesine alındı.")
@@ -129,19 +150,8 @@ class V2ScalpingEngine:
                 state_machine_stage = "IDLE"
                 scores["momentum_score"] = 5.0
         else:
-            # Ticker ve erken hacim (surge detector) verilerinden durum analizi
-            spike_ratio = float(ticker.get("volume_spike_ratio", ticker.get("spike_ratio", 1.5)) or 1.5)
-            gain_recent_pct = float(ticker.get("gain_5m", ticker.get("price_change_24h", 1.0)) or 1.0)
-            taker_buy_pct = float(ticker.get("taker_buy_ratio", ticker.get("taker_buy_pct", 62.0)) or 62.0)
-            
-            if spike_ratio >= self.params.get("min_spike_multiplier", 1.4) and (-4.0 <= gain_recent_pct <= self.params.get("max_24h_premium_pct", 3.5)):
-                state_machine_stage = "READY"
-                passed_criteria.append(f"Erken hacim patlaması ({spike_ratio:.1f}x) ve dip momentumu onaylandı.")
-                scores["momentum_score"] = 8.8
-            else:
-                state_machine_stage = "WATCH"
-                passed_criteria.append(f"Hacim akışı izleniyor ({spike_ratio:.1f}x).")
-                scores["momentum_score"] = 6.5
+            state_machine_stage = "WATCH"
+            scores["momentum_score"] = 6.5
 
         # 4. Taker Alıcı Baskısı Skoru
         min_taker = self.params.get("min_taker_buy_pct", 58.0)
@@ -158,7 +168,7 @@ class V2ScalpingEngine:
             gross_take_profit_pct=user_tp,
             gross_stop_loss_pct=user_sl,
             round_trip_cost_pct=round_trip["total_round_trip_cost_pct"],
-            min_net_rr_required=self.params.get("min_net_rr", 1.25)
+            min_net_rr_required=self.params.get("min_net_rr", 1.50)
         )
 
         if not cost_gate["passed"]:
@@ -180,6 +190,7 @@ class V2ScalpingEngine:
 
         is_ready = (
             state_machine_stage == "READY" and
+            retest_confirmed and
             cost_gate["passed"] and
             final_score >= self.params.get("min_strategy_score", 7.5) and
             len(failed_criteria) == 0
