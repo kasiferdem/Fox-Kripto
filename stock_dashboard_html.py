@@ -22,7 +22,8 @@ def generate_stock_dashboard_html(
     positions: List[Dict[str, Any]],
     opportunities: List[Dict[str, Any]],
     tenants: List[Dict[str, Any]],
-    strategy_config: Dict[str, Any]
+    strategy_config: Dict[str, Any],
+    global_sentiment: Optional[Dict[str, Any]] = None
 ) -> str:
     cash_val = float(account_info.get("cash", 100000.0))
     portfolio_val = float(account_info.get("portfolio_value", 100000.0))
@@ -32,6 +33,16 @@ def generate_stock_dashboard_html(
 
     market_badge = '<span class="badge badge-live">🟢 SEANS AÇIK (NYSE/NASDAQ)</span>' if is_market_open else '<span class="badge badge-closed">🔴 PİYASA KAPALI (16:30 TSI Bekleniyor)</span>'
     mode_badge = '<span class="badge badge-paper">🧪 ALPACA PAPER SANDBOX ($100K)</span>' if is_paper else '<span class="badge badge-live">🚀 LIVE TRADING</span>'
+
+    # Küresel Makro Pusula Kartı
+    g_sent = global_sentiment or {}
+    g_score = g_sent.get("global_macro_score", 5.5)
+    g_badge = g_sent.get("badge", "🟡 KÜRESEL NÖTR")
+    g_advice = g_sent.get("advice", "Küresel piyasalar dengeli.")
+    g_det = g_sent.get("details", {})
+    asia_st = g_det.get("asia", {}).get("status", "NÖTR 🟡")
+    eur_st = g_det.get("europe", {}).get("status", "NÖTR 🟡")
+    us_st = g_det.get("us_futures", {}).get("status", "NÖTR 🟡")
 
     # 1. Borsa Aboneleri Tablosu (Multi-Tenant Panel)
     tenants_html = ""
@@ -250,6 +261,49 @@ def generate_stock_dashboard_html(
         <button class="btn btn-primary" onclick="window.location.reload()">🔄 Yenile</button>
       </div>
     </header>
+
+    <!-- 🌍 KÜRESEL PİYASA PUSULASI & ÖNCÜ SEANS RADARI -->
+    <section class="table-card" style="border-left: 4px solid var(--amber); background: linear-gradient(180deg, #111827 0%, #0f172a 100%);">
+      <div class="card-header">
+        <div>
+          <div class="card-title">🌍 Küresel Piyasa Pusulası & Öncü Seans Radarı (Tokyo ➔ Londra ➔ Wall Street)</div>
+          <span style="font-size: 12px; color: var(--ink-3);">{g_advice}</span>
+        </div>
+        <span class="badge badge-live" style="font-size: 12px; font-weight: 800;">{g_badge} · Makro Skor: {g_score}/10</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 6px;">
+        <div style="padding: 12px 16px; background: var(--card-2); border-radius: 8px; border: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 11px; color: var(--ink-3); font-weight: 700;">1. ASYA SEANSI (Tokyo & Çip)</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: #38bdf8; margin-top: 2px;">🇯🇵 Nikkei & TSMC</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 12px; font-weight: 800; color: var(--ink);">{asia_st}</div>
+            <div style="font-size: 11px; color: var(--ink-3);">03:00 - 09:00 TSI</div>
+          </div>
+        </div>
+        <div style="padding: 12px 16px; background: var(--card-2); border-radius: 8px; border: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 11px; color: var(--ink-3); font-weight: 700;">2. AVRUPA SEANSI (Londra & DAX)</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: #a78bfa; margin-top: 2px;">🇬🇧 DAX 40 & FTSE</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 12px; font-weight: 800; color: var(--ink);">{eur_st}</div>
+            <div style="font-size: 11px; color: var(--ink-3);">10:00 - 18:30 TSI</div>
+          </div>
+        </div>
+        <div style="padding: 12px 16px; background: var(--card-2); border-radius: 8px; border: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 11px; color: var(--ink-3); font-weight: 700;">3. ABD ÖN PİYASA (Futures)</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: var(--amber); margin-top: 2px;">🇺🇸 S&P & Nasdaq NQ</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 12px; font-weight: 800; color: var(--ink);">{us_st}</div>
+            <div style="font-size: 11px; color: var(--ink-3);">16:30 Açılış Öncesi</div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- METRİK KARTLARI -->
     <section class="metrics-grid">

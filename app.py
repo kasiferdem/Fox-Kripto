@@ -1009,6 +1009,7 @@ def get_stock_dashboard_html_route():
     positions = alpaca.get_positions()
     opportunities = engine.scan_opportunities()
     stock_tenants = get_system_setting("stock_tenants", default=[])
+    global_sentiment = engine.radar.evaluate_global_sentiment()
     
     html = generate_stock_dashboard_html(
         account_info=account_info,
@@ -1016,7 +1017,8 @@ def get_stock_dashboard_html_route():
         positions=positions,
         opportunities=opportunities,
         tenants=stock_tenants,
-        strategy_config=engine.params
+        strategy_config=engine.params,
+        global_sentiment=global_sentiment
     )
     return HTMLResponse(content=html)
 

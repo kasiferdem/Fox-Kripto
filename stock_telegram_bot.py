@@ -22,8 +22,8 @@ BASE_URL = f"https://api.telegram.org/bot{STOCK_TELEGRAM_BOT_TOKEN}"
 MAIN_KEYBOARD = {
     "keyboard": [
         [{"text": "💼 Bakiye & Cüzdan"}, {"text": "📊 Açık Pozisyonlar"}],
-        [{"text": "🔍 Canlı Hisse Fiyatları"}, {"text": "⏰ Seans Durumu"}],
-        [{"text": "🌐 Borsa Dashboard Paneli"}]
+        [{"text": "🔍 Canlı Hisse Fiyatları"}, {"text": "🌍 Küresel Piyasa Radarı"}],
+        [{"text": "⏰ Seans Durumu"}, {"text": "🌐 Borsa Dashboard Paneli"}]
     ],
     "resize_keyboard": True,
     "persistent": True
@@ -191,7 +191,34 @@ def handle_stock_message(msg: Dict[str, Any]):
             price_msg += "\n🏛️ _Veriler Alpaca Market Data üzerinden anlık olarak çekilmektedir._"
         send_stock_telegram_message(chat_id, price_msg)
 
-    # 5. Seans Durumu
+    # 5. Küresel Piyasa Radarı
+    elif "küresel" in text_lower or "radar" in text_lower or text_lower == "/kuresel":
+        from global_market_radar import GlobalMarketRadar
+        radar = GlobalMarketRadar(alpaca)
+        g = radar.evaluate_global_sentiment()
+        d = g.get("details", {})
+        asia = d.get("asia", {})
+        europe = d.get("europe", {})
+        us = d.get("us_futures", {})
+        
+        radar_msg = (
+            "🌍 *KÜRESEL PİYASA VE ÖNCÜ SEANS RADARI*\n\n"
+            f"🧭 *Küresel Makro Skor:* `{g.get('global_macro_score')}/10`\n"
+            f"📊 *Piyasa Rejimi:* {g.get('badge')}\n\n"
+            f"🇯🇵 *1. Asya Seansı (Tokyo & TSMC):* {asia.get('status')}\n"
+            f"  • Nikkei (EWJ): `${asia.get('ewj_price', 0):.2f}` ({asia.get('ewj_change_pct', 0):+.2f}%)\n"
+            f"  • TSMC Çip (TSM): `${asia.get('tsm_price', 0):.2f}` ({asia.get('tsm_change_pct', 0):+.2f}%)\n\n"
+            f"🇬🇧 *2. Avrupa Seansı (DAX & FTSE):* {europe.get('status')}\n"
+            f"  • Almanya DAX (EWG): `${europe.get('ewg_price', 0):.2f}` ({europe.get('ewg_change_pct', 0):+.2f}%)\n"
+            f"  • Londra FTSE (EWU): `${europe.get('ewu_price', 0):.2f}` ({europe.get('ewu_change_pct', 0):+.2f}%)\n\n"
+            f"🇺🇸 *3. ABD Ön Piyasa (Futures):* {us.get('status')}\n"
+            f"  • S&P 500 (SPY): `${us.get('spy_price', 0):.2f}` ({us.get('spy_change_pct', 0):+.2f}%)\n"
+            f"  • Nasdaq 100 (QQQ): `${us.get('qqq_price', 0):.2f}` ({us.get('qqq_change_pct', 0):+.2f}%)\n\n"
+            f"💡 *Tavsiye:* _{g.get('advice')}_"
+        )
+        send_stock_telegram_message(chat_id, radar_msg)
+
+    # 6. Seans Durumu
     elif "seans" in text_lower or text_lower == "/seans" or "piyasa" in text_lower:
         clock = alpaca.get_market_clock()
         is_open = clock.get("is_open", False)
@@ -209,7 +236,7 @@ def handle_stock_message(msg: Dict[str, Any]):
             )
         send_stock_telegram_message(chat_id, seans_msg)
 
-    # 6. Panel Linki
+    # 7. Panel Linki
     elif "panel" in text_lower or text_lower == "/panel" or "dashboard" in text_lower:
         panel_msg = (
             "🌐 *FOX-BORSA YÖNETİM PANELİ*\n\n"

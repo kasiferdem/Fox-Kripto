@@ -10,10 +10,12 @@ Hisselerde açılış momentum kırılımı (ORB) ve geri çekilme sonrası 2. �
 import time
 from typing import Dict, Any, List, Optional
 from alpaca_client import AlpacaClient
+from global_market_radar import GlobalMarketRadar
 
 class StockMomentumEngine:
     def __init__(self, alpaca_client: Optional[AlpacaClient] = None):
         self.client = alpaca_client or AlpacaClient()
+        self.radar = GlobalMarketRadar(self.client)
         self.target_symbols = [
             "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "AMD", "SPY", "QQQ", "COIN", "PLTR"
         ]
@@ -25,7 +27,8 @@ class StockMomentumEngine:
             "target_stop_loss_pct": 1.5,
             "max_single_candle_chase_pct": 0.50,
             "retest_required": True,
-            "max_position_budget_usd": 5000.0
+            "max_position_budget_usd": 5000.0,
+            "global_radar_filter_enabled": True
         }
 
     def scan_opportunities(self) -> List[Dict[str, Any]]:
@@ -36,6 +39,7 @@ class StockMomentumEngine:
         bars = self.client.get_latest_bars(self.target_symbols)
         market_clock = self.client.get_market_clock()
         is_market_open = market_clock.get("is_open", False)
+        global_sentiment = self.radar.evaluate_global_sentiment()
 
         opportunities = []
         for symbol in self.target_symbols:
