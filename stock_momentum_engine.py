@@ -47,43 +47,46 @@ class StockMomentumEngine:
             if not b:
                 continue
 
-            price = b.get("price", 0.0)
-            open_p = b.get("open", 0.0)
-            high_p = b.get("high", 0.0)
-            low_p = b.get("low", 0.0)
-            vol = b.get("volume", 0.0)
+            price = float(b.get("price", 0.0))
+            open_p = float(b.get("open", price) or price)
+            high_p = float(b.get("high", price) or price)
+            low_p = float(b.get("low", price) or price)
+            vol = float(b.get("volume", 0.0))
+            day_gain_pct = float(b.get("day_change_pct", 0.0) or (((price - open_p) / open_p) * 100.0 if open_p > 0 else 0.0))
+            intraday_gain_pct = float(b.get("intraday_change_pct", 0.0) or (((price - open_p) / open_p) * 100.0 if open_p > 0 else 0.0))
 
-            if price <= 0 or open_p <= 0:
+            if price <= 0:
                 continue
 
-            candle_gain_pct = ((price - open_p) / open_p) * 100.0
-            
-            # Retest & Durum Makinesi
-            breakout_level = high_p
-            retest_zone_low = open_p + ((high_p - open_p) * 0.30)
-            retest_zone_high = open_p + ((high_p - open_p) * 0.70)
-            
-            state = "IDLE"
+            state = "STOCK_WATCHING"
             is_ready = False
-            reason = "İzleniyor (Beklemede)"
+            reason = f"Normal seans akışı (Günlük: %{day_gain_pct:+.2f}, Gün İçi: %{intraday_gain_pct:+.2f})."
 
-            # 🛑 1. Canlı İlk Pump Mumu Koruması (Fırlayan muma girilmez)
-            if candle_gain_pct > self.params["max_single_candle_chase_pct"]:
+            # 🛑 1. Aşırı Prim / Pump Koruması (+%7'den fazla tek günde fırlayan hisseye tepeden girilmez)
+            if day_gain_pct > 7.0:
                 state = "STOCK_WAITING_PULLBACK"
-                reason = f"Hisse canlı fırlıyor (+%{candle_gain_pct:.2f}); tepeden alım yasak, geri çekilme bekleniyor."
-            elif retest_zone_low <= price <= retest_zone_high and candle_gain_pct > 0.15:
-                # 🛡️ 2. Retest Tabanı Teyit Edildi
-                state = "STOCK_RETEST_CONFIRMED"
-                is_ready = True
-                reason = f"Geri çekilme desteği (${retest_zone_low:.2f} - ${retest_zone_high:.2f}) korundu, 2. çıkış dalgası onaylandı."
-            else:
+                reason = f"Hisse aşırı primli (+%{day_gain_pct:.2f}); tepeden alım yasak, geri çekilme bekleniyor."
+            elif (day_gain_pct >= 0.80 or intraday_gain_pct >= 0.60) and price >= open_p:
+                # 🛡️ 2. Pozitif Momentum & 2. Dalga Retest Teyidi
+                range_hl = high_p - low_p if high_p > low_p else price * 0.01
+                retest_support = low_p + (range_hl * 0.35)
+                
+                if price >= retest_support:
+                    state = "STOCK_RETEST_CONFIRMED"
+                    is_ready = True
+                    reason = f"Seans momentum lideri (+%{day_gain_pct:.2f}), destek seviyesi (${retest_support:.2f}) üzerinde 2. dalga onaylandı."
+                else:
+                    state = "STOCK_WAITING_PULLBACK"
+                    reason = f"Momentum var (+%{day_gain_pct:.2f}) fakat destek seviyesi (${retest_support:.2f}) altında test ediliyor."
+            elif day_gain_pct <= -2.5:
                 state = "STOCK_WATCHING"
-                reason = f"Normal seans akışı (Değişim: %{candle_gain_pct:+.2f})."
+                reason = f"Satış baskısı altında (Değişim: %{day_gain_pct:+.2f}), güvenli nakitte bekleniyor."
 
             opportunities.append({
                 "symbol": symbol,
                 "price": price,
-                "change_pct": round(candle_gain_pct, 2),
+                "change_pct": round(day_gain_pct, 2),
+                "intraday_change_pct": round(intraday_gain_pct, 2),
                 "volume": vol,
                 "state": state,
                 "is_ready": is_ready,

@@ -96,8 +96,56 @@ class AlpacaClient:
         except Exception:
             return []
 
+    def get_stock_snapshots(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Alpaca Snapshots API: Günlük açılış, dünkü kapanış, günün en yükseği, en düşüğü ve anlık tick fiyatını çeker."""
+        try:
+            sym_str = ",".join(symbols)
+            url = f"{self.data_url}/stocks/snapshots?symbols={sym_str}"
+            r = requests.get(url, headers=self._get_headers(), timeout=8)
+            if r.status_code == 200:
+                raw_data = r.json()
+                result = {}
+                for s, snap in raw_data.items():
+                    daily = snap.get("dailyBar", {})
+                    prev = snap.get("prevDailyBar", {})
+                    trade = snap.get("latestTrade", {})
+                    min_b = snap.get("minuteBar", {})
+                    
+                    cur_p = float(trade.get("p", 0.0) or daily.get("c", 0.0))
+                    d_open = float(daily.get("o", cur_p) or cur_p)
+                    d_high = float(daily.get("h", cur_p) or cur_p)
+                    d_low = float(daily.get("l", cur_p) or cur_p)
+                    d_vol = float(daily.get("v", 0.0))
+                    prev_c = float(prev.get("c", d_open) or d_open)
+                    
+                    day_chg = ((cur_p - prev_c) / prev_c) * 100.0 if prev_c > 0 else 0.0
+                    intraday_chg = ((cur_p - d_open) / d_open) * 100.0 if d_open > 0 else 0.0
+                    
+                    result[s] = {
+                        "symbol": s,
+                        "price": cur_p,
+                        "open": d_open,
+                        "high": d_high,
+                        "low": d_low,
+                        "volume": d_vol,
+                        "prev_close": prev_c,
+                        "day_change_pct": round(day_chg, 2),
+                        "intraday_change_pct": round(intraday_chg, 2),
+                        "minute_open": float(min_b.get("o", cur_p)),
+                        "minute_close": float(min_b.get("c", cur_p)),
+                        "minute_volume": float(min_b.get("v", 0.0))
+                    }
+                return result
+            return {}
+        except Exception as e:
+            print(f"⚠️ [Alpaca Snapshots Error]: {e}")
+            return {}
+
     def get_latest_bars(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
         """Verilen hisseler için anlık borsa fiyatlarını ve son bar verilerini çeker."""
+        snaps = self.get_stock_snapshots(symbols)
+        if snaps:
+            return snaps
         try:
             sym_str = ",".join(symbols)
             url = f"{self.data_url}/stocks/bars/latest?symbols={sym_str}"
