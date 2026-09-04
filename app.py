@@ -480,6 +480,13 @@ def startup_event():
     except Exception as e:
         print(f"⚠️ Dev-Bridge Başlatma Hatası: {e}")
 
+    print("🏛️ [FastAPI Startup]: Fox-Borsa 7/24 Otonom ABD Seans İşçisi Başlatılıyor...")
+    try:
+        from stock_autonomous_worker import start_stock_autonomous_worker
+        start_stock_autonomous_worker()
+    except Exception as e:
+        print(f"⚠️ Stock Worker Başlatma Hatası: {e}")
+
 # -----------------------------------------
 # PYDANTIC MODEL TANIMLARI
 # -----------------------------------------
