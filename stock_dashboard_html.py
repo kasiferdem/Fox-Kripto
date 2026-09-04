@@ -6,7 +6,11 @@ ui-ux-designer prensiplerine uygun olarak tasarlanmıştır:
 - F-Pattern hiyerarşisi
 - Satoshi + JetBrains Mono font eşleşmesi
 - Wall Street Koyu FinTech Teması (Koyu Arka Plan, Zümrüt Yeşili ve Altın Sarısı Aksanlar)
-- 3 Temel Panel: Canlı Portföy, Seans Sayacı, Hisse Tarayıcısı & 2. Dalga Retest Teyidi
+- 4 Temel Panel:
+  1. Canlı Portföy Kartları ($100K Sanal Bakiye, Alım Gücü, Nakit)
+  2. 👥 Alpaca Borsa Aboneleri & Kullanıcı Yönetimi (Multi-Tenant Panel)
+  3. 💼 Açık Hisse Senedi Pozisyonları & Bracket Emir Koruması
+  4. 🔍 ABD Hisse Senedi Tarayıcısı & 2. Dalga Retest Teyit Durumu
 """
 
 import json
@@ -29,7 +33,44 @@ def generate_stock_dashboard_html(
     market_badge = '<span class="badge badge-live">🟢 SEANS AÇIK (NYSE/NASDAQ)</span>' if is_market_open else '<span class="badge badge-closed">🔴 PİYASA KAPALI (16:30 TSI Bekleniyor)</span>'
     mode_badge = '<span class="badge badge-paper">🧪 ALPACA PAPER SANDBOX ($100K)</span>' if is_paper else '<span class="badge badge-live">🚀 LIVE TRADING</span>'
 
-    # Açık Pozisyonlar Tablosu
+    # 1. Borsa Aboneleri Tablosu (Multi-Tenant Panel)
+    tenants_html = ""
+    for idx, t in enumerate(tenants):
+        tid = t.get("id", "")
+        tname = t.get("tenant_name", "Kullanıcı")
+        chat_id = t.get("telegram_chat_id", "-")
+        tp = float(t.get("take_profit_percent") or 3.0)
+        sl = float(t.get("stop_loss_percent") or 1.5)
+        mb = float(t.get("max_budget_percent") or 25.0)
+        is_active = bool(t.get("is_active", True))
+        is_p = bool(t.get("is_paper", True))
+        
+        status_btn = f'<button class="btn btn-sm" style="padding: 3px 8px; font-size: 11px; font-weight: bold; cursor: pointer; background: {"rgba(16,185,129,0.2)" if is_active else "rgba(239,68,68,0.2)"}; color: {"#10b981" if is_active else "#ef4444"}; border: 1px solid {"#10b981" if is_active else "#ef4444"}; border-radius: 6px;" onclick="toggleStockTenantActive(\'{tid}\', {str(not is_active).lower()})">{"🟢 Aktif" if is_active else "🔴 Pasif"}</button>'
+        acc_type_badge = '<span class="badge badge-paper">🧪 Paper ($100K)</span>' if is_p else '<span class="badge badge-live">🚀 Live Real</span>'
+
+        tenants_html += f"""
+        <tr>
+            <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <strong style="color: #38bdf8; font-size: 13.5px;">{tname}</strong>
+                    <span class="badge badge-idle" style="font-size: 10px;">ID: {tid}</span>
+                </div>
+            </td>
+            <td><code class="mono" style="color: #cbd5e1; font-weight: 600;">{chat_id}</code></td>
+            <td><input type="number" step="0.1" class="table-input" id="tp_{tid}" value="{tp}" style="width: 65px; color: #10b981;"></td>
+            <td><input type="number" step="0.1" class="table-input" id="sl_{tid}" value="{sl}" style="width: 65px; color: #ef4444;"></td>
+            <td><input type="number" step="1.0" class="table-input" id="mb_{tid}" value="{mb}" style="width: 65px; color: #f59e0b;"></td>
+            <td>{acc_type_badge}</td>
+            <td>{status_btn}</td>
+            <td>
+                <button class="btn btn-sm btn-primary" onclick="updateStockTenantSettings('{tid}')">💾 Kaydet</button>
+            </td>
+        </tr>
+        """
+    if not tenants_html:
+        tenants_html = '<tr><td colspan="8" style="text-align: center; color: #64748b; padding: 24px;">Kayıtlı borsa abonesi bulunamadı.</td></tr>'
+
+    # 2. Açık Pozisyonlar Tablosu
     pos_html = ""
     for p in positions:
         pl = float(p.get("unrealized_pl", 0.0))
@@ -51,7 +92,7 @@ def generate_stock_dashboard_html(
     if not pos_html:
         pos_html = '<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 24px;">Şu an açık hisse senedi pozisyonu bulunmuyor (Kasa %100 Nakitte).</td></tr>'
 
-    # Fırsat ve Retest Teyit Tablosu
+    # 3. Fırsat ve Retest Teyit Tablosu
     opp_html = ""
     for opp in opportunities:
         sym = opp.get("symbol")
@@ -160,12 +201,35 @@ def generate_stock_dashboard_html(
 
     /* Tablo Kartı */
     .table-card {{ background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }}
-    .card-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }}
+    .card-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }}
     .card-title {{ font-size: 16px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }}
     table {{ width: 100%; border-collapse: collapse; text-align: left; }}
     th {{ padding: 12px; font-size: 11px; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--line); font-weight: 700; }}
     td {{ padding: 14px 12px; border-bottom: 1px solid rgba(51, 65, 85, 0.5); font-size: 13.5px; vertical-align: middle; }}
     tr:hover td {{ background: rgba(30, 41, 59, 0.4); }}
+
+    .table-input {{
+      background: var(--card-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-family: inherit;
+      font-weight: 600;
+      text-align: center;
+      color: var(--ink);
+    }}
+    .table-input:focus {{ outline: none; border-color: var(--amber); }}
+
+    /* Modal */
+    .modal-overlay {{
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(6px); z-index: 999; place-items: center; padding: 20px;
+    }}
+    .modal-overlay.open {{ display: grid; }}
+    .modal-card {{
+      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 24px; width: 100%; max-width: 500px; display: grid; gap: 16px;
+    }}
   </style>
 </head>
 <body>
@@ -208,6 +272,36 @@ def generate_stock_dashboard_html(
         <div class="metric-title">Strateji Modeli</div>
         <div class="metric-val" style="font-size: 18px; color: #a78bfa; margin-top: 10px;">⚡ ORB + 2. Dalga Retest</div>
         <div class="metric-sub">İlk Pump Engeli: <strong style="color: var(--emerald);">AÇIK</strong></div>
+      </div>
+    </section>
+
+    <!-- 👥 KULLANICI & ABONE YÖNETİM PANELİ (MULTI-TENANT PANEL) -->
+    <section class="table-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">👥 Alpaca Borsa Aboneleri & Kullanıcı Yönetimi ({len(tenants)})</div>
+          <span style="font-size: 12px; color: var(--ink-3);">Alpaca API bağlı kullanıcılar, risk parametreleri ve aktiflik durumları</span>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openAddTenantModal()">➕ Yeni Abone Ekle</button>
+      </div>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Kullanıcı / Hesap</th>
+              <th>Telegram Chat ID</th>
+              <th>Kâr Al (TP %)</th>
+              <th>Zarar Kes (SL %)</th>
+              <th>Bütçe (%)</th>
+              <th>Hesap Tipi</th>
+              <th>Durum</th>
+              <th>İşlem</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tenants_html}
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -264,7 +358,130 @@ def generate_stock_dashboard_html(
     </section>
   </div>
 
+  <!-- YENİ ABONE EKLEME MODALI -->
+  <div id="add-tenant-modal" class="modal-overlay">
+    <div class="modal-card">
+      <h3 style="color: var(--amber);">➕ Yeni Alpaca Abonesi Ekle</h3>
+      <div>
+        <label style="font-size: 12px; color: var(--ink-3);">Kullanıcı / Hesap Adı:</label>
+        <input type="text" id="m_tname" class="table-input" style="width: 100%; text-align: left; padding: 8px; margin-top: 4px;" placeholder="Örn: Mehmet (Alpaca)">
+      </div>
+      <div>
+        <label style="font-size: 12px; color: var(--ink-3);">Telegram Chat ID:</label>
+        <input type="number" id="m_chatid" class="table-input" style="width: 100%; text-align: left; padding: 8px; margin-top: 4px;" placeholder="Örn: 8739367825">
+      </div>
+      <div>
+        <label style="font-size: 12px; color: var(--ink-3);">Alpaca API Key ID:</label>
+        <input type="text" id="m_apikey" class="table-input" style="width: 100%; text-align: left; padding: 8px; margin-top: 4px;" placeholder="PK...">
+      </div>
+      <div>
+        <label style="font-size: 12px; color: var(--ink-3);">Alpaca Secret Key:</label>
+        <input type="password" id="m_secret" class="table-input" style="width: 100%; text-align: left; padding: 8px; margin-top: 4px;" placeholder="...">
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+          <label style="font-size: 12px; color: var(--ink-3);">Kâr Al (TP %):</label>
+          <input type="number" step="0.1" id="m_tp" class="table-input" style="width: 100%; padding: 8px; margin-top: 4px;" value="3.0">
+        </div>
+        <div style="flex: 1;">
+          <label style="font-size: 12px; color: var(--ink-3);">Stop Loss (SL %):</label>
+          <input type="number" step="0.1" id="m_sl" class="table-input" style="width: 100%; padding: 8px; margin-top: 4px;" value="1.5">
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+        <button class="btn btn-ghost" onclick="closeAddTenantModal()">İptal</button>
+        <button class="btn btn-primary" onclick="submitAddStockTenant()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    function openAddTenantModal() {{
+      document.getElementById('add-tenant-modal').classList.add('open');
+    }}
+    function closeAddTenantModal() {{
+      document.getElementById('add-tenant-modal').classList.remove('open');
+    }}
+
+    async function toggleStockTenantActive(tenantId, newActiveState) {{
+      try {{
+        const res = await fetch('/api/stock/tenants/' + tenantId + '/toggle-active', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ is_active: newActiveState }})
+        }});
+        const data = await res.json();
+        if (data.status === 'success') {{
+          window.location.reload();
+        }} else {{
+          alert('Hata: ' + data.error);
+        }}
+      }} catch(e) {{
+        alert('Bağlantı hatası: ' + e);
+      }}
+    }}
+
+    async function updateStockTenantSettings(tenantId) {{
+      const tp = parseFloat(document.getElementById('tp_' + tenantId)?.value || 3.0);
+      const sl = parseFloat(document.getElementById('sl_' + tenantId)?.value || 1.5);
+      const mb = parseFloat(document.getElementById('mb_' + tenantId)?.value || 25.0);
+
+      try {{
+        const res = await fetch('/api/stock/tenants/' + tenantId + '/update', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ take_profit_percent: tp, stop_loss_percent: sl, max_budget_percent: mb }})
+        }});
+        const data = await res.json();
+        if (data.status === 'success') {{
+          alert('✅ Ayarlar başarıyla güncellendi!');
+        }} else {{
+          alert('Hata: ' + data.error);
+        }}
+      }} catch(e) {{
+        alert('Bağlantı hatası: ' + e);
+      }}
+    }}
+
+    async function submitAddStockTenant() {{
+      const tname = document.getElementById('m_tname')?.value;
+      const chatid = document.getElementById('m_chatid')?.value;
+      const apikey = document.getElementById('m_apikey')?.value;
+      const secret = document.getElementById('m_secret')?.value;
+      const tp = parseFloat(document.getElementById('m_tp')?.value || 3.0);
+      const sl = parseFloat(document.getElementById('m_sl')?.value || 1.5);
+
+      if (!tname || !apikey || !secret) {{
+        alert('Lütfen Kullanıcı Adı, API Key ve Secret alanlarını doldurunuz.');
+        return;
+      }}
+
+      try {{
+        const res = await fetch('/api/stock/tenants', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{
+            tenant_name: tname,
+            telegram_chat_id: parseInt(chatid) || 0,
+            api_key: apikey,
+            secret_key: secret,
+            take_profit_percent: tp,
+            stop_loss_percent: sl,
+            max_budget_percent: 25.0
+          }})
+        }});
+        const data = await res.json();
+        if (data.status === 'success') {{
+          alert('✅ Yeni Alpaca Abonesi Başarıyla Eklendi!');
+          window.location.reload();
+        }} else {{
+          alert('Hata: ' + data.error);
+        }}
+      }} catch(e) {{
+        alert('Bağlantı hatası: ' + e);
+      }}
+    }}
+
     async function buyStockDirect(symbol, amountUsd) {{
       if (!confirm(symbol + ' hissesinden $' + amountUsd + ' tutarında alım emri gönderilsin mi?')) return;
       try {{

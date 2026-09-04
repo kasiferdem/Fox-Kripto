@@ -990,6 +990,7 @@ def get_stock_dashboard_html_route():
     from alpaca_client import AlpacaClient
     from stock_momentum_engine import StockMomentumEngine
     from stock_dashboard_html import generate_stock_dashboard_html
+    from db import get_system_setting
     
     alpaca = AlpacaClient()
     engine = StockMomentumEngine(alpaca)
@@ -998,13 +999,14 @@ def get_stock_dashboard_html_route():
     market_clock = alpaca.get_market_clock()
     positions = alpaca.get_positions()
     opportunities = engine.scan_opportunities()
+    stock_tenants = get_system_setting("stock_tenants", default=[])
     
     html = generate_stock_dashboard_html(
         account_info=account_info,
         market_clock=market_clock,
         positions=positions,
         opportunities=opportunities,
-        tenants=[],
+        tenants=stock_tenants,
         strategy_config=engine.params
     )
     return HTMLResponse(content=html)
@@ -1013,6 +1015,85 @@ class StockOrderRequest(BaseModel):
     symbol: str
     amount_usd: float = 500.0
     side: str = "buy"
+
+class StockTenantCreateRequest(BaseModel):
+    tenant_name: str
+    telegram_chat_id: int
+    api_key: str
+    secret_key: str
+    is_paper: bool = True
+    take_profit_percent: float = 3.0
+    stop_loss_percent: float = 1.5
+    max_budget_percent: float = 25.0
+
+class StockTenantUpdateRequest(BaseModel):
+    take_profit_percent: Optional[float] = None
+    stop_loss_percent: Optional[float] = None
+    max_budget_percent: Optional[float] = None
+
+class StockTenantToggleRequest(BaseModel):
+    is_active: bool
+
+@app_api.get("/api/stock/tenants", dependencies=[Depends(authenticate_admin)])
+def list_stock_tenants_endpoint():
+    from db import get_system_setting
+    tenants = get_system_setting("stock_tenants", default=[])
+    return {"status": "success", "tenants": tenants}
+
+@app_api.post("/api/stock/tenants", dependencies=[Depends(authenticate_admin)])
+def create_stock_tenant_endpoint(req: StockTenantCreateRequest):
+    import uuid, datetime
+    from db import get_system_setting, set_system_setting
+    tenants = get_system_setting("stock_tenants", default=[])
+    new_t = {
+        "id": f"alpaca_{uuid.uuid4().hex[:8]}",
+        "tenant_name": req.tenant_name,
+        "telegram_chat_id": req.telegram_chat_id,
+        "exchange_id": "alpaca",
+        "api_key": req.api_key,
+        "secret_key": req.secret_key,
+        "is_paper": req.is_paper,
+        "is_active": True,
+        "take_profit_percent": req.take_profit_percent,
+        "stop_loss_percent": req.stop_loss_percent,
+        "max_budget_percent": req.max_budget_percent,
+        "created_at": datetime.datetime.utcnow().isoformat()
+    }
+    tenants.append(new_t)
+    set_system_setting("stock_tenants", tenants)
+    return {"status": "success", "tenant": new_t}
+
+@app_api.post("/api/stock/tenants/{tenant_id}/toggle-active", dependencies=[Depends(authenticate_admin)])
+def toggle_stock_tenant_endpoint(tenant_id: str, req: StockTenantToggleRequest):
+    from db import get_system_setting, set_system_setting
+    tenants = get_system_setting("stock_tenants", default=[])
+    found = False
+    for t in tenants:
+        if t.get("id") == tenant_id:
+            t["is_active"] = bool(req.is_active)
+            found = True
+            break
+    if found:
+        set_system_setting("stock_tenants", tenants)
+        return {"status": "success", "tenant_id": tenant_id, "is_active": req.is_active}
+    raise HTTPException(status_code=404, detail="Borsa abonesi bulunamadı.")
+
+@app_api.post("/api/stock/tenants/{tenant_id}/update", dependencies=[Depends(authenticate_admin)])
+def update_stock_tenant_endpoint(tenant_id: str, req: StockTenantUpdateRequest):
+    from db import get_system_setting, set_system_setting
+    tenants = get_system_setting("stock_tenants", default=[])
+    found = False
+    for t in tenants:
+        if t.get("id") == tenant_id:
+            if req.take_profit_percent is not None: t["take_profit_percent"] = req.take_profit_percent
+            if req.stop_loss_percent is not None: t["stop_loss_percent"] = req.stop_loss_percent
+            if req.max_budget_percent is not None: t["max_budget_percent"] = req.max_budget_percent
+            found = True
+            break
+    if found:
+        set_system_setting("stock_tenants", tenants)
+        return {"status": "success", "tenant_id": tenant_id}
+    raise HTTPException(status_code=404, detail="Borsa abonesi bulunamadı.")
 
 @app_api.post("/api/stock/order", dependencies=[Depends(authenticate_admin)])
 def place_stock_order_endpoint(req: StockOrderRequest):
