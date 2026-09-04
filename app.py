@@ -24,6 +24,15 @@ load_dotenv()
 
 app_api = FastAPI(title="Fox-Kripto Multi-Tenant Autonomous Trading & Management Dashboard")
 
+@app_api.on_event("startup")
+def on_startup_event():
+    try:
+        from stock_telegram_bot import start_stock_telegram_poller
+        start_stock_telegram_poller()
+        print("🚀 [Startup]: @FoxBorsaBot Telegram Dinleyicisi Başlatıldı!")
+    except Exception as e:
+        print(f"⚠️ [Startup Hatası]: {e}")
+
 security = HTTPBasic()
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
