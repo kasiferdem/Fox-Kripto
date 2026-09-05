@@ -129,14 +129,140 @@ def handle_update(update: dict):
     first_name = message["chat"].get("first_name", "Kullanıcı")
     text_clean = raw_text.lower().lstrip("/").strip()
 
-    # 🛡️ P0-3 GÜVENLİK KONTROLÜ: Yalnızca yetkili yönetici veya kayıtlı tenant'ların mesajları işlenir
+    # 🛡️ P0-3 GÜVENLİK & MULTI-TENANT KONTROLÜ
     admin_chat_id = int(os.environ.get("TELEGRAM_CHAT_ID", "8739367825"))
     tenant = get_tenant_by_chat_id(from_id) or get_tenant_by_chat_id(chat_id)
-    if from_id != admin_chat_id and not tenant:
-        print(f"🛑 [Yetkisiz Telegram Mesajı Reddedildi]: from_id={from_id}, chat_id={chat_id}")
-        return
+    is_authorized = (from_id == admin_chat_id) or (tenant is not None)
 
-    print(f"📩 [Telegram Gelen Mesaj]: From ID={from_id}, Chat ID={chat_id}, Text='{raw_text}' (Clean='{text_clean}')")
+    # -------------------------------------------------------------
+    # 🌟 GUEST / YENİ KULLANICI KARŞILAMA VE GÜVENLİ ERİŞİM
+    # -------------------------------------------------------------
+    if not is_authorized:
+        print(f"👋 [Yeni / Yetkisiz Kullanıcı Mesajı]: From ID={from_id}, Chat ID={chat_id}, Text='{raw_text}'")
+        
+        # 1. /start, yardım, karşılama veya menü
+        if text_clean in ["start", "/start", "help", "/help", "yardim", "yardım", "merhaba", "selam", "hello", "hi", "menu", "menü", "komutlar", "bilgi", "info", "❓ yardım"]:
+            welcome_kb = {
+                "keyboard": [
+                    [{"text": "📊 Piyasa Analizi"}, {"text": "📰 Kripto Haberleri"}],
+                    [{"text": "🧪 Demo Modu ($100)"}, {"text": "🆔 Chat ID Öğren"}],
+                    [{"text": "ℹ️ Sistem Bilgisi"}, {"text": "❓ Yardım"}]
+                ],
+                "resize_keyboard": True
+            }
+            welcome_msg = (
+                f"🦊 *FOX-KRİPTO AKILLI TİCARET SİSTEMİNE HOŞ GELDİNİZ!* 🚀\n\n"
+                f"👋 Merhaba *{first_name}*!\n"
+                f"🆔 *Telegram Chat ID Numaranız:* `{chat_id}`\n\n"
+                f"Fox-Kripto; Binance Global ve Binance TR üzerinde 7/24 otonom çalışan, yapay zeka destekli kurumsal bir kantitatif analiz ve ticaret botudur.\n\n"
+                f"📌 *Kullanabileceğiniz Özellikler:*\n"
+                f"• 📊 *Piyasa Analizi:* Canlı balina kırılımlarını ve ivme puanlarını görün.\n"
+                f"• 📰 *Kripto Haberleri:* Anlık küresel piyasa gelişmelerini okuyun.\n"
+                f"• 🧪 *Demo Modu ($100):* Sıfır riskle sanal bakiye üzerinden sistemi deneyin.\n"
+                f"• 🆔 *Chat ID Öğren:* Yöneticinize yetki için ileteceğiniz ID numaranızı alın.\n\n"
+                f"👑 *Yetkilendirme & Canlı Hesap Bağlantısı:*\n"
+                f"Canlı borsa hesabınızla al-sat yapabilmek için yukarıdaki Chat ID numaranızı sistem yöneticisine iletmeniz yeterlidir.\n\n"
+                f"Aşağıdaki menü butonlarını kullanarak hemen keşfetmeye başlayabilirsiniz 👇"
+            )
+            send_message(chat_id, welcome_msg, reply_markup=welcome_kb)
+            
+            # Yöneticiye anlık yeni kullanıcı bildirimi gönder
+            try:
+                alert_text = (
+                    f"🔔 *[FOX-KRİPTO] YENİ KULLANICI /START GÖNDERDİ!*\n\n"
+                    f"👤 *Kullanıcı Adı / İsim:* {first_name} (ID: `{from_id}`)\n"
+                    f"💬 *Mesaj:* {raw_text}\n"
+                    f"🆔 *Chat ID:* `{chat_id}`\n"
+                    f"⏰ *Zaman:* {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                    f"💡 _Kullanıcıya yetki tanımlamak için Supabase `user_tenants` tablosuna Chat ID ekleyebilirsiniz._"
+                )
+                if admin_chat_id and chat_id != admin_chat_id:
+                    send_message(admin_chat_id, alert_text)
+            except Exception as e:
+                print(f"⚠️ Admin alert error: {e}")
+            return
+
+        # 2. Chat ID Sorgulama
+        elif text_clean in ["id", "chat id", "chat_id", "chatid", "my id", "/id", "🆔 chat id öğren"]:
+            send_message(
+                chat_id,
+                f"🆔 *TELEGRAM CHAT ID NUMARANIZ:* `{chat_id}`\n\n"
+                f"💡 Bu numarayı sistem yöneticisine ileterek Binance Global veya Binance TR hesabınızı Fox-Kripto'ya bağlatabilirsiniz."
+            )
+            return
+
+        # 3. Demo Modu
+        elif text_clean in ["demo", "test", "sanal", "paper", "🧪 demo modu ($100)", "/demo", "/test"]:
+            set_tenant_trading_mode(chat_id, is_paper=True)
+            send_message(
+                chat_id,
+                f"🧪 *SANAL DEMO TEST MODU AKTİF!* ✅\n\n"
+                f"💰 *Sanal Bakiye:* $100.00 USDT (Monopoly Parası)\n"
+                f"🛡️ *Borsa Riski:* 0 TL / 0 USD (Tamamen Güvenli)\n"
+                f"📈 *Çalışma:* Binance canlı tahtasındaki gerçek zamanlı fiyatlarla sinyalleri izleyebilirsiniz.\n\n"
+                f"💡 _'analiz' veya 'haberler' yazarak piyasayı takip edebilirsiniz._"
+            )
+            return
+
+        # 4. Haberler
+        elif text_clean in ["haber", "haberler", "gundem", "gündem", "news", "/haberler", "📰 kripto haberleri"]:
+            send_message(chat_id, "📰 *GÜNCEL KRİPTO HABERLERİ ÇEKİLİYOR...*")
+            news_msg = get_localized_crypto_news()
+            send_message(chat_id, news_msg)
+            return
+
+        # 5. Analiz
+        elif text_clean in ["analiz", "tara", "taramalar", "firsat", "fırsat", "scan", "analysis", "/analiz", "📊 piyasa analizi"]:
+            send_message(chat_id, "🔍 *CANLI PİYASA TARANIYOR...*\nBalina hareketleri ve 15m/1h momentum kırılımları hesaplanıyor...")
+            try:
+                gainers = fetch_top_volume_gainers(limit=5)
+                if gainers:
+                    rep = "📊 *CANLI PİYASA MOMENTUM LİDERLERİ:*\n\n"
+                    for g in gainers:
+                        rep += f"• *{g.get('symbol')}*: `${float(g.get('price', 0)):,.4f}` (%{float(g.get('change_pct', 0)):+.2f}) | Hacim: `${float(g.get('volume_usd', 0)):,.0f}`\n"
+                    rep += "\n💡 _Detaylı sinyaller ve otonom işlemler için yetkili hesap gereklidir._"
+                    send_message(chat_id, rep)
+                else:
+                    send_message(chat_id, "📊 Şu an piyasa sakin, yüksek oynaklıklı bir kırılım tespit edilmedi.")
+            except Exception as e:
+                send_message(chat_id, f"📊 Piyasa verisi alınıyor... {e}")
+            return
+
+        # 6. Sistem Bilgisi
+        elif text_clean in ["surum", "sürüm", "version", "bilgi", "info", "sistem", "ℹ️ sistem bilgisi"]:
+            send_message(
+                chat_id,
+                f"ℹ️ *FOX-KRİPTO OTONOM TİCARET SİSTEMİ*\n\n"
+                f"🏷️ *Sürüm:* `v2.5.0-PROD`\n"
+                f"🛡️ *Mimari:* 10 Kademeli ExecutionGate & 12 Durumlu Retest Motoru\n"
+                f"🤖 *Yapay Zeka:* Claude Sonnet & OpenAI Codex & Antigravity\n"
+                f"🏢 *Desteklenen Borsalar:* Binance Global, Binance TR, Alpaca Wall Street\n"
+                f"🟢 *Durum:* 7/24 Kesintisiz Aktif\n\n"
+                f"🆔 *Sizin Chat ID:* `{chat_id}`"
+            )
+            return
+
+        # 7. Diğer tüm komutlar (Bakiye, Al-Sat denemeleri)
+        else:
+            unauth_kb = {
+                "keyboard": [
+                    [{"text": "📊 Piyasa Analizi"}, {"text": "📰 Kripto Haberleri"}],
+                    [{"text": "🧪 Demo Modu ($100)"}, {"text": "🆔 Chat ID Öğren"}]
+                ],
+                "resize_keyboard": True
+            }
+            send_message(
+                chat_id,
+                f"👋 Merhaba *{first_name}*!\n\n"
+                f"⚠️ *YETKİLENDİRME GEREKLİ:*\n"
+                f"Canlı borsa cüzdanınıza erişmek veya alım-satım yapabilmek için Telegram hesabınızın sisteme tanımlanması gerekmektedir.\n\n"
+                f"🆔 *Telegram Chat ID Numaranız:* `{chat_id}`\n\n"
+                f"Lütfen bu ID numaranızı yöneticinize ileterek cüzdan bağlantınızı tamamlayınız. Bu sırada *Piyasa Analizi* ve *Haberler* butonlarını ücretsiz kullanabilirsiniz 👇",
+                reply_markup=unauth_kb
+            )
+            return
+
+    print(f"📩 [Yetkili Telegram Mesajı]: From ID={from_id}, Chat ID={chat_id}, Text='{raw_text}' (Clean='{text_clean}')")
 
     # Dil Değiştirme Komutları (Language Switcher)
     if text_clean in ["dil en", "lang en", "english", "ingilizce", "dil ingilizce", "/lang en", "/en"]:
