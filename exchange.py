@@ -417,12 +417,24 @@ class BinanceGlobalRESTClient:
                 
         raise Exception(f"Binance Global Balance Error across all endpoints: {last_err}")
 
-    def create_order(self, symbol: str, type: str, side: str, amount: float, amount_usd: float = 10.0) -> dict:
+    def create_order(self, symbol: str, type: str, side: str, amount: float = 0.0, amount_usd: Optional[float] = None) -> dict:
         clean_symbol = symbol.replace("/", "").replace("-", "").replace("_", "").upper()
         base_c = symbol.split("/")[0].split("_")[0].upper()
         
         if side.upper() == "BUY":
-            spend_usd = max(10.0, float(amount_usd or 10.0))
+            if amount_usd is not None and float(amount_usd) > 0:
+                spend_usd = float(amount_usd)
+            elif amount > 0:
+                try:
+                    g_ticker = fetch_ticker_price(f"{base_c}/USDT")
+                    g_price = float(g_ticker.get("last_price", 0.0))
+                    spend_usd = (amount * g_price) if g_price > 0 else 10.0
+                except Exception:
+                    spend_usd = 10.0
+            else:
+                spend_usd = 10.0
+                
+            spend_usd = max(10.0, spend_usd)
             
             # 🎯 KULLANICI ÖNERİSİ: NET SATILABİLİR ADET ALIMI (SIFIR KÜSURAT / ZERO DUST)
             step_map_buy = {
@@ -1239,13 +1251,21 @@ def execute_spot_trade(
 
     if exchange and getattr(exchange, "apiKey", None) and not is_testnet:
         try:
-            # CCXT create_order çağrısı
-            order = exchange.create_order(
-                symbol=symbol,
-                type='market',
-                side=side.lower(),
-                amount=quantity
-            )
+            try:
+                order = exchange.create_order(
+                    symbol=symbol,
+                    type='market',
+                    side=side.lower(),
+                    amount=quantity,
+                    amount_usd=amount_usd
+                )
+            except TypeError:
+                order = exchange.create_order(
+                    symbol=symbol,
+                    type='market',
+                    side=side.lower(),
+                    amount=quantity
+                )
             print(f"✅ [CANLI MULTI-TENANT EMİR İNFAZ EDİLDİ]: Order ID #{order.get('id')}")
             
             # 🛡️ FİZİKSEL STOP-LOSS: Alım başarılı olduysa borsaya canlı Stop-Loss emri ilet
