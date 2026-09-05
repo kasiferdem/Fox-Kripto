@@ -432,11 +432,15 @@ def handle_update(update: dict):
         c_val = float(c_info.get("val_usd", 0.0))
         
         if trade_side == "SELL":
-            amount_usd = c_val if c_val > 0 else 10.0
+            amount_usd = c_val if c_val > 0 else 0.0
             amount_display = f"Tüm Bakiye ({c_amt:,.4f} {coin_sym} ~ ${c_val:.2f})" if c_amt > 0 else f"Tüm {coin_sym} Bakiyesi"
         else:
-            amount_usd = 15.0
-            amount_display = "$15.00 USD"
+            tot_cash = float(port.get("total_usdt") or port.get("total_usd") or 0.0)
+            user_b_pct = float(tenant.get("max_budget_percent") or 25.0)
+            dyn_buy_budget = round(tot_cash * (user_b_pct / 100.0), 2)
+            free_cash = float(port.get("free_usdt") or port.get("free_usd") or 0.0)
+            amount_usd = min(dyn_buy_budget, free_cash * 0.95) if free_cash > 5.0 else dyn_buy_budget
+            amount_display = f"${amount_usd:.2f} USD (%{user_b_pct:.0f} Kasa)"
             
         send_message(chat_id, f"⚡ *TALİMAT ALINDI: {trade_side} {target_symbol}*\n💵 Miktar: `{amount_display}`\n🏢 Borsa: {exch_label}\n\nEmir borsaya iletiliyor...")
         
@@ -1455,7 +1459,12 @@ def handle_update(update: dict):
             coin = str(intent_data["coin"]).upper()
             action = str(intent_data["action"]).upper()
             amt_type = intent_data.get("amount_type", "FIAT_TRY" if is_tr_user else "FIAT_USD")
-            amt_val = float(intent_data.get("amount_value") or 10.0)
+            port = fetch_portfolio_balance(tenant)
+            tot_cash = float(port.get("total_usdt") or port.get("total_usd") or 0.0)
+            user_b_pct = float(tenant.get("max_budget_percent") or 25.0)
+            dyn_calc_budget = round(tot_cash * (user_b_pct / 100.0), 2)
+            
+            amt_val = float(intent_data.get("amount_value") or dyn_calc_budget)
             
             target_symbol = f"{coin}/{quote_curr}"
             ticker = fetch_ticker_price(target_symbol)
@@ -1474,11 +1483,10 @@ def handle_update(update: dict):
                     amount_usd = (tot_fiat / live_fx) if is_tr_user else tot_fiat
                     amount_display = f"{amt_val} {coin} (~₺{tot_fiat:,.2f} TL)" if is_tr_user else f"{amt_val} {coin} (~${tot_fiat:,.2f} USD)"
                 else:
-                    amount_usd = 10.0
+                    amount_usd = dyn_calc_budget
                     amount_display = f"${amount_usd:.2f} USD"
             else: # ALL_BALANCE (Tüm Bakiye Satışı)
                 try:
-                    port = fetch_portfolio_balance(tenant)
                     b_tr = port.get("binance_tr") if isinstance(port.get("binance_tr"), dict) else {}
                     b_gl = port.get("binance_global") if isinstance(port.get("binance_global"), dict) else {}
                     h_tr = b_tr.get("holdings_details") or {}
@@ -1505,11 +1513,11 @@ def handle_update(update: dict):
                         amount_usd = c_val
                         amount_display = f"Tüm Bakiye ({c_amt:,.4f} {coin} ~ ${c_val:.2f})"
                     else:
-                        amount_usd = 10.0
+                        amount_usd = 0.0
                         amount_display = f"Tüm {coin} Bakiyesi"
                 except Exception as b_err:
                     print(f"⚠️ [Bakiye Okuma Hatası]: {b_err}")
-                    amount_usd = 10.0
+                    amount_usd = 0.0
                     amount_display = f"Tüm {coin} Bakiyesi"
                     
             is_en_pref = str(tenant.get("preferred_language", "tr")).lower() == "en"
