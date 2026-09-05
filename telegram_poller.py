@@ -705,8 +705,8 @@ def handle_update(update: dict):
                 f"🎯 *23:00 Otomatik Kapanış Raporu:* `Kayıt Altında ve Takipte` ✅"
             )
             send_message(chat_id, msg_rep)
-        except Exception as re:
-            send_message(chat_id, f"⚠️ Rapor oluşturma hatası: {re}")
+        except Exception as err_rep:
+            send_message(chat_id, f"⚠️ Rapor oluşturma hatası: {err_rep}")
         return
 
     if text_clean in ["kasa fark", "kasa farkı", "kasafark", "kasafarki", "/kasafark", "/fark", "fark", "bakiye fark", "bakiye farkı"]:
