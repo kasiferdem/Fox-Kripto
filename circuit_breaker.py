@@ -31,14 +31,16 @@ def check_tenant_circuit_breakers(
         from db import get_supabase, get_strategy_config
         strat_cfg = get_strategy_config(use_cache=True)
         if strat_cfg:
-            if "max_concurrent_positions" in strat_cfg:
-                max_concurrent_positions = int(strat_cfg.get("max_concurrent_positions") or max_concurrent_positions)
-            if "max_daily_trades" in strat_cfg:
-                max_daily_trades = int(strat_cfg.get("max_daily_trades") or max_daily_trades)
+            if "max_concurrent_positions" in strat_cfg or "slots" in strat_cfg:
+                max_concurrent_positions = int(strat_cfg.get("max_concurrent_positions") or strat_cfg.get("slots") or max_concurrent_positions)
+            if "max_daily_trades" in strat_cfg or "daily" in strat_cfg:
+                max_daily_trades = int(strat_cfg.get("max_daily_trades") or strat_cfg.get("daily") or max_daily_trades)
             if "max_consecutive_losses" in strat_cfg:
                 max_consecutive_losses = int(strat_cfg.get("max_consecutive_losses") or max_consecutive_losses)
             if "post_stop_cooldown_minutes" in strat_cfg:
                 post_stop_cooldown_minutes = int(strat_cfg.get("post_stop_cooldown_minutes") or post_stop_cooldown_minutes)
+            if "daily_loss_limit_pct" in strat_cfg or "cb" in strat_cfg:
+                daily_loss_limit_pct = float(strat_cfg.get("daily_loss_limit_pct") or strat_cfg.get("cb") or daily_loss_limit_pct)
             
         client = get_supabase()
         if not client:

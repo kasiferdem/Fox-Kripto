@@ -16,17 +16,23 @@ class V2WhaleHuntingEngine:
     V2.3 Gerçek Balina Avı Kanıt Motoru (Whale Evidence Engine)
     """
     def __init__(self, custom_params: Optional[Dict[str, Any]] = None):
+        try:
+            from db import get_strategy_config
+            db_cfg = get_strategy_config(use_cache=True) or {}
+        except Exception:
+            db_cfg = {}
+
         self.params = {
-            "name": "WHALE_BALANCED_RESEARCH_V1",
-            "min_volume_multiplier": 2.2,
-            "min_taker_buy_pct": 58.0,
-            "min_24h_volume_usd": 5000000.0,
-            "min_evidence_groups_required": 4,
-            "max_spread_pct": 0.20,
-            "min_net_rr": 1.50,
-            "min_strategy_score": 7.5,
-            "target_take_profit_pct": 2.4,
-            "target_stop_loss_pct": 1.0
+            "name": str(db_cfg.get("name", "WHALE_BALANCED_RESEARCH_V1")),
+            "min_volume_multiplier": float(db_cfg.get("volume_spike_multiplier") or db_cfg.get("spike") or db_cfg.get("min_volume_multiplier") or 2.0),
+            "min_taker_buy_pct": float(db_cfg.get("min_taker_buy_pct") or 55.0),
+            "min_24h_volume_usd": float(db_cfg.get("min_24h_vol") or db_cfg.get("min_24h_volume_usd") or db_cfg.get("min_volume_usd") or 5000000.0),
+            "min_evidence_groups_required": int(db_cfg.get("min_evidence_groups_required") or 4),
+            "max_spread_pct": float(db_cfg.get("max_spread_pct") or 0.20),
+            "min_net_rr": float(db_cfg.get("min_net_rr") or 1.50),
+            "min_strategy_score": float(db_cfg.get("min_score") or db_cfg.get("score") or db_cfg.get("min_ai_score") or db_cfg.get("min_strategy_score") or 7.0),
+            "target_take_profit_pct": float(db_cfg.get("take_profit_percent") or db_cfg.get("tp") or db_cfg.get("target_take_profit_pct") or 3.0),
+            "target_stop_loss_pct": float(db_cfg.get("stop_loss_percent") or db_cfg.get("sl") or db_cfg.get("target_stop_loss_pct") or 1.2)
         }
         if custom_params:
             self.params.update(custom_params)

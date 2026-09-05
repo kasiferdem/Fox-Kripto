@@ -53,10 +53,10 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     # 🎛️ AKTİF PROFİLDEN DİNAMİK PARAMETRE OKUMA:
     from db import get_strategy_config
     strat_cfg = get_strategy_config(use_cache=True) or {}
-    min_24h_vol = float(strat_cfg.get("min_24h_quote_volume_usd") or 5000000.0)
-    min_5m_vol = float(strat_cfg.get("min_5m_volume_usd") or min_volume_usd or 50000.0)
-    vol_spike_req = float(strat_cfg.get("volume_spike_multiplier") or 2.4)
-    cfg_max_gain = float(strat_cfg.get("max_recent_gain_24h") or max_recent_gain or 3.5)
+    min_24h_vol = float(strat_cfg.get("min_24h_vol") or strat_cfg.get("min_24h_quote_volume_usd") or 5000000.0)
+    min_5m_vol = float(strat_cfg.get("min_vol") or strat_cfg.get("min_5m_volume_usd") or min_volume_usd or 50000.0)
+    vol_spike_req = float(strat_cfg.get("spike") or strat_cfg.get("volume_spike_multiplier") or 2.4)
+    cfg_max_gain = float(strat_cfg.get("gain") or strat_cfg.get("max_recent_gain_24h") or max_recent_gain or 3.5)
     
     # 🔒 DİNAMİK LİKİDİTE EŞİĞİ (Profil Değişince Otomatik Güncellenir)
     if quote_volume_24h < min_24h_vol:
