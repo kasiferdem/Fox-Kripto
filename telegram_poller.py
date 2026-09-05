@@ -1423,35 +1423,36 @@ def handle_update(update: dict):
             else: # ALL_BALANCE (Tüm Bakiye Satışı)
                 try:
                     port = fetch_portfolio_balance(tenant)
-                    h_tr = port.get("binance_tr", {}).get("holdings_details", {})
-                    h_gl = port.get("binance_global", {}).get("holdings_details", {})
+                    b_tr = port.get("binance_tr") if isinstance(port.get("binance_tr"), dict) else {}
+                    b_gl = port.get("binance_global") if isinstance(port.get("binance_global"), dict) else {}
+                    h_tr = b_tr.get("holdings_details") or {}
+                    h_gl = b_gl.get("holdings_details") or {}
+                    top_h = port.get("holdings_details") or {}
                     
                     # Doğru borsadaki bakiyeyi öncelikle seç
                     gl_info = h_gl.get(coin, {})
                     tr_info = h_tr.get(coin, {})
-                    gl_val = float(gl_info.get("val_usd", 0.0))
-                    tr_val = float(tr_info.get("val_usd", 0.0))
+                    top_info = top_h.get(coin, {})
                     
-                    if not is_tr_user and gl_val > 0:
+                    if gl_info and float(gl_info.get("val_usd", 0.0)) > 0:
                         c_info = gl_info
-                    elif is_tr_user and tr_val > 0:
+                    elif tr_info and float(tr_info.get("val_usd", 0.0)) > 0:
                         c_info = tr_info
-                    elif gl_val >= tr_val and gl_val > 0:
-                        c_info = gl_info
-                    elif tr_val > 0:
-                        c_info = tr_info
+                    elif top_info and float(top_info.get("val_usd", 0.0)) > 0:
+                        c_info = top_info
                     else:
-                        c_info = port.get("holdings_details", {}).get(coin) or {}
+                        c_info = {}
                         
                     c_amt = float(c_info.get("amount", 0.0))
                     c_val = float(c_info.get("val_usd", 0.0))
                     if c_val > 0:
                         amount_usd = c_val
-                        amount_display = f"Tüm Bakiye ({c_amt:,.6f} {coin} ~ ${c_val:.2f})"
+                        amount_display = f"Tüm Bakiye ({c_amt:,.4f} {coin} ~ ${c_val:.2f})"
                     else:
                         amount_usd = 10.0
                         amount_display = f"Tüm {coin} Bakiyesi"
-                except Exception:
+                except Exception as b_err:
+                    print(f"⚠️ [Bakiye Okuma Hatası]: {b_err}")
                     amount_usd = 10.0
                     amount_display = f"Tüm {coin} Bakiyesi"
                     

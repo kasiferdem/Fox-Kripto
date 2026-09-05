@@ -1240,12 +1240,12 @@ def execute_spot_trade(
 
     if exchange and getattr(exchange, "apiKey", None) and not is_testnet:
         try:
+            # CCXT create_order çağrısı
             order = exchange.create_order(
                 symbol=symbol,
                 type='market',
                 side=side.lower(),
-                amount=quantity,
-                amount_usd=amount_usd
+                amount=quantity
             )
             print(f"✅ [CANLI MULTI-TENANT EMİR İNFAZ EDİLDİ]: Order ID #{order.get('id')}")
             
