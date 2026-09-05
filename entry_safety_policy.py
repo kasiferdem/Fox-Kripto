@@ -41,6 +41,55 @@ class OrderIntent:
 
 
 _processed_idempotency_keys = set()
+_failed_level_zones: Dict[str, List[Dict[str, Any]]] = {} # symbol -> [{"price": float, "ts": float, "reason": str}]
+_shadow_decision_logs: List[Dict[str, Any]] = [] # list of shadow evaluation logs
+
+def record_failed_level_zone(symbol: str, price: float, reason: str = "STOP_LOSS"):
+    """Stop-loss veya başarısız kırılım yaşanan fiyat bölgesini 90 dakika boyunca hafızaya kaydeder."""
+    global _failed_level_zones
+    sym = symbol.upper().replace("/", "").replace("_", "")
+    if sym not in _failed_level_zones:
+        _failed_level_zones[sym] = []
+    _failed_level_zones[sym].append({
+        "price": float(price),
+        "ts": time.time(),
+        "reason": reason
+    })
+    # Eski kayıtları temizle (>90 dk)
+    now = time.time()
+    _failed_level_zones[sym] = [z for z in _failed_level_zones[sym] if now - z["ts"] < 5400]
+    print(f"📌 [Direnç Bölgesi Hafızası]: {symbol} @ ${price:.4f} başarısız kırılım bölgesi olarak 90dk kilitlendi.")
+
+def is_price_in_failed_zone(symbol: str, price: float, tolerance_pct: float = 0.80, max_age_mins: float = 90.0) -> Tuple[bool, Optional[str]]:
+    """Mevcut fiyatın son 90 dakika içinde stop olunan başarısız bir direnç bandında olup olmadığını denetler."""
+    global _failed_level_zones
+    sym = symbol.upper().replace("/", "").replace("_", "")
+    zones = _failed_level_zones.get(sym, [])
+    now = time.time()
+    for z in zones:
+        age_mins = (now - z["ts"]) / 60.0
+        if age_mins <= max_age_mins:
+            ref_p = z["price"]
+            diff_pct = abs(price - ref_p) / ref_p * 100.0 if ref_p > 0 else 999.0
+            if diff_pct <= tolerance_pct:
+                return True, f"Fiyat (${price:.4f}), {age_mins:.0f} dk önceki başarısız direnç bölgesinde (${ref_p:.4f} ±%{tolerance_pct:.1f})"
+    return False, None
+
+def log_shadow_decision(record: Dict[str, Any]):
+    """Gölge Modu karar simülasyonunu hafızaya ve log kuyruğuna kaydeder."""
+    global _shadow_decision_logs
+    _shadow_decision_logs.insert(0, {
+        **record,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S TSİ"),
+        "ts": time.time()
+    })
+    if len(_shadow_decision_logs) > 50:
+        _shadow_decision_logs = _shadow_decision_logs[:50]
+
+def get_recent_shadow_decisions(limit: int = 20) -> List[Dict[str, Any]]:
+    """Son gölge karar simülasyonlarını döner."""
+    global _shadow_decision_logs
+    return _shadow_decision_logs[:limit]
 
 def compute_runtime_config_hash() -> str:
     """Veritabanındaki aktif strateji ve sistem ayarlarının değişmez hash imzasını üretir."""
@@ -60,8 +109,7 @@ def compute_runtime_config_hash() -> str:
 
 class EntrySafetyPolicy:
     """
-    10 Çelik Zırh Kuralını Merkezi Olarak Denetleyen Güvenlik Sınıfı.
-    Tek bir kural dahi sağlanamazsa NO_TRADE fırlatır.
+    10 Çelik Zırh Kuralını ve Testere/Gölge Kalkanını Merkezi Olarak Denetleyen Güvenlik Sınıfı.
     """
     @staticmethod
     def evaluate_intent(intent: OrderIntent) -> Tuple[bool, str, List[str]]:
@@ -111,6 +159,46 @@ class EntrySafetyPolicy:
         if intent.direction.upper() == "BUY" and not intent.stop_can_be_created:
             reasons.append("Borsaya iletilebilecek geçerli bir koruyucu stop-loss fiyatı oluşturulamadı")
 
+        # -------------------------------------------------------------
+        # 🛡️ 11. GELİŞMİŞ TESTERE & GÖLGE KALKANI DENETİMİ (ANTI-CHOP SHIELD)
+        # -------------------------------------------------------------
+        anti_chop_violations = []
+        if intent.direction.upper() == "BUY":
+            # A. Başarısız Direnç Bölgesi Hafızası
+            in_failed_zone, failed_reason = is_price_in_failed_zone(intent.symbol, intent.entry_price)
+            if in_failed_zone:
+                anti_chop_violations.append(f"Başarısız Kırılım Direnç Bölgesi ({failed_reason})")
+
+            # B. ATR Chasing ve Fiyat Kaçması Denetimi
+            atr_val = float(intent.metadata.get("atr", 0.0) or 0.0)
+            breakout_lvl = float(intent.metadata.get("breakout_level", 0.0) or 0.0)
+            if atr_val > 0 and breakout_lvl > 0:
+                drift = intent.entry_price - breakout_lvl
+                max_allowed_drift = 0.60 * atr_val
+                if drift > max_allowed_drift:
+                    anti_chop_violations.append(f"Fiyat kırılımdan aşırı uzaklaştı (Drift: +${drift:.4f} > 0.6xATR: ${max_allowed_drift:.4f})")
+
+        # Gölge Modu Kontrolü (Admin Panelinden Yönetilir)
+        shadow_mode_active = bool(get_system_setting("anti_chop_shadow_mode", True))
+        
+        # Gölge Kararını Kaydet (Simülasyon Defteri)
+        if intent.direction.upper() == "BUY":
+            log_shadow_decision({
+                "symbol": intent.symbol,
+                "price": intent.entry_price,
+                "engine": intent.source_engine,
+                "shadow_mode_active": shadow_mode_active,
+                "standard_pass": len(reasons) == 0,
+                "anti_chop_pass": len(anti_chop_violations) == 0,
+                "verdict": "SHADOW_BLOCKED" if len(anti_chop_violations) > 0 else "SHADOW_APPROVED",
+                "violations": anti_chop_violations,
+                "reason_text": " • ".join(anti_chop_violations) if anti_chop_violations else "Tüm 10 Kural ve Testere Kalkanı Onaylandı."
+            })
+
+        # Eğer Gölge Mod KAPALI ise (Canlı Koruma Modu), testere ihlallerini kesin engel yap
+        if not shadow_mode_active and len(anti_chop_violations) > 0:
+            reasons.extend(anti_chop_violations)
+
         # Karar:
         if len(reasons) > 0:
             return False, "NO_TRADE", reasons
@@ -140,11 +228,8 @@ class ExecutionGate:
         global _processed_idempotency_keys
         _processed_idempotency_keys.add(intent.idempotency_key)
 
-        # 4. Fiyat Korumalı Limit İnfaz
-        from exchange import execute_spot_trade
-        exec_mode = str(get_system_setting("execution_mode", "PAPER_TRADING")).upper()
+        # 3. Güvenli Mod Kontrolü
         new_buys = bool(get_system_setting("new_buy_orders_enabled", False))
-
         if intent.direction.upper() == "BUY" and not new_buys:
             return {
                 "status": "NO_TRADE",
@@ -153,7 +238,8 @@ class ExecutionGate:
                 "order_id": None
             }
 
-        # 4. Fiyat Korumalı Limit IOC ile İnfaz
+        # 4. Fiyat Korumalı Limit İnfaz
+        from exchange import execute_spot_trade
         result = execute_spot_trade(
             symbol=intent.symbol,
             side=intent.direction,

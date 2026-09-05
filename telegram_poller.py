@@ -532,6 +532,46 @@ def handle_update(update: dict):
         send_message(chat_id, msg_v)
         return
 
+    if text_clean in ["golge", "gölge", "shadow", "/golge", "/gölge", "/shadow", "golge mod", "gölge mod"]:
+        from db import get_system_setting, set_system_setting
+        from entry_safety_policy import get_recent_shadow_decisions
+        
+        sh_mode = bool(get_system_setting("anti_chop_shadow_mode", True))
+        status_txt = "🟡 GÖLGE MOD (SİMÜLASYON AKTİF)" if sh_mode else "🟢 CANLI KORUMA (ENGELLEME AKTİF)"
+        recent_decisions = get_recent_shadow_decisions(limit=5)
+        
+        dec_txt = ""
+        if recent_decisions:
+            for d in recent_decisions:
+                verdict_emoji = "✅" if d.get("anti_chop_pass") else "🛑"
+                dec_txt += f" • {verdict_emoji} *{d.get('symbol')}* (${d.get('price')}): {d.get('verdict')}\n   _{d.get('reason_text')}_\n"
+        else:
+            dec_txt = " • _Henüz kaydedilmiş simülasyon kararı yok._\n"
+            
+        sh_msg = (
+            f"🛡️ *TESTERE KALKANI & GÖLGE MOD DURUMU*\n\n"
+            f"📊 *Mevcut Durum:* `{status_txt}`\n"
+            f"💡 *Açıklama:* {'Gölge modda iken gerçek alımlar engellenmez, tüm testere kararları simülasyon olarak kaydedilir.' if sh_mode else 'Canlı koruma modunda testere ve başarısız direnç mumları doğrudan engellenir.'}\n\n"
+            f"📋 *Son Gölge Kararları:*\n{dec_txt}\n"
+            f"⚙️ *Mod Değiştirmek İçin:*\n"
+            f"• `/golge_ac` (Simülasyon moduna al)\n"
+            f"• `/golge_kapat` (Canlı engelleme moduna al)"
+        )
+        send_message(chat_id, sh_msg)
+        return
+
+    if text_clean in ["golge_ac", "golge ac", "gölge aç", "/golge_ac", "/golge_on", "/shadow_on"]:
+        from db import set_system_setting
+        set_system_setting("anti_chop_shadow_mode", True)
+        send_message(chat_id, "🟡 *GÖLGE MOD AKTİF EDİLDİ!* ✅\nArtık yeni mumlar arka planda simüle edilecek, gerçek emirleriniz engellenmeyecektir.")
+        return
+
+    if text_clean in ["golge_kapat", "golge kapat", "gölge kapat", "/golge_kapat", "/golge_off", "/shadow_off"]:
+        from db import set_system_setting
+        set_system_setting("anti_chop_shadow_mode", False)
+        send_message(chat_id, "🟢 *CANLI KORUMA AKTİF EDİLDİ!* 🛡️\nArtık testere piyasasında sahte kırılımlar ve başarısız direnç bölgeleri doğrudan engellenecektir.")
+        return
+
     if text_clean in ["kurallar", "kural", "anayasamız", "anayasamiz", "/kurallar", "/rules", "rules"]:
         from db import get_system_constitution_rules
         rules = get_system_constitution_rules()

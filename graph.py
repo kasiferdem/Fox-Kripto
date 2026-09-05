@@ -347,6 +347,13 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             reason_desc = f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
                             
                     if is_stop_loss or is_take_profit:
+                        if is_stop_loss:
+                            try:
+                                from entry_safety_policy import record_failed_level_zone
+                                record_failed_level_zone(target_symbol, recorded_buy_p, reason="STOP_LOSS_TRIGGERED")
+                            except Exception:
+                                pass
+
                         sell_proposal = {
                             "should_trade": True,
                             "symbol": target_symbol,

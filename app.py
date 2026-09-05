@@ -515,6 +515,7 @@ class TriggerGraphRequest(BaseModel):
 class SystemSettingsRequest(BaseModel):
     trailing_stop_enabled: Optional[bool] = None
     v21_security_shield_enabled: Optional[bool] = None
+    anti_chop_shadow_mode: Optional[bool] = None
 
 class StrategyConfigRequest(BaseModel):
     active_preset: str = "v21_balanced"
@@ -541,10 +542,12 @@ def get_settings_endpoint():
     from db import get_system_setting
     ts_enabled = bool(get_system_setting("trailing_stop_enabled", True))
     shield_enabled = bool(get_system_setting("v21_security_shield_enabled", True))
+    shadow_mode = bool(get_system_setting("anti_chop_shadow_mode", True))
     return {
         "status": "success",
         "trailing_stop_enabled": ts_enabled,
-        "v21_security_shield_enabled": shield_enabled
+        "v21_security_shield_enabled": shield_enabled,
+        "anti_chop_shadow_mode": shadow_mode
     }
 
 class StrategyConfigRequest(BaseModel):
@@ -612,14 +615,31 @@ def update_settings_endpoint(req: SystemSettingsRequest):
         set_system_setting("trailing_stop_enabled", req.trailing_stop_enabled)
     if req.v21_security_shield_enabled is not None:
         set_system_setting("v21_security_shield_enabled", req.v21_security_shield_enabled)
+    if req.anti_chop_shadow_mode is not None:
+        set_system_setting("anti_chop_shadow_mode", req.anti_chop_shadow_mode)
         
     ts_val = bool(get_system_setting("trailing_stop_enabled", True))
     shield_val = bool(get_system_setting("v21_security_shield_enabled", True))
+    shadow_val = bool(get_system_setting("anti_chop_shadow_mode", True))
     return {
         "status": "success",
         "trailing_stop_enabled": ts_val,
         "v21_security_shield_enabled": shield_val,
-        "message": f"Ayarlar Güncellendi (İz Süren: {'AÇIK' if ts_val else 'KAPALI'}, v2.1 Güvenlik Zırhı: {'AÇIK' if shield_val else 'KAPALI'})"
+        "anti_chop_shadow_mode": shadow_val,
+        "message": f"Ayarlar Güncellendi (İz Süren: {'AÇIK' if ts_val else 'KAPALI'}, Zırh: {'AÇIK' if shield_val else 'KAPALI'}, Gölge Mod: {'AÇIK' if shadow_val else 'KAPALI'})"
+    }
+
+@app_api.get("/api/v2/shadow_logs", dependencies=[Depends(authenticate_admin)])
+def get_shadow_logs_endpoint(limit: int = 50):
+    from entry_safety_policy import get_recent_shadow_decisions
+    from db import get_system_setting
+    logs = get_recent_shadow_decisions(limit=limit)
+    shadow_mode = bool(get_system_setting("anti_chop_shadow_mode", True))
+    return {
+        "status": "success",
+        "shadow_mode_active": shadow_mode,
+        "total_records": len(logs),
+        "logs": logs
     }
 
 @app_api.get("/api/my-ip")
@@ -1385,6 +1405,14 @@ def get_dashboard_html():
                 <p id="i18n-subtitle" style="color: var(--text-muted); font-size: 14px;">Otonom Yapay Zeka Kripto Ticaret, Risk ve Kullanıcı Yönetimi</p>
             </div>
             <div class="header-right">
+                <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 10px; padding: 6px 14px;">
+                    <span id="i18n-lbl-shadow" style="font-size: 13px; font-weight: 600; color: #fbbf24;">🛡️ Testere / Gölge Mod:</span>
+                    <label class="switch">
+                        <input type="checkbox" id="shadow-mode-toggle" __SHADOW_CHECKED__ onchange="toggleShadowMode(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                    <span id="shadow-status-text" style="font-size: 12px; font-weight: bold; color: __SHADOW_COLOR__;">__SHADOW_STATUS__</span>
+                </div>
                 <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 10px; padding: 6px 14px;">
                     <span id="i18n-lbl-shield" style="font-size: 13px; font-weight: 600; color: #818cf8;">🛡️ v2.1 Güvenlik Zırhı:</span>
                     <label class="switch">
@@ -1394,7 +1422,7 @@ def get_dashboard_html():
                     <span id="shield-status-text" style="font-size: 12px; font-weight: bold; color: __SHIELD_COLOR__;">__SHIELD_STATUS__</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px;">
-                    <span id="i18n-lbl-trailing" style="font-size: 13px; font-weight: 600; color: #60a5fa;">🚀 İz Süren Stop (Trailing SL):</span>
+                    <span id="i18n-lbl-trailing" style="font-size: 13px; font-weight: 600; color: #60a5fa;">🚀 İz Süren Stop:</span>
                     <label class="switch">
                         <input type="checkbox" id="trailing-stop-toggle" __TRAILING_CHECKED__ onchange="toggleTrailingStop(this.checked)">
                         <span class="slider"></span>
@@ -1405,10 +1433,11 @@ def get_dashboard_html():
                     <button id="btn-tr" class="lang-btn active" onclick="changeLang('tr')">🇹🇷 Türkçe</button>
                     <button id="btn-en" class="lang-btn" onclick="changeLang('en')">🇬🇧 English</button>
                 </div>
-                <button class="btn" onclick="openRulesModal()" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border: none; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);">📜 Aktif Kurallar & Versiyon (v2.1)</button>
-                <button class="btn btn-primary" onclick="triggerManualScan()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; display: flex; align-items: center; gap: 6px;">⚡ Piyasayı Şimdi Tara</button>
-                <button class="btn" onclick="triggerDustClean()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer;">🧹 Kırıntıları BNB'ye Dönüştür</button>
-                <button id="i18n-btn-refresh" class="btn btn-primary" onclick="loadData()">🔄 Verileri Yenile</button>
+                <button class="btn" onclick="openShadowLogsModal()" style="background: linear-gradient(135deg, #f59e0b, #b45309); color: white; border: none; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);">📊 Gölge Karar Defteri</button>
+                <button class="btn" onclick="openRulesModal()" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border: none; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);">📜 Kurallar (v2.1)</button>
+                <button class="btn btn-primary" onclick="triggerManualScan()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; display: flex; align-items: center; gap: 6px;">⚡ Tara</button>
+                <button class="btn" onclick="triggerDustClean()" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer;">🧹 BNB Dönüştür</button>
+                <button id="i18n-btn-refresh" class="btn btn-primary" onclick="loadData()">🔄 Yenile</button>
             </div>
         </div>
 
@@ -2016,7 +2045,40 @@ __SSR_TENANTS_HTML__
                         shieldTxt.innerText = s_active ? (isEn ? 'ACTIVE' : 'AÇIK') : (isEn ? 'DISABLED' : 'KAPALI');
                         shieldTxt.style.color = s_active ? 'var(--success)' : 'var(--danger)';
                     }
+
+                    const shadowToggle = document.getElementById('shadow-mode-toggle');
+                    const shadowTxt = document.getElementById('shadow-status-text');
+                    if (shadowToggle && shadowTxt) {
+                        const sh_active = (data.anti_chop_shadow_mode !== false);
+                        shadowToggle.checked = Boolean(sh_active);
+                        shadowTxt.innerText = sh_active ? (isEn ? 'SHADOW (SIM)' : 'GÖLGE (SİM)') : (isEn ? 'LIVE ENFORCE' : 'CANLI ENGELLE');
+                        shadowTxt.style.color = sh_active ? '#fbbf24' : 'var(--success)';
+                    }
                 } catch(e) { console.error('Settings load error:', e); }
+            }
+
+            async function toggleShadowMode(enabled) {
+                const shadowTxt = document.getElementById('shadow-status-text');
+                const isEn = (currentLang === 'en');
+                if (shadowTxt) {
+                    shadowTxt.innerText = isEn ? 'UPDATING...' : 'GÜNCELLENİYOR...';
+                    shadowTxt.style.color = 'var(--warning)';
+                }
+                try {
+                    const res = await fetch('/api/settings', {
+                        method: 'POST',
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ anti_chop_shadow_mode: enabled })
+                    });
+                    const data = await res.json();
+                    if (shadowTxt) {
+                        shadowTxt.innerText = enabled ? (isEn ? 'SHADOW (SIM)' : 'GÖLGE (SİM)') : (isEn ? 'LIVE ENFORCE' : 'CANLI ENGELLE');
+                        shadowTxt.style.color = enabled ? '#fbbf24' : 'var(--success)';
+                    }
+                } catch(e) {
+                    console.error('Shadow mode update error:', e);
+                    loadSystemSettings();
+                }
             }
 
             async function toggleSecurityShield(enabled) {
@@ -2058,6 +2120,58 @@ __SSR_TENANTS_HTML__
                         statusTxt.style.color = enabled ? 'var(--success)' : 'var(--danger)';
                     }
                 } catch(e) { console.error('Settings update error:', e); }
+            }
+
+            async function openShadowLogsModal() {
+                const modal = document.getElementById('shadow-logs-modal');
+                if (modal) modal.style.display = 'flex';
+                loadShadowLogs();
+            }
+
+            function closeShadowLogsModal() {
+                const modal = document.getElementById('shadow-logs-modal');
+                if (modal) modal.style.display = 'none';
+            }
+
+            async function loadShadowLogs() {
+                const tbody = document.getElementById('shadow-logs-tbody');
+                const badge = document.getElementById('shadow-modal-status-badge');
+                if (!tbody) return;
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">⏳ Gölge Defteri Taranıyor...</td></tr>';
+                try {
+                    const res = await fetch('/api/v2/shadow_logs', { headers: getAuthHeaders() });
+                    const data = await res.json();
+                    if (badge) {
+                        badge.innerText = data.shadow_mode_active ? '🟡 GÖLGE MOD (SİMÜLASYON AKTİF)' : '🟢 CANLI KORUMA (ENGELLEME AKTİF)';
+                        badge.style.color = data.shadow_mode_active ? '#fbbf24' : 'var(--success)';
+                    }
+                    const logs = data.logs || [];
+                    if (logs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 25px; color: var(--text-muted);">Henüz kaydedilmiş gölge simülasyon kaydı bulunmuyor. (Yeni kırılımlar oluştukça buraya düşecektir)</td></tr>';
+                        return;
+                    }
+                    let html = '';
+                    for (const l of logs) {
+                        const isPass = (l.anti_chop_pass === true);
+                        const statusBadge = isPass 
+                            ? '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; font-weight: bold; padding: 3px 8px; border-radius: 4px;">✅ ONAYLANDI</span>' 
+                            : '<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; font-weight: bold; padding: 3px 8px; border-radius: 4px;">🛑 SİMÜLASYON REDDİ</span>';
+                        html += `
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 10px; font-weight: bold; color: white;">${l.symbol || '-'}</td>
+                                <td style="padding: 10px; color: #94a3b8;">$${l.price || 0}</td>
+                                <td style="padding: 10px; color: #38bdf8; font-size: 12px;">${l.engine || 'SCALPING'}</td>
+                                <td style="padding: 10px;">${statusBadge}</td>
+                                <td style="padding: 10px; font-size: 12px; color: ${isPass ? '#cbd5e1' : '#fca5a5'};">${l.reason_text || '-'}</td>
+                                <td style="padding: 10px; font-size: 11px; color: var(--text-muted);">${l.timestamp || '-'}</td>
+                            </tr>
+                        `;
+                    }
+                    tbody.innerHTML = html;
+                } catch(e) {
+                    console.error('Shadow logs fetch error:', e);
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--danger); padding: 15px;">❌ Veriler yüklenirken hata oluştu.</td></tr>';
+                }
             }
 
             // ==========================================
@@ -2439,6 +2553,44 @@ __SSR_TENANTS_HTML__
             }
         </script>
 
+        <!-- 🛡️ GÖLGE KARAR DEFTERİ & SİMÜLASYON RAPOR MODALI -->
+        <div id="shadow-logs-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(10px); justify-content: center; align-items: center; z-index: 10000;" onclick="if(event.target===this) closeShadowLogsModal()">
+            <div style="background: #0f172a; border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 16px; width: 95%; max-width: 1050px; max-height: 90vh; overflow-y: auto; padding: 26px; box-shadow: 0 25px 60px rgba(0,0,0,0.7);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 18px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <h2 style="font-size: 20px; color: #f8fafc; font-weight: 800; margin: 0;">🛡️ Testere Kalkanı — Gölge Karar Defteri</h2>
+                        <span id="shadow-modal-status-badge" class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; font-weight: bold; padding: 4px 10px; border-radius: 6px; font-size: 13px;">🟡 GÖLGE MOD AKTİF</span>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="loadShadowLogs()" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b, #d97706); border: none; font-weight: 700; display: flex; align-items: center; gap: 6px; cursor: pointer;">🔄 Yenile</button>
+                        <button onclick="closeShadowLogsModal()" style="background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-weight: bold; font-size: 14px;">✕ Kapat</button>
+                    </div>
+                </div>
+
+                <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 10px; padding: 14px 18px; margin-bottom: 18px; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
+                    💡 <strong>Gölge Mod Nedir?</strong> Bu ekranda botun piyasada yakaladığı kırılımlar listelenir. Gölge mod açıkken gerçek emirleriniz <strong>engellenmez</strong>; filtrelerin kararları (onay/ret nedenleri) burada simüle edilir. Filtre isabetini gördükten sonra üst bardaki butondan "Canlı Koruma"ya geçebilirsiniz.
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+                        <thead>
+                            <tr style="background: rgba(30, 41, 59, 0.9); color: var(--text-muted); border-bottom: 1px solid var(--border);">
+                                <th style="padding: 10px;">Coin / Parite</th>
+                                <th style="padding: 10px;">Fiyat</th>
+                                <th style="padding: 10px;">Motor</th>
+                                <th style="padding: 10px;">Gölge Kararı</th>
+                                <th style="padding: 10px;">Değerlendirme & Gerekçe</th>
+                                <th style="padding: 10px;">Tarih / Saat</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shadow-logs-tbody">
+                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">⏳ Yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- AKTİF KURALLAR & VERSİYON GEÇMİŞİ MODALI -->
         <div id="rules-manifest-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); justify-content: center; align-items: center; z-index: 10000;" onclick="if(event.target===this) closeRulesModal()">
             <div style="background: #1e293b; border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 16px; width: 92%; max-width: 900px; max-height: 90vh; overflow-y: auto; padding: 26px; box-shadow: 0 25px 60px rgba(0,0,0,0.6);">
@@ -2552,6 +2704,11 @@ __SSR_TENANTS_HTML__
     shield_status = "AÇIK" if shield_enabled else "KAPALI"
     shield_color = "var(--success)" if shield_enabled else "var(--danger)"
 
+    shadow_enabled = bool(get_system_setting("anti_chop_shadow_mode", True))
+    shadow_checked = "checked" if shadow_enabled else ""
+    shadow_status = "GÖLGE (SİM)" if shadow_enabled else "CANLI ENGELLE"
+    shadow_color = "#fbbf24" if shadow_enabled else "var(--success)"
+
     strat_cfg = get_strategy_config(use_cache=False)
     active_preset = strat_cfg.get("active_preset", "v21_smart_armor")
     if active_preset == "agile_21_august":
@@ -2595,6 +2752,9 @@ __SSR_TENANTS_HTML__
         .replace("__SSR_TENANTS_HTML__", tenants_ssr_html)
         .replace("__SSR_LOGS_HTML__", logs_ssr_html)
         .replace("__TENANT_COUNT__", f"{len(clean)} Aktif")
+        .replace("__SHADOW_CHECKED__", shadow_checked)
+        .replace("__SHADOW_STATUS__", shadow_status)
+        .replace("__SHADOW_COLOR__", shadow_color)
         .replace("__TRAILING_CHECKED__", trailing_checked)
         .replace("__TRAILING_STATUS__", trailing_status)
         .replace("__TRAILING_COLOR__", trailing_color)

@@ -214,6 +214,8 @@ class V2ScalpingEngine:
                 "volume_spike_ratio": spike_ratio,
                 "taker_buy_pct": taker_buy_pct,
                 "spread_pct": spread_pct,
-                "upper_wick_ratio": upper_wick_ratio
+                "upper_wick_ratio": upper_wick_ratio,
+                "atr": atr if 'atr' in locals() else 0.0,
+                "breakout_level": breakout_level if 'breakout_level' in locals() else 0.0
             }
         }
