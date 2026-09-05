@@ -66,12 +66,26 @@ def handle_update(update: dict):
         try: requests.post(f"{BASE_URL}/answerCallbackQuery", json={"callback_query_id": cb_id})
         except: pass
         
-        # Borsa Seçim Butonları
-        if cb_data.startswith("select_exchange_"):
-            selected_ex = cb_data.replace("select_exchange_", "")
-            user_states[chat_id] = {"step": "AWAITING_API_KEY", "exchange_id": selected_ex}
-            label = "🇹🇷 Binance TR" if selected_ex == "binancetr" else "🌍 Binance Global"
-            send_message(chat_id, f"✅ Seçilen Borsa: *{label}*\n\nLütfen hesabınıza ait *API Key* bilginizi bu sohbete mesaj olarak gönderin:")
+        # Borsa Seçim Butonları (Hesap Bağlama Sihirbazı)
+        if cb_data.startswith("select_exchange_") or cb_data.startswith("wizard_ex_"):
+            selected_ex = cb_data.replace("select_exchange_", "").replace("wizard_ex_", "")
+            user_states[chat_id] = {
+                "step": "AWAITING_API_KEY",
+                "exchange_id": selected_ex,
+                "tenant_name": callback["message"]["chat"].get("first_name", "Kullanıcı")
+            }
+            label = "🇹🇷 Binance TR" if "tr" in selected_ex else "🌍 Binance Global"
+            send_message(
+                chat_id,
+                f"✅ Seçilen Borsa: *{label}*\n\n"
+                f"📌 *1. Adım:* Lütfen {label} hesabınıza ait *API Key (Genel Anahtar)* bilginizi bu sohbete mesaj olarak yapıştırıp gönderiniz:\n\n"
+                f"_(İstediğiniz zaman `iptal` yazarak sihirbazdan çıkabilirsiniz.)_"
+            )
+            return
+
+        if cb_data in ["wizard_cancel", "reg_cancel"]:
+            user_states.pop(chat_id, None)
+            send_message(chat_id, "❌ Hesap bağlama işlemi iptal edildi. İstediğiniz zaman `baglan` yazarak tekrar başlatabilirsiniz.")
             return
 
         action = "Approved" if "approve" in cb_data else "Rejected"
@@ -129,6 +143,140 @@ def handle_update(update: dict):
     first_name = message["chat"].get("first_name", "Kullanıcı")
     text_clean = raw_text.lower().lstrip("/").strip()
 
+    # -------------------------------------------------------------
+    # 🧙 1. AKTİF HESAP BAĞLAMA SİHİRBAZI OTURUMU (REGISTRATION WIZARD)
+    # -------------------------------------------------------------
+    if chat_id in user_states:
+        state = user_states[chat_id]
+        step = state.get("step")
+        
+        # İptal kontrolü
+        if text_clean in ["iptal", "vazgec", "vazgeç", "cancel", "/cancel", "/iptal"]:
+            user_states.pop(chat_id, None)
+            send_message(chat_id, "❌ Hesap bağlama sihirbazı iptal edildi. İstediğiniz zaman `baglan` yazarak tekrar başlayabilirsiniz.")
+            return
+            
+        if step == "AWAITING_API_KEY":
+            api_key = raw_text.strip()
+            if len(api_key) < 15:
+                send_message(chat_id, "⚠️ Gönderdiğiniz API Key çok kısa veya geçersiz görünüyor. Lütfen Binance'ten aldığınız doğru API Key'i yapıştırınız:\n\n_(İptal için `iptal` yazabilirsiniz)_")
+                return
+            state["api_key"] = api_key
+            state["step"] = "AWAITING_SECRET_KEY"
+            ex_id = state.get("exchange_id", "binance")
+            ex_label = "Binance TR" if "tr" in ex_id else "Binance Global"
+            send_message(
+                chat_id,
+                f"🔑 *API Key Başarıyla Alındı!* ✅\n\n"
+                f"📌 *2. Adım:* Şimdi lütfen {ex_label} hesabınıza ait *API Secret Key (Gizli Anahtar)* bilginizi buraya mesaj olarak gönderiniz:\n\n"
+                f"_(İptal için `iptal` yazabilirsiniz)_"
+            )
+            return
+            
+        elif step == "AWAITING_SECRET_KEY":
+            secret_key = raw_text.strip()
+            if len(secret_key) < 15:
+                send_message(chat_id, "⚠️ Gönderdiğiniz Secret Key çok kısa veya geçersiz görünüyor. Lütfen doğru Secret Key'i yapıştırınız:\n\n_(İptal için `iptal` yazabilirsiniz)_")
+                return
+                
+            api_key = state.get("api_key")
+            ex_id = state.get("exchange_id", "binance")
+            tenant_name = state.get("tenant_name") or first_name or f"User_{chat_id}"
+            ex_label = "🇹🇷 Binance TR" if "tr" in ex_id else "🌍 Binance Global"
+            
+            send_message(chat_id, f"⏳ *{ex_label} API Anahtarları Doğrulanıyor ve Borsa Hesabınıza Bağlanılıyor...*")
+            
+            # Canlı Borsa Testi
+            test_tenant = {
+                "exchange_id": ex_id,
+                "exchange_api_key": api_key,
+                "exchange_secret_key": secret_key
+            }
+            try:
+                test_bal = fetch_portfolio_balance(test_tenant)
+                total_usd = float(test_bal.get("total_usd", 0.0))
+                total_try = float(test_bal.get("total_try", 0.0))
+                
+                # Supabase'e kalıcı kaydet
+                registered = register_user_tenant(
+                    tenant_name=tenant_name,
+                    telegram_chat_id=chat_id,
+                    exchange_api_key=api_key,
+                    exchange_secret_key=secret_key,
+                    exchange_id=ex_id
+                )
+                set_tenant_trading_mode(chat_id, is_paper=False)
+                user_states.pop(chat_id, None)
+                
+                # Başarı Menü Klavyesi
+                main_kb = {
+                    "keyboard": [
+                        [{"text": "💰 Bakiye"}, {"text": "📊 Pozisyonlar"}],
+                        [{"text": "📈 Piyasa Analizi"}, {"text": "📰 Haberler"}],
+                        [{"text": "ℹ️ Durum & Rejim"}, {"text": "❓ Yardım"}]
+                    ],
+                    "resize_keyboard": True
+                }
+                
+                success_msg = (
+                    f"🎉 *TEBRİKLER {tenant_name.upper()}! HESABINIZ BAŞARIYLA BAĞLANDI!* ✅\n\n"
+                    f"🏦 *Borsa:* {ex_label}\n"
+                    f"💵 *Toplam Portföy Değeri:* `${total_usd:,.2f} USD` (~`₺{total_try:,.2f} TL`)\n"
+                    f"🟢 *Bağlantı Statüsü:* `AKTİF VE İŞLEME HAZIR`\n"
+                    f"🛡️ *Risk Yönetimi:* ATR Dinamik Stop & 10 Kademeli ExecutionGate Devrede\n\n"
+                    f"Artık aşağıdaki menüden `💰 Bakiye`, `📊 Pozisyonlar`, `📈 Analiz` butonlarını kullanabilir veya yapay zekanın otonom işlemlerini takip edebilirsiniz 👇"
+                )
+                send_message(chat_id, success_msg, reply_markup=main_kb)
+                
+                # Yöneticiye Bildir
+                try:
+                    admin_alert = (
+                        f"🎉 *[YENİ HESAP BAĞLANTISI BAŞARILI]*\n\n"
+                        f"👤 *Kullanıcı:* {tenant_name}\n"
+                        f"🆔 *Chat ID:* `{chat_id}`\n"
+                        f"🏦 *Borsa:* {ex_label}\n"
+                        f"💰 *Cüzdan Bakiyesi:* `${total_usd:,.2f} USD`\n"
+                        f"⏰ *Zaman:* {time.strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
+                    admin_chat_id = int(os.environ.get("TELEGRAM_CHAT_ID", "8739367825"))
+                    if admin_chat_id and chat_id != admin_chat_id:
+                        send_message(admin_chat_id, admin_alert)
+                except Exception:
+                    pass
+                return
+            except Exception as e:
+                user_states.pop(chat_id, None)
+                send_message(
+                    chat_id,
+                    f"❌ *Borsa Bağlantı Hatası:*\n{e}\n\n"
+                    f"Lütfen Binance panelinizden API anahtarlarınızı ve IP izinlerinizi kontrol edip tekrar `baglan` yazarak deneyiniz."
+                )
+                return
+
+    # 🔑 2. HESAP BAĞLAMA SİHİRBAZI TETİKLEYİCİSİ (Self-Service Onboarding)
+    if text_clean in ["baglan", "bağlan", "bagla", "bağla", "hesap bagla", "hesap bağla", "kayit", "kayıt", "register", "connect", "/baglan", "/kayit", "/connect", "🔑 hesap bağla"]:
+        wizard_kb = {
+            "inline_keyboard": [
+                [
+                    {"text": "🇹🇷 Binance TR", "callback_data": "wizard_ex_binancetr"},
+                    {"text": "🌍 Binance Global", "callback_data": "wizard_ex_binance"}
+                ],
+                [
+                    {"text": "❌ İptal Et", "callback_data": "wizard_cancel"}
+                ]
+            ]
+        }
+        wizard_prompt = (
+            f"🔑 *FOX-KRİPTO HESAP BAĞLAMA SİHİRBAZI* 🏦\n\n"
+            f"👋 Merhaba *{first_name}*!\n"
+            f"Binance hesabınızı bağlayarak yapay zeka destekli otonom al-sat ve portföy takibini hemen başlatabilirsiniz.\n\n"
+            f"📌 *Lütfen bağlamak istediğiniz borsayı seçiniz:*\n\n"
+            f"🛡️ *Güvenlik Kuralı:*\n"
+            f"Binance hesabınızda API anahtarı oluştururken *'Çekme / Withdrawal'* iznini ASLA açmayınız! Yalnızca *'Spot Al-Sat / Reading & Spot Trading'* izni veriniz."
+        )
+        send_message(chat_id, wizard_prompt, reply_markup=wizard_kb)
+        return
+
     # 🛡️ P0-3 GÜVENLİK & MULTI-TENANT KONTROLÜ
     admin_chat_id = int(os.environ.get("TELEGRAM_CHAT_ID", "8739367825"))
     tenant = get_tenant_by_chat_id(from_id) or get_tenant_by_chat_id(chat_id)
@@ -144,9 +292,9 @@ def handle_update(update: dict):
         if text_clean in ["start", "/start", "help", "/help", "yardim", "yardım", "merhaba", "selam", "hello", "hi", "menu", "menü", "komutlar", "bilgi", "info", "❓ yardım"]:
             welcome_kb = {
                 "keyboard": [
+                    [{"text": "🔑 Hesap Bağla"}, {"text": "🧪 Demo Modu ($100)"}],
                     [{"text": "📊 Piyasa Analizi"}, {"text": "📰 Kripto Haberleri"}],
-                    [{"text": "🧪 Demo Modu ($100)"}, {"text": "🆔 Chat ID Öğren"}],
-                    [{"text": "ℹ️ Sistem Bilgisi"}, {"text": "❓ Yardım"}]
+                    [{"text": "🆔 Chat ID Öğren"}, {"text": "ℹ️ Sistem Bilgisi"}]
                 ],
                 "resize_keyboard": True
             }
@@ -155,14 +303,12 @@ def handle_update(update: dict):
                 f"👋 Merhaba *{first_name}*!\n"
                 f"🆔 *Telegram Chat ID Numaranız:* `{chat_id}`\n\n"
                 f"Fox-Kripto; Binance Global ve Binance TR üzerinde 7/24 otonom çalışan, yapay zeka destekli kurumsal bir kantitatif analiz ve ticaret botudur.\n\n"
-                f"📌 *Kullanabileceğiniz Özellikler:*\n"
-                f"• 📊 *Piyasa Analizi:* Canlı balina kırılımlarını ve ivme puanlarını görün.\n"
-                f"• 📰 *Kripto Haberleri:* Anlık küresel piyasa gelişmelerini okuyun.\n"
+                f"📌 *Nasıl Başlayabilirsiniz?*\n"
+                f"• 🔑 *Hesap Bağla:* Binance API anahtarınızı girerek hesabınızı saniyeler içinde bağlayın (`baglan` yazabilirsiniz).\n"
                 f"• 🧪 *Demo Modu ($100):* Sıfır riskle sanal bakiye üzerinden sistemi deneyin.\n"
-                f"• 🆔 *Chat ID Öğren:* Yöneticinize yetki için ileteceğiniz ID numaranızı alın.\n\n"
-                f"👑 *Yetkilendirme & Canlı Hesap Bağlantısı:*\n"
-                f"Canlı borsa hesabınızla al-sat yapabilmek için yukarıdaki Chat ID numaranızı sistem yöneticisine iletmeniz yeterlidir.\n\n"
-                f"Aşağıdaki menü butonlarını kullanarak hemen keşfetmeye başlayabilirsiniz 👇"
+                f"• 📊 *Piyasa Analizi:* Canlı balina kırılımlarını ve ivme puanlarını görün.\n"
+                f"• 📰 *Kripto Haberleri:* Anlık küresel piyasa gelişmelerini okuyun.\n\n"
+                f"Aşağıdaki menü butonlarını kullanarak hemen başlayabilirsiniz 👇"
             )
             send_message(chat_id, welcome_msg, reply_markup=welcome_kb)
             
@@ -174,7 +320,7 @@ def handle_update(update: dict):
                     f"💬 *Mesaj:* {raw_text}\n"
                     f"🆔 *Chat ID:* `{chat_id}`\n"
                     f"⏰ *Zaman:* {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                    f"💡 _Kullanıcıya yetki tanımlamak için Supabase `user_tenants` tablosuna Chat ID ekleyebilirsiniz._"
+                    f"💡 _Kullanıcı doğrudan 'baglan' komutuyla kendi API anahtarını da bağlayabilir._"
                 )
                 if admin_chat_id and chat_id != admin_chat_id:
                     send_message(admin_chat_id, alert_text)
@@ -187,7 +333,7 @@ def handle_update(update: dict):
             send_message(
                 chat_id,
                 f"🆔 *TELEGRAM CHAT ID NUMARANIZ:* `{chat_id}`\n\n"
-                f"💡 Bu numarayı sistem yöneticisine ileterek Binance Global veya Binance TR hesabınızı Fox-Kripto'ya bağlatabilirsiniz."
+                f"💡 Bu numarayı sistem yöneticisine iletebilir veya doğrudan `baglan` yazarak kendi Binance API anahtarlarınızı bağlayabilirsiniz."
             )
             return
 
@@ -200,7 +346,7 @@ def handle_update(update: dict):
                 f"💰 *Sanal Bakiye:* $100.00 USDT (Monopoly Parası)\n"
                 f"🛡️ *Borsa Riski:* 0 TL / 0 USD (Tamamen Güvenli)\n"
                 f"📈 *Çalışma:* Binance canlı tahtasındaki gerçek zamanlı fiyatlarla sinyalleri izleyebilirsiniz.\n\n"
-                f"💡 _'analiz' veya 'haberler' yazarak piyasayı takip edebilirsiniz._"
+                f"💡 _'analiz' veya 'haberler' yazabilir, canlıya geçmek için `baglan` yazabilirsiniz._"
             )
             return
 
@@ -220,7 +366,7 @@ def handle_update(update: dict):
                     rep = "📊 *CANLI PİYASA MOMENTUM LİDERLERİ:*\n\n"
                     for g in gainers:
                         rep += f"• *{g.get('symbol')}*: `${float(g.get('price', 0)):,.4f}` (%{float(g.get('change_pct', 0)):+.2f}) | Hacim: `${float(g.get('volume_usd', 0)):,.0f}`\n"
-                    rep += "\n💡 _Detaylı sinyaller ve otonom işlemler için yetkili hesap gereklidir._"
+                    rep += "\n💡 _Canlı otomatik işlemler için `baglan` yazarak Binance hesabınızı bağlayabilirsiniz._"
                     send_message(chat_id, rep)
                 else:
                     send_message(chat_id, "📊 Şu an piyasa sakin, yüksek oynaklıklı bir kırılım tespit edilmedi.")
@@ -246,18 +392,17 @@ def handle_update(update: dict):
         else:
             unauth_kb = {
                 "keyboard": [
-                    [{"text": "📊 Piyasa Analizi"}, {"text": "📰 Kripto Haberleri"}],
-                    [{"text": "🧪 Demo Modu ($100)"}, {"text": "🆔 Chat ID Öğren"}]
+                    [{"text": "🔑 Hesap Bağla"}, {"text": "🧪 Demo Modu ($100)"}],
+                    [{"text": "📊 Piyasa Analizi"}, {"text": "📰 Kripto Haberleri"}]
                 ],
                 "resize_keyboard": True
             }
             send_message(
                 chat_id,
                 f"👋 Merhaba *{first_name}*!\n\n"
-                f"⚠️ *YETKİLENDİRME GEREKLİ:*\n"
-                f"Canlı borsa cüzdanınıza erişmek veya alım-satım yapabilmek için Telegram hesabınızın sisteme tanımlanması gerekmektedir.\n\n"
-                f"🆔 *Telegram Chat ID Numaranız:* `{chat_id}`\n\n"
-                f"Lütfen bu ID numaranızı yöneticinize ileterek cüzdan bağlantınızı tamamlayınız. Bu sırada *Piyasa Analizi* ve *Haberler* butonlarını ücretsiz kullanabilirsiniz 👇",
+                f"⚠️ *HESAP BAĞLANTISI GEREKLİ:*\n"
+                f"Canlı borsa cüzdanınıza erişmek veya alım-satım yapabilmek için Binance hesabınızı bağlamanız gerekmektedir.\n\n"
+                f"👉 Hesabınızı şimdi bağlamak için *🔑 Hesap Bağla* butonuna basabilir veya `baglan` yazabilirsiniz 👇",
                 reply_markup=unauth_kb
             )
             return
