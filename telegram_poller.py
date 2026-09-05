@@ -409,7 +409,63 @@ def handle_update(update: dict):
 
     print(f"📩 [Yetkili Telegram Mesajı]: From ID={from_id}, Chat ID={chat_id}, Text='{raw_text}' (Clean='{text_clean}')")
 
-    # Dil Değiştirme Komutları (Language Switcher)
+    # ⚡ 1. ÖNCELİKLİ DOĞRUDAN ALIM-SATIM İNFAZI (Örn: 'DOT SAT', 'dot sat', 'BTC SAT', 'PEPE SAT', 'SOL AL')
+    direct_match_sell = re.search(r'^\s*([A-Za-z0-9]{2,10})\s+(?:SAT|SELL)\s*$', raw_text.strip(), re.IGNORECASE) or re.search(r'^\s*(?:SAT|SELL)\s+([A-Za-z0-9]{2,10})\s*$', raw_text.strip(), re.IGNORECASE)
+    direct_match_buy = re.search(r'^\s*([A-Za-z0-9]{2,10})\s+(?:AL|BUY)\s*$', raw_text.strip(), re.IGNORECASE) or re.search(r'^\s*(?:AL|BUY)\s+([A-Za-z0-9]{2,10})\s*$', raw_text.strip(), re.IGNORECASE)
+    
+    if direct_match_sell or direct_match_buy:
+        coin_sym = (direct_match_sell.group(1) if direct_match_sell else direct_match_buy.group(1)).upper()
+        trade_side = "SELL" if direct_match_sell else "BUY"
+        is_tr_user = bool(tenant.get("exchange_id") in ["binancetr", "binance.tr", "trbinance"])
+        quote_curr = "TRY" if is_tr_user else "USDT"
+        target_symbol = f"{coin_sym}/{quote_curr}"
+        exch_label = "BINANCE.TR 🇹🇷" if is_tr_user else "BINANCE GLOBAL 🌍"
+        
+        # Bakiye ve Tutar Hesapla
+        port = fetch_portfolio_balance(tenant)
+        b_tr = port.get("binance_tr") if isinstance(port.get("binance_tr"), dict) else {}
+        b_gl = port.get("binance_global") if isinstance(port.get("binance_global"), dict) else {}
+        top_h = port.get("holdings_details") or {}
+        c_info = (b_gl.get("holdings_details") or {}).get(coin_sym) or (b_tr.get("holdings_details") or {}).get(coin_sym) or top_h.get(coin_sym) or {}
+        
+        c_amt = float(c_info.get("amount", 0.0))
+        c_val = float(c_info.get("val_usd", 0.0))
+        
+        if trade_side == "SELL":
+            amount_usd = c_val if c_val > 0 else 10.0
+            amount_display = f"Tüm Bakiye ({c_amt:,.4f} {coin_sym} ~ ${c_val:.2f})" if c_amt > 0 else f"Tüm {coin_sym} Bakiyesi"
+        else:
+            amount_usd = 15.0
+            amount_display = "$15.00 USD"
+            
+        send_message(chat_id, f"⚡ *TALİMAT ALINDI: {trade_side} {target_symbol}*\n💵 Miktar: `{amount_display}`\n🏢 Borsa: {exch_label}\n\nEmir borsaya iletiliyor...")
+        
+        trade_res = execute_spot_trade(
+            symbol=target_symbol,
+            side=trade_side,
+            amount_usd=amount_usd,
+            tenant_config=tenant
+        )
+        
+        if trade_res.get("status") in ["success", "EXECUTED", "EXECUTED_SIMULATED"]:
+            exec_p = trade_res.get("executed_price", 0.0)
+            order_id = trade_res.get("order_id", "LIVE_EXEC")
+            
+            # DB Ledger güncelle
+            try:
+                t_id = str(tenant.get("id") or tenant.get("telegram_chat_id") or "default_tenant")
+                exch_id = "binancetr" if is_tr_user else "binance"
+                if trade_side == "SELL":
+                    remove_position_from_db(tenant_id=t_id, exchange_id=exch_id, symbol=target_symbol)
+                    set_cooldown_in_db(tenant_id=t_id, symbol=target_symbol, base_asset=coin_sym, duration_seconds=3600)
+            except Exception as db_e:
+                print(f"DB update error: {db_e}")
+                
+            send_message(chat_id, f"🚀 *CANLI TALİMAT BORSADA İNFAZ EDİLDİ!* ✅\n\n⚡ İşlem: *{trade_side}*\n🪙 Sembol: `{target_symbol}`\n💵 İnfaz: `{amount_display}`\n📥 Fiyat: `${exec_p:,.4f}`\n📄 Emir No: `#{order_id}`\n🏢 Borsa: {exch_label}\n\n🎉 *{coin_sym} satışı tamamlandı, tutar serbest USDT nakite aktarıldı!*")
+        else:
+            err_msg = trade_res.get("error", "Borsa emri reddetti.")
+            send_message(chat_id, f"⚠️ *Emir Hatası:*\n`{err_msg}`")
+        return
     if text_clean in ["dil en", "lang en", "english", "ingilizce", "dil ingilizce", "/lang en", "/en"]:
         send_message(
             chat_id,
