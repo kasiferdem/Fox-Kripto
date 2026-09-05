@@ -519,13 +519,13 @@ class BinanceGlobalRESTClient:
         
         # 🛡️ 2 KADEMELİ İNFAZ DENEMESİ: Eğer -1013/-2010 miktar veya limit hatası gelirse
         if ("code" in data and data.get("code") in [-1013, -2010, 3203]) and side.upper() == "SELL":
-            # 1. Aşama: Eğer MIN_NOTIONAL ($5 altı) geldiyse, cüzdandaki tüm serbest bakiyeyi (%100) satmayı dene!
+            # 1. Aşama: Eğer MIN_NOTIONAL ($5 altı) veya precision geldiyse, cüzdandaki tüm serbest bakiyeyi (%100) satmayı dene!
             if "NOTIONAL" in str(data.get("msg", "")).upper():
                 try:
                     bal = self.fetch_balance()
                     full_free = float(bal.get("free", {}).get(base_c, 0.0))
                     if full_free > 0:
-                        params["quantity"] = f"{int(full_free)}" if dec == 0 else f"{full_free:.{dec}f}"
+                        params["quantity"] = format_quantity_by_step(full_free, clean_symbol)
                         query_str = self._sign(params)
                         url = f"{self.base_url}/api/v3/order?{query_str}"
                         res = requests.post(url, headers=headers, timeout=10)
@@ -582,8 +582,7 @@ class BinanceGlobalRESTClient:
         Maksimum %0.15 sapma tavanlı limit emir gönderir, dolmayan kısmı anında iptal eder.
         """
         clean_symbol = symbol.replace("/", "").replace("_", "").upper()
-        step_size, min_qty = get_lot_size_step(clean_symbol)
-        qty_str = format_quantity_by_step(amount_coin, step_size)
+        qty_str = format_quantity_by_step(amount_coin, clean_symbol)
         
         # Fiyat sapma tavanı hesabı
         if side.upper() == "BUY":
