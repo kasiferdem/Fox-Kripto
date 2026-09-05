@@ -71,3 +71,38 @@ def record_reconciliation_snapshot(tenant_id: str, exchange_id: str = "binance")
         }
     except Exception as e:
         return {"status": "FAILED", "error": str(e)}
+
+def reconcile_active_positions_with_exchange(tenant_config: Dict[str, Any]) -> List[str]:
+    """
+    Borsa cüzdan bakiyesini Supabase DB pozisyon defteriyle anlık mutabakat yapar.
+    Borsada manuel veya harici satılmış (bakiyesi 0 olan) hayalet pozisyonları DB'den anında siler.
+    """
+    if not tenant_config:
+        return []
+    cleaned_symbols = []
+    try:
+        from db import get_active_positions_from_db, remove_position_from_db
+        from exchange import fetch_portfolio_balance
+        
+        tenant_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id") or "default_tenant")
+        exchange_id = str(tenant_config.get("exchange_id") or "binance").lower()
+        
+        # 1. Borsa anlık cüzdan varlıkları
+        port = fetch_portfolio_balance(tenant_config)
+        holdings = port.get("holdings_details") or {}
+        active_coins = {k.upper(): v for k, v in holdings.items() if float(v.get("val_usd", 0.0)) >= 1.0}
+        
+        # 2. DB'de açık görünen pozisyonlar
+        db_pos = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exchange_id, is_simulated=False) or {}
+        
+        # 3. Mutabakat: DB'de var ama borsada yoksa temizle
+        for base_coin in list(db_pos.keys()):
+            clean_c = base_coin.replace("/USDT", "").replace("_USDT", "").replace("/TRY", "").replace("_TRY", "").upper()
+            if clean_c not in active_coins:
+                remove_position_from_db(tenant_id=tenant_id, exchange_id=exchange_id, symbol=clean_c)
+                cleaned_symbols.append(clean_c)
+                print(f"🧹 [Otomatik Mutabakat]: Borsada bulunmayan hayalet pozisyon ({clean_c}) veritabanından temizlendi.")
+                
+    except Exception as e:
+        print(f"⚠️ [Reconciliation Hatası]: {e}")
+    return cleaned_symbols
