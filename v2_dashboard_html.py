@@ -21,6 +21,7 @@ def generate_v2_dashboard_html(
     strategy_config = strategy_config or {}
 
     trailing_checked = "checked" if system_settings.get("trailing_stop_enabled", True) else ""
+    shadow_checked = "checked" if system_settings.get("anti_chop_shadow_mode", True) else ""
 
     # Dynamic Engine and Risk States
     is_scalp = (active_engine == "VOLUME_SCALPING")
@@ -557,6 +558,16 @@ def generate_v2_dashboard_html(
         <a href="/v2/dashboard" class="btn btn-sm btn-primary" data-i18n="v2_link">⚡ V2 Kripto</a>
         <a href="/borsa/dashboard" class="btn btn-sm btn-ghost" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; font-weight: 700;">🏛️ Fox-Borsa (Alpaca)</a>
 
+        <!-- Testere Kalkanı & Gölge Mod -->
+        <div style="display: flex; align-items: center; gap: 6px; background: var(--card-2); padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.45);">
+          <span style="font-size: 12px; color: #fbbf24; font-weight: 700;">🛡️ Gölge Mod:</span>
+          <label class="switch">
+            <input type="checkbox" id="shadow-toggle" {shadow_checked} onchange="toggleShadowMode(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button class="btn btn-sm btn-ghost" onclick="openShadowModal()" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #f59e0b; font-weight: 700;">📊 Gölge Defteri</button>
+
         <!-- Trailing SL -->
         <div style="display: flex; align-items: center; gap: 6px; background: var(--card-2); padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line);">
           <span style="font-size: 12px; color: var(--ink-2); font-weight: 600;">Trailing SL:</span>
@@ -788,6 +799,44 @@ def generate_v2_dashboard_html(
 
         <div style="font-size: 12.5px; color: var(--ink-3); font-weight: 600; margin-bottom: 8px;" data-i18n="m_holdings_label">Açık Pozisyonlar & Varlıklar:</div>
         <div id="m-holdings" style="max-height: 240px; overflow-y: auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GÖLGE KARAR DEFTERİ MODALI -->
+  <div id="shadow-modal" class="modal-overlay" onclick="closeShadowModal(event)">
+    <div class="modal-card" style="max-width: 900px;" onclick="event.stopPropagation()">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--line); padding-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h3 style="font-size: 18px; font-weight: 700; color: var(--ink); margin: 0;">🛡️ Testere Kalkanı — Gölge Karar Defteri</h3>
+          <span id="shadow-badge" class="badge badge-info" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b;">🟡 GÖLGE MOD AKTİF</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-sm btn-primary" onclick="loadShadowLogs()">🔄 Yenile</button>
+          <button class="btn btn-sm btn-ghost" onclick="closeShadowModal()">✕ Kapat</button>
+        </div>
+      </div>
+
+      <div style="font-size: 12px; color: var(--ink-3); margin-bottom: 14px; background: var(--bg-2); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line);">
+        💡 <strong>Gölge Simülasyonu:</strong> Kırılım anında filtrelerin (Direnç Bölgesi, 0.6xATR Drift) verdiği kararlar burada listelenir. Gölge mod açıkken emirler <strong>kesilmez</strong>.
+      </div>
+
+      <div class="table-wrap" style="max-height: 380px; overflow-y: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Parite</th>
+              <th>Fiyat</th>
+              <th>Motor</th>
+              <th>Gölge Kararı</th>
+              <th>Gerekçe & Analiz</th>
+              <th>Zaman</th>
+            </tr>
+          </thead>
+          <tbody id="shadow-logs-tbody">
+            <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--ink-3);">⏳ Yükleniyor...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -1354,6 +1403,65 @@ def generate_v2_dashboard_html(
         body: JSON.stringify({{ trailing_stop_enabled: state }})
       }});
       showToast('🚀 Trailing Stop: ' + (state ? (curLang === 'tr' ? 'AÇIK' : 'ON') : (curLang === 'tr' ? 'KAPALI' : 'OFF')));
+    }}
+
+    async function toggleShadowMode(state) {{
+      await fetch('/api/settings', {{
+        method: 'POST',
+        headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
+        body: JSON.stringify({{ anti_chop_shadow_mode: state }})
+      }});
+      showToast('🛡️ Gölge Mod: ' + (state ? (curLang === 'tr' ? '🟡 GÖLGE (SİMÜLASYON AKTİF)' : '🟡 SHADOW (SIMULATION ACTIVE)') : (curLang === 'tr' ? '🟢 CANLI KORUMA (ENGELLEME AKTİF)' : '🟢 LIVE ENFORCEMENT ACTIVE)')));
+    }}
+
+    async function openShadowModal() {{
+      document.getElementById('shadow-modal').classList.add('open');
+      loadShadowLogs();
+    }}
+
+    function closeShadowModal(e) {{
+      if (e) e.stopPropagation();
+      document.getElementById('shadow-modal').classList.remove('open');
+    }}
+
+    async function loadShadowLogs() {{
+      const tbody = document.getElementById('shadow-logs-tbody');
+      const badge = document.getElementById('shadow-badge');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--ink-3);">⏳ Gölge Defteri Taranıyor...</td></tr>';
+      try {{
+        const res = await fetch('/api/v2/shadow_logs', {{ headers: getAuthHeaders() }});
+        const data = await res.json();
+        if (badge) {{
+          badge.innerText = data.shadow_mode_active ? (curLang === 'tr' ? '🟡 GÖLGE MOD AKTİF' : '🟡 SHADOW MODE ACTIVE') : (curLang === 'tr' ? '🟢 CANLI ENGELLEME AKTİF' : '🟢 LIVE ENFORCEMENT ACTIVE');
+          badge.style.color = data.shadow_mode_active ? '#fbbf24' : 'var(--ok-fg)';
+        }}
+        const logs = data.logs || [];
+        if (logs.length === 0) {{
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 25px; color: var(--ink-3);">' + (curLang === 'tr' ? 'Henüz kaydedilmiş gölge simülasyon kaydı bulunmuyor.' : 'No shadow simulation decisions recorded yet.') + '</td></tr>';
+          return;
+        }}
+        let html = '';
+        for (const l of logs) {{
+          const isPass = (l.anti_chop_pass === true);
+          const statusBadge = isPass 
+            ? '<span class="badge badge-ok">✅ ' + (curLang === 'tr' ? 'ONAY' : 'APPROVED') + '</span>'
+            : '<span class="badge badge-danger" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444;">🛑 ' + (curLang === 'tr' ? 'SİMÜLASYON REDDİ' : 'SIM BLOCKED') + '</span>';
+          html += `
+            <tr style="border-bottom: 1px solid var(--line);">
+              <td style="font-weight: 700; color: var(--ink);">${{l.symbol || '-'}}</td>
+              <td style="color: var(--ink-2); font-variant-numeric: tabular-nums;">$${{l.price || 0}}</td>
+              <td style="color: var(--fox-flame); font-size: 11.5px;">${{l.engine || 'SCALPING'}}</td>
+              <td>${{statusBadge}}</td>
+              <td style="font-size: 12px; color: ${{isPass ? 'var(--ink-2)' : '#fca5a5'}};">${{l.reason_text || '-'}}</td>
+              <td style="font-size: 11px; color: var(--ink-3);">${{l.timestamp || '-'}}</td>
+            </tr>
+          `;
+        }}
+        tbody.innerHTML = html;
+      }} catch(err) {{
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--stop-fg); padding: 15px;">❌ Error: ' + err.message + '</td></tr>';
+      }}
     }}
 
     // Sayfa Yüklendiğinde Kayıtlı Dili Uygula
