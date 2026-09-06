@@ -32,6 +32,12 @@ MODEL_FALLBACK_CHAINS = {
         "google/gemini-2.5-flash",
         "openai/gpt-4o-mini",
         "meta-llama/llama-3.3-70b-instruct"
+    ],
+    "openai/gpt-6-astral": [
+        "openai/gpt-5.6-sol",
+        "openai/gpt-4o",
+        "google/gemini-2.5-flash",
+        "z-ai/glm-5.2"
     ]
 }
 

@@ -24,7 +24,7 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPE
 
 # 3'lü Ajan Modelleri
 MODEL_MODERATOR = "google/gemini-3.7-flash"
-MODEL_CODER = "stealth/ox-alpha"
+MODEL_CODER = "openai/gpt-6-astral"
 MODEL_AUDITOR = "z-ai/glm-5.2"
 
 BASE_TELEGRAM_URL = f"https://api.telegram.org/bot{DEV_BOT_TOKEN}"
