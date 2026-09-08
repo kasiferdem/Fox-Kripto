@@ -36,21 +36,21 @@ def generate_v2_dashboard_html(
     pill_def_cls = "profile-btn active" if active_risk == "DEFENSIVE" else "profile-btn"
     pill_cus_cls = "profile-btn active" if active_risk == "CUSTOM" else "profile-btn"
 
-    # Strategy Config Defaults
-    min_24h_vol = int(strategy_config.get("min_24h_quote_volume_usd", 5000000))
-    min_vol = int(strategy_config.get("min_volume_usd", 25000 if is_scalp else 50000))
-    spike_mult = float(strategy_config.get("volume_spike_multiplier", 1.8 if is_scalp else 2.5))
-    max_daily = int(strategy_config.get("max_daily_trades", 2))
-    max_gain = float(strategy_config.get("max_recent_gain_24h", 3.5))
-    ai_score = float(strategy_config.get("min_ai_score", 7.5 if is_scalp else 8.0))
+    # Strategy Config Defaults (True Dynamic Mapping)
+    min_24h_vol = int(strategy_config.get("min_24h_quote_volume_usd", 1000000))
+    min_vol = int(strategy_config.get("min_5m_volume_usd", strategy_config.get("min_volume_usd", 2500)))
+    spike_mult = float(strategy_config.get("volume_spike_multiplier", 1.15))
+    max_daily = int(strategy_config.get("max_daily_trades", 10))
+    max_gain = float(strategy_config.get("max_recent_gain_24h", 60.0))
+    ai_score = float(strategy_config.get("min_ai_score", 4.5))
     max_budget = float(strategy_config.get("max_budget_percent", 25.0))
-    max_positions = int(strategy_config.get("max_concurrent_positions", 1))
-    tp_pct = float(strategy_config.get("take_profit_pct", 2.4 if is_scalp else 3.0))
-    sl_pct = float(strategy_config.get("stop_loss_pct", 1.0 if is_scalp else 1.2))
-    cb_pct = float(strategy_config.get("trailing_callback_pct", 0.5 if is_scalp else 0.5))
-    btc_min_rsi = float(strategy_config.get("btc_min_rsi", 38.0))
-    retest_req = bool(strategy_config.get("retest_required", True))
-    first_pump_blocked = bool(strategy_config.get("first_pump_candle_entry_blocked", True))
+    max_positions = int(strategy_config.get("max_concurrent_positions", 3))
+    tp_pct = float(strategy_config.get("take_profit_pct", 2.5))
+    sl_pct = float(strategy_config.get("stop_loss_pct", 1.2))
+    cb_pct = float(strategy_config.get("trailing_callback_pct", 0.6))
+    btc_min_rsi = float(strategy_config.get("btc_min_rsi", 35.0))
+    retest_req = bool(strategy_config.get("retest_required", False))
+    first_pump_blocked = bool(strategy_config.get("first_pump_candle_entry_blocked", False))
     sel_retest_true = "selected" if retest_req else ""
     sel_retest_false = "selected" if not retest_req else ""
     sel_firstpump_true = "selected" if first_pump_blocked else ""
@@ -1096,12 +1096,12 @@ def generate_v2_dashboard_html(
     let currentRisk = '{active_risk}';
 
     const PRESETS_MAP = {{
-      'VOLUME_SCALPING_AGGRESSIVE': {{ min_24h_vol: 3000000, min_vol: 20000, spike: 1.5, daily: 5, gain: 4.0, score: 7.0, budget: 75.0, slots: 3, tp: 2.2, sl: 1.0, cb: 0.4, min_rsi: 35.0, retest: false, firstpump: false }},
-      'VOLUME_SCALPING_BALANCED':   {{ min_24h_vol: 5000000, min_vol: 25000, spike: 1.8, daily: 3, gain: 3.5, score: 7.5, budget: 50.0, slots: 2, tp: 2.4, sl: 1.0, cb: 0.5, min_rsi: 38.0, retest: true, firstpump: true }},
-      'VOLUME_SCALPING_DEFENSIVE':  {{ min_24h_vol: 10000000, min_vol: 35000, spike: 2.2, daily: 2, gain: 2.5, score: 8.0, budget: 25.0, slots: 1, tp: 2.6, sl: 1.0, cb: 0.6, min_rsi: 40.0, retest: true, firstpump: true }},
-      'WHALE_HUNTING_AGGRESSIVE':   {{ min_24h_vol: 5000000, min_vol: 50000, spike: 2.0, daily: 3, gain: 4.0, score: 7.5, budget: 50.0, slots: 3, tp: 4.0, sl: 1.5, cb: 0.6, min_rsi: 35.0, retest: false, firstpump: false }},
-      'WHALE_HUNTING_BALANCED':     {{ min_24h_vol: 5000000, min_vol: 50000, spike: 2.5, daily: 2, gain: 3.5, score: 8.0, budget: 35.0, slots: 2, tp: 3.2, sl: 1.2, cb: 0.6, min_rsi: 38.0, retest: true, firstpump: true }},
-      'WHALE_HUNTING_DEFENSIVE':    {{ min_24h_vol: 10000000, min_vol: 100000, spike: 3.2, daily: 1, gain: 2.5, score: 8.5, budget: 25.0, slots: 1, tp: 3.0, sl: 1.0, cb: 0.5, min_rsi: 42.0, retest: true, firstpump: true }}
+      'VOLUME_SCALPING_AGGRESSIVE': {{ min_24h_vol: 1000000, min_vol: 2500, spike: 1.15, daily: 10, gain: 60.0, score: 4.5, budget: 50.0, slots: 3, tp: 2.5, sl: 1.2, cb: 0.6, min_rsi: 35.0, retest: false, firstpump: false }},
+      'VOLUME_SCALPING_BALANCED':   {{ min_24h_vol: 1000000, min_vol: 4000, spike: 1.25, daily: 5, gain: 30.0, score: 5.5, budget: 33.0, slots: 3, tp: 2.8, sl: 1.2, cb: 0.6, min_rsi: 36.0, retest: false, firstpump: false }},
+      'VOLUME_SCALPING_DEFENSIVE':  {{ min_24h_vol: 2000000, min_vol: 10000, spike: 1.5, daily: 3, gain: 15.0, score: 7.0, budget: 25.0, slots: 2, tp: 3.0, sl: 1.0, cb: 0.5, min_rsi: 40.0, retest: true, firstpump: true }},
+      'WHALE_HUNTING_AGGRESSIVE':   {{ min_24h_vol: 1000000, min_vol: 2500, spike: 1.15, daily: 10, gain: 60.0, score: 4.5, budget: 50.0, slots: 3, tp: 2.5, sl: 1.2, cb: 0.6, min_rsi: 35.0, retest: false, firstpump: false }},
+      'WHALE_HUNTING_BALANCED':     {{ min_24h_vol: 1000000, min_vol: 4000, spike: 1.25, daily: 5, gain: 30.0, score: 5.5, budget: 33.0, slots: 3, tp: 2.8, sl: 1.2, cb: 0.6, min_rsi: 36.0, retest: false, firstpump: false }},
+      'WHALE_HUNTING_DEFENSIVE':    {{ min_24h_vol: 2000000, min_vol: 10000, spike: 1.5, daily: 3, gain: 15.0, score: 7.0, budget: 25.0, slots: 2, tp: 3.0, sl: 1.0, cb: 0.5, min_rsi: 40.0, retest: true, firstpump: true }}
     }};
 
     function applyPresetValues() {{
