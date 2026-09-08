@@ -312,14 +312,25 @@ def format_quantity_by_step(amount: float, symbol: str) -> str:
     step = get_lot_size_step(symbol)
     if step <= 0:
         return f"{amount:.4f}"
-    import math
-    steps_count = math.floor(amount / step)
-    safe_amount = steps_count * step
-    if step >= 1.0:
-        return str(int(safe_amount))
-    else:
-        dec = len(str(step).split(".")[1].rstrip("0"))
-        return f"{safe_amount:.{dec}f}"
+    from decimal import Decimal
+    try:
+        d_step = Decimal(f"{step:.10f}").normalize()
+        exp = abs(d_step.as_tuple().exponent) if d_step.as_tuple().exponent < 0 else 0
+        d_amt = Decimal(f"{amount:.10f}").normalize()
+        safe_amount = (d_amt // d_step) * d_step
+        if exp == 0:
+            return str(int(safe_amount))
+        else:
+            return f"{safe_amount:.{exp}f}"
+    except Exception:
+        import math
+        steps_count = math.floor(amount / step)
+        safe_amount = steps_count * step
+        if step >= 1.0:
+            return str(int(safe_amount))
+        else:
+            dec = len(str(step).split(".")[1].rstrip("0")) if "." in str(step) else 0
+            return f"{safe_amount:.{dec}f}"
 
 class BinanceGlobalRESTClient:
     """Binance Global (api.binance.com) Doğrudan REST API İstemcisi"""
