@@ -24,8 +24,10 @@ try:
 except ImportError:
     pass
 
+DEFAULT_STOCK_BOT_TOKEN = "8729610871:AAEEKpCQJSwG4ojgKwmuKsqNGgUtXnMdzHk"
+
 def _get_base_url() -> str:
-    token = os.environ.get("STOCK_TELEGRAM_BOT_TOKEN", "").strip()
+    token = os.environ.get("STOCK_TELEGRAM_BOT_TOKEN", "").strip() or DEFAULT_STOCK_BOT_TOKEN
     return f"https://api.telegram.org/bot{token}"
 
 # Ana Klavye Butonları (Sabit ve Sürekli Görünür)

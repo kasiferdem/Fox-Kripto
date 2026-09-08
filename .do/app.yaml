@@ -26,6 +26,9 @@ services:
   - key: TELEGRAM_CHAT_ID
     scope: RUN_AND_BUILD
     type: SECRET
+  - key: STOCK_TELEGRAM_BOT_TOKEN
+    scope: RUN_AND_BUILD
+    value: "8729610871:AAEEKpCQJSwG4ojgKwmuKsqNGgUtXnMdzHk"
   - key: EXCHANGE_ID
     scope: RUN_AND_BUILD
     value: binance
