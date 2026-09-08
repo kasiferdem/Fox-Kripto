@@ -53,12 +53,21 @@ def generate_v2_dashboard_html(
     btc_trend_filter_enabled = bool(strategy_config.get("btc_trend_filter_enabled", False))
     retest_req = bool(strategy_config.get("retest_required", False))
     first_pump_blocked = bool(strategy_config.get("first_pump_candle_entry_blocked", False))
+    be_enabled = bool(strategy_config.get("breakeven_enabled", True))
+    be_trigger = float(strategy_config.get("breakeven_trigger_pct", 1.0))
+    slock_enabled = bool(strategy_config.get("steplock_enabled", True))
+    slock_trigger = float(strategy_config.get("steplock_trigger_pct", 1.8))
+    slock_lock = float(strategy_config.get("steplock_lock_pct", 0.9))
     sel_retest_true = "selected" if retest_req else ""
     sel_retest_false = "selected" if not retest_req else ""
     sel_firstpump_true = "selected" if first_pump_blocked else ""
     sel_firstpump_false = "selected" if not first_pump_blocked else ""
     sel_btctrend_true = "selected" if btc_trend_filter_enabled else ""
     sel_btctrend_false = "selected" if not btc_trend_filter_enabled else ""
+    sel_be_true = "selected" if be_enabled else ""
+    sel_be_false = "selected" if not be_enabled else ""
+    sel_slock_true = "selected" if slock_enabled else ""
+    sel_slock_false = "selected" if not slock_enabled else ""
 
     # Tenants Tablosu SSR HTML (Tıklanabilir Satırlar)
     tenants_ssr_html = ""
@@ -746,6 +755,39 @@ def generate_v2_dashboard_html(
           </div>
         </div>
 
+        <!-- 4. Grup: Akıllı Kâr Koruma Kalkanı (Breakeven & Step-Lock) -->
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px;">
+          <div style="font-size: 11.5px; font-weight: 700; color: #38bdf8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.03em;">🛡️ 4. Akıllı Kâr Koruma Kalkanı (Breakeven & Step-Lock)</div>
+          <div class="param-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0; padding: 0; background: transparent; border: none;">
+            <div class="param-box">
+              <label data-i18n="p_be_mode" style="color: #38bdf8; font-weight: 700;">Breakeven Koruması</label>
+              <select id="param_be_enabled" onchange="markCustom()">
+                <option value="true" {sel_be_true}>Açık (Sıfır Risk Giriş Stopu)</option>
+                <option value="false" {sel_be_false}>Kapalı (Devre Dışı)</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_be_trig">Breakeven Tetik (%)</label>
+              <input type="number" step="0.1" id="param_be_trigger" value="{be_trigger}" style="border-color: #38bdf8; font-weight: 800;" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_slock_mode" style="color: #38bdf8; font-weight: 700;">Kademeli Kâr Kilidi</label>
+              <select id="param_slock_enabled" onchange="markCustom()">
+                <option value="true" {sel_slock_true}>Açık (Kâr Kilitleme)</option>
+                <option value="false" {sel_slock_false}>Kapalı (Devre Dışı)</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_slock_trig">Kâr Kilit Tetik (%)</label>
+              <input type="number" step="0.1" id="param_slock_trigger" value="{slock_trigger}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_slock_lock">Kilitlenen Taban Kâr (%)</label>
+              <input type="number" step="0.1" id="param_slock_lock" value="{slock_lock}" style="color: var(--ok-fg); font-weight: 800;" onchange="markCustom()">
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- 4 Temel Eylem Butonu (Sadeleştirilmiş & Eksiksiz) -->
@@ -1331,6 +1373,11 @@ def generate_v2_dashboard_html(
           btc_trend_filter_enabled: (document.getElementById('param_btc_trend_filter_enabled')?.value === 'true'),
           first_pump_candle_entry_blocked: (document.getElementById('param_first_pump_blocked')?.value !== 'false'),
           retest_required: (document.getElementById('param_retest_required')?.value !== 'false'),
+          breakeven_enabled: (document.getElementById('param_be_enabled')?.value !== 'false'),
+          breakeven_trigger_pct: getVal('param_be_trigger', 'p_be_trig', 1.0),
+          steplock_enabled: (document.getElementById('param_slock_enabled')?.value !== 'false'),
+          steplock_trigger_pct: getVal('param_slock_trigger', 'p_slock_trig', 1.8),
+          steplock_lock_pct: getVal('param_slock_lock', 'p_slock_lock', 0.9),
           require_futures_oi: false
         }};
 

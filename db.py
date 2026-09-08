@@ -664,6 +664,29 @@ STRATEGY_PRESETS = {
 _cached_strategy_config = None
 _cached_strategy_config_ts = 0
 
+DEFAULT_STRATEGY_CONFIG = {
+    "active_preset": "v21_smart_armor",
+    "volume_spike_multiplier": 1.15,
+    "min_volume_usd": 2500.0,
+    "max_recent_gain_24h": 60.0,
+    "min_ai_score": 4.5,
+    "max_budget_percent": 25.0,
+    "trailing_callback_pct": 0.6,
+    "btc_min_rsi": 28.0,
+    "take_profit_pct": 2.5,
+    "stop_loss_pct": 1.2,
+    "retest_required": False,
+    "first_pump_candle_entry_blocked": False,
+    "btc_trend_filter_enabled": False,
+    "btc_ema_tolerance_pct": 10.0,
+    "breakeven_enabled": True,
+    "breakeven_trigger_pct": 1.0,
+    "steplock_enabled": True,
+    "steplock_trigger_pct": 1.8,
+    "steplock_lock_pct": 0.9,
+    "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+}
+
 def get_strategy_config(use_cache: bool = True) -> dict:
     """Veritabanından aktif strateji ve risk profilini çeker (15s cache + yerel yedek)."""
     global _cached_strategy_config, _cached_strategy_config_ts
@@ -671,44 +694,27 @@ def get_strategy_config(use_cache: bool = True) -> dict:
     if use_cache and _cached_strategy_config and (now - _cached_strategy_config_ts < 15):
         return _cached_strategy_config
     
+    loaded = {}
     client = get_supabase()
     if client:
         try:
             res = client.table("crypto_agent_states").select("state_data").eq("session_id", "system_strategy_config").execute()
             if res.data and len(res.data) > 0:
-                _cached_strategy_config = res.data[0].get("state_data", {})
-                _cached_strategy_config_ts = now
-                return _cached_strategy_config
+                loaded = res.data[0].get("state_data", {})
         except Exception:
             pass
             
     # Yerel yedek dosyasından oku (varsa)
-    local_path = os.path.join(os.path.dirname(__file__), "strategy_config_local.json")
-    if os.path.exists(local_path):
-        try:
-            with open(local_path, "r", encoding="utf-8") as f:
-                _cached_strategy_config = json.load(f)
-                _cached_strategy_config_ts = now
-                return _cached_strategy_config
-        except Exception:
-            pass
+    if not loaded:
+        local_path = os.path.join(os.path.dirname(__file__), "strategy_config_local.json")
+        if os.path.exists(local_path):
+            try:
+                with open(local_path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+            except Exception:
+                pass
 
-    # Varsayılan profil: v2.1 3 Kademeli Akıllı Zırh & Dinamik Risk
-    _cached_strategy_config = {
-        "active_preset": "v21_smart_armor",
-        "volume_spike_multiplier": 1.15,
-        "min_volume_usd": 2500.0,
-        "max_recent_gain_24h": 60.0,
-        "min_ai_score": 4.5,
-        "max_budget_percent": 25.0,
-        "trailing_callback_pct": 0.6,
-        "btc_min_rsi": 38.0,
-        "take_profit_pct": 2.5,
-        "stop_loss_pct": 1.2,
-        "retest_required": True,
-        "first_pump_candle_entry_blocked": True,
-        "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-    }
+    _cached_strategy_config = {**DEFAULT_STRATEGY_CONFIG, **loaded}
     _cached_strategy_config_ts = now
     return _cached_strategy_config
 
