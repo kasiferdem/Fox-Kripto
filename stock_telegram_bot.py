@@ -9,11 +9,25 @@ Ayrıca /start, /bakiye, /pozisyonlar, /hisseler, /seans komutlarına canlı yan
 
 import os
 import sys
+import io
 import time
 import threading
 import requests
 from typing import Optional, Dict, Any, List
 from alpaca_client import AlpacaClient
+
+# Windows Console Emoji UnicodeEncodeError Önleyici
+if hasattr(sys.stdout, 'buffer'):
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'buffer'):
+    try:
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -24,7 +38,7 @@ def _get_base_url() -> str:
     token = os.environ.get("STOCK_TELEGRAM_BOT_TOKEN", "").strip()
     return f"https://api.telegram.org/bot{token}"
 
-# Ana Klavye Butonları
+# Ana Klavye Butonları (Sabit ve Sürekli Görünür)
 MAIN_KEYBOARD = {
     "keyboard": [
         [{"text": "💼 Bakiye & Cüzdan"}, {"text": "📊 Açık Pozisyonlar"}],
@@ -32,7 +46,8 @@ MAIN_KEYBOARD = {
         [{"text": "⏰ Seans Durumu"}, {"text": "🌐 Borsa Dashboard Paneli"}]
     ],
     "resize_keyboard": True,
-    "persistent": True
+    "is_persistent": True,
+    "one_time_keyboard": False
 }
 
 def send_stock_telegram_message(
@@ -270,12 +285,15 @@ _poller_running = False
 def _run_stock_poller_loop():
     global _poller_running
     offset = 0
-    print("🚀 [@FoxBorsaBot]: Telegram Dinleyicisi Başlatıldı!")
+    print("[@FoxBorsaBot]: Telegram Dinleyicisi Aktif Edildi!")
     while _poller_running:
         try:
             base_url = _get_base_url()
-            url = f"{base_url}/getUpdates?offset={offset}&timeout=15"
-            res = requests.get(url, timeout=20)
+            if not base_url or "bot" == base_url.split("/")[-1]:
+                time.sleep(5)
+                continue
+            url = f"{base_url}/getUpdates?offset={offset}&timeout=10"
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 data = res.json()
                 updates = data.get("result", [])
@@ -283,7 +301,10 @@ def _run_stock_poller_loop():
                     offset = u["update_id"] + 1
                     msg = u.get("message")
                     if msg:
-                        handle_stock_message(msg)
+                        try:
+                            handle_stock_message(msg)
+                        except Exception as msg_err:
+                            print(f"⚠️ [Stock Message Error]: {msg_err}")
             elif res.status_code == 409:
                 time.sleep(5)
             else:
@@ -299,3 +320,8 @@ def start_stock_telegram_poller():
     _poller_running = True
     _poller_thread = threading.Thread(target=_run_stock_poller_loop, daemon=True)
     _poller_thread.start()
+
+if __name__ == "__main__":
+    print("[@FoxBorsaBot]: Standalone Poller Başlatılıyor...")
+    _poller_running = True
+    _run_stock_poller_loop()
