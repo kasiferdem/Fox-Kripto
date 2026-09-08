@@ -679,11 +679,6 @@ DEFAULT_STRATEGY_CONFIG = {
     "first_pump_candle_entry_blocked": False,
     "btc_trend_filter_enabled": False,
     "btc_ema_tolerance_pct": 10.0,
-    "breakeven_enabled": True,
-    "breakeven_trigger_pct": 1.0,
-    "steplock_enabled": True,
-    "steplock_trigger_pct": 1.8,
-    "steplock_lock_pct": 0.9,
     "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 }
 

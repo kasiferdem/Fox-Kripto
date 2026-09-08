@@ -569,11 +569,6 @@ class StrategyConfigRequest(BaseModel):
     btc_min_rsi: Optional[float] = 35.0
     btc_ema_tolerance_pct: Optional[float] = 10.0
     btc_trend_filter_enabled: Optional[bool] = False
-    breakeven_enabled: Optional[bool] = True
-    breakeven_trigger_pct: Optional[float] = 1.0
-    steplock_enabled: Optional[bool] = True
-    steplock_trigger_pct: Optional[float] = 1.8
-    steplock_lock_pct: Optional[float] = 0.9
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -605,12 +600,7 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "require_futures_oi": req.require_futures_oi,
         "btc_min_rsi": float(req.btc_min_rsi) if req.btc_min_rsi is not None else 35.0,
         "btc_ema_tolerance_pct": float(req.btc_ema_tolerance_pct) if req.btc_ema_tolerance_pct is not None else 10.0,
-        "btc_trend_filter_enabled": bool(req.btc_trend_filter_enabled) if req.btc_trend_filter_enabled is not None else False,
-        "breakeven_enabled": bool(req.breakeven_enabled) if req.breakeven_enabled is not None else True,
-        "breakeven_trigger_pct": float(req.breakeven_trigger_pct) if req.breakeven_trigger_pct is not None else 1.0,
-        "steplock_enabled": bool(req.steplock_enabled) if req.steplock_enabled is not None else True,
-        "steplock_trigger_pct": float(req.steplock_trigger_pct) if req.steplock_trigger_pct is not None else 1.8,
-        "steplock_lock_pct": float(req.steplock_lock_pct) if req.steplock_lock_pct is not None else 0.9
+        "btc_trend_filter_enabled": bool(req.btc_trend_filter_enabled) if req.btc_trend_filter_enabled is not None else False
     }
     ok = save_strategy_config(payload)
     if req.execution_mode:
