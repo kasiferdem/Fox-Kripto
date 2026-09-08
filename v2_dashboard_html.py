@@ -115,10 +115,10 @@ def generate_v2_dashboard_html(
         sym = l.get("symbol", "N/A")
         direction = l.get("direction", "HOLD")
         status = l.get("status", "SUCCESS")
-        t_name = l.get("tenant_name") or "S"
+        det = l.get("execution_details") or {}
+        t_name = l.get("tenant_name") or (det.get("tenant_name") if isinstance(det, dict) else None) or "S"
         amt = float(l.get("amount_usd", 0.0) or 0.0)
         p_entry = float(l.get("entry_price", 0.0) or 0.0)
-        det = l.get("execution_details") or {}
         reason = det.get("justification") or det.get("reason") or "Kurumsal teyit matrisi ve AI mutabakatı ile onaylandı."
         score = l.get("sentiment_score") or det.get("v2_score") or "8.5"
         exch_label = l.get("exchange_label") or ("Binance TR 🇹🇷" if str(sym).endswith("TRY") else "Binance Global 🌍")
