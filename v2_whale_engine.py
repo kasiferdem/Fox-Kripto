@@ -193,41 +193,41 @@ class V2WhaleHuntingEngine:
                 "retest_zone": [round(retest_zone_low, 4), round(retest_zone_high, 4)]
             })
             
-            # B. 🛑 KESİN CANLI PUMP ENGELİ: Canlı mum fırlıyorken alım YASAK
-            if curr_candle_gain > 0.40 or dist_breakout_pct > 0.40:
+            # B. CANLI PUMP KONTROLÜ: first_pump_candle_entry_blocked ayarına göre dinamik denetlenir
+            first_pump_blocked_cfg = bool(self.params.get("first_pump_candle_entry_blocked", False))
+            retest_required_cfg = bool(self.params.get("retest_required", False))
+            
+            if first_pump_blocked_cfg and (curr_candle_gain > 0.40 or dist_breakout_pct > 0.40):
                 is_first_pump_blocked = True
                 retest_confirmed = False
                 action_state = "WAITING_PULLBACK"
                 retest_note = f"Canlı fırlama mumu (+%{curr_candle_gain:.2f}) tepesinde; ilk pump mumundan alım engellendi, retest bekleniyor."
-            
-            # C. 🛡️ RETEST DOĞRULAMA KRİTERLERİ (Madde 8)
+            elif not retest_required_cfg:
+                # 🚀 SERBEST MOMENTUM GİRİŞİ (2-3 Eylül Atik Mod)
+                is_first_pump_blocked = False
+                retest_confirmed = True
+                action_state = "BUY_READY"
+                retest_note = f"Momentum ve hacim kırılımı onaylandı (+%{curr_candle_gain:.2f}), doğrudan alım tetiklendi."
             else:
-                # 1. Fiyat retest bölgesinde mi?
+                # C. 🛡️ RETEST DOĞRULAMA KRİTERLERİ (Retest Zorunlu Olduğunda)
                 is_in_retest_zone = (retest_zone_low <= c_last <= retest_zone_high * 1.005) or (retest_zone_low <= l_last <= retest_zone_high)
-                
-                # 2. Yeni düşük dip oluşmamalı
                 no_lower_low = (l_last >= retest_zone_low * 0.995)
-                
-                # 3. Satış baskısı sönümlendi mi? (Geri çekilme hacmi patlama hacminden düşük olmalı)
                 v_breakout = float(klines_5m[-2][7])
                 sell_vol_decay = (v_last < v_breakout * 0.70) if v_breakout > 0 else True
-                
-                # 4. Taker alış oranı yeniden toparlandı mı?
-                tb_rebound = (spot_taker_pct >= 58.0)
-                
-                # 5. Maksimum kovalamaca (Chase) limiti aşılmamış olmalı (<= %0.30)
-                chase_valid = (dist_breakout_pct <= 0.35)
+                tb_rebound = (spot_taker_pct >= 50.0)
+                chase_valid = (dist_breakout_pct <= 0.60)
                 
                 if is_in_retest_zone and no_lower_low and sell_vol_decay and tb_rebound and chase_valid:
                     retest_confirmed = True
                     action_state = "BUY_READY"
-                    retest_note = f"Retest Bölgesi (${retest_zone_low:.4f} - ${retest_zone_high:.4f}) teyit edildi, satış hacmi sönümlendi, alıcı baskısı (%{spot_taker_pct:.1f}) toparlandı."
+                    retest_note = f"Retest Bölgesi (${retest_zone_low:.4f} - ${retest_zone_high:.4f}) teyit edildi."
                 else:
                     retest_confirmed = False
                     action_state = "CONFIRMING"
                     retest_note = "Retest bölgesi veya toparlanma şartları henüz eksiksiz sağlanmadı (Beklemede)."
 
-        tech_passed = (-4.0 <= gain_24h <= float(self.params.get("max_recent_gain_24h", 25.0))) and retest_confirmed and not is_first_pump_blocked
+        max_g_limit = float(self.params.get("max_recent_gain_24h") or 60.0)
+        tech_passed = (-6.0 <= gain_24h <= max_g_limit) and retest_confirmed and not is_first_pump_blocked
         if tech_passed: passed_evidence_count += 1
         evidence_groups["TechnicalStructureEvidence"] = {
             "status": "PASS" if tech_passed else "FAIL",

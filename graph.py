@@ -88,19 +88,20 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
             r_k = sess.get(f"https://api.binance.com/api/v3/klines?symbol={clean_s}&interval=5m&limit=6", timeout=3)
             klines_5m_data = r_k.json() if r_k.status_code == 200 else None
 
+            min_score_req = float(strat_cfg.get("min_ai_score") or 4.5)
             if is_scalp:
                 eval_res = scalp_engine.evaluate_candidate(ticker_dict, klines_1m=klines_5m_data)
-                is_candidate_ok = eval_res.get("is_ready") or (eval_res.get("state_machine_stage") == "READY")
                 c["v2_score"] = float(eval_res.get("strategy_score") or 8.0)
+                is_candidate_ok = (eval_res.get("is_ready") or (eval_res.get("state_machine_stage") == "READY") or (c["v2_score"] >= min_score_req))
             else:
                 eval_res = whale_engine.evaluate_whale_evidence(ticker_dict, klines_5m=klines_5m_data)
-                is_candidate_ok = eval_res.get("is_whale_confirmed") and (eval_res.get("total_evidence_score", 0) >= 7.5)
                 c["v2_score"] = float(eval_res.get("total_evidence_score") or 8.0)
+                is_candidate_ok = (eval_res.get("is_whale_confirmed") or not strat_cfg.get("retest_required", False)) and (c["v2_score"] >= min_score_req)
             
             c["v2_evaluation"] = eval_res
             if is_candidate_ok:
                 clean_candidates.append(c)
-                print(f"   🐋 [V2.3 Retest ve Taban Teyitli]: {c_sym} -> Skor: {c['v2_score']:.1f}/10 (Durum: READY)")
+                print(f"   🐋 [V2.3 Hacim & Momentum Onaylı]: {c_sym} -> Skor: {c['v2_score']:.1f}/10 (Durum: READY)")
             else:
                 stage_str = eval_res.get("state_machine_stage") or eval_res.get("evidence_groups", {}).get("TechnicalStructureEvidence", {}).get("note", "REJECTED")
                 print(f"   ⚠️ [V2.3 Retest Engeli]: {c_sym} -> {stage_str} (Skor: {c['v2_score']:.1f}/10)")
