@@ -82,12 +82,21 @@ def check_market_regime(is_scalp: bool = False) -> Dict[str, Any]:
         ema200 = calculate_ema(close_prices, 200)
         btc_rsi = calculate_rsi(close_prices, 14)
         
-        # 1. EMA200 Kontrolü: Esnek modda (%94) altcoin fırsatlarına izin verir
-        ema_multiplier = 0.94 if is_scalp else 0.96
-        is_below_ema200 = current_btc_price < (ema200 * ema_multiplier)
+        # 🎛️ AKTİF PROFİLDEN TÜM REJİM VE BTC PARAMETRELERİNİ OKU (Sıfır Sabit Değer):
+        try:
+            from db import get_strategy_config
+            strat_cfg = get_strategy_config(use_cache=True) or {}
+        except Exception:
+            strat_cfg = {}
+
+        # 1. EMA200 Trend Filtresi (Panelden Açılıp Kapanabilir & Toleransı Ayarlanabilir)
+        btc_trend_filter_enabled = bool(strat_cfg.get("btc_trend_filter_enabled", False))
+        btc_ema_tol_pct = float(strat_cfg.get("btc_ema_tolerance_pct", 10.0))
+        ema_multiplier = max(0.50, 1.0 - (btc_ema_tol_pct / 100.0))
+        is_below_ema200 = btc_trend_filter_enabled and (current_btc_price < (ema200 * ema_multiplier))
         
         # 2. Son 4 saatlik BTC sert çöküş kontrolü (Panik Koruması)
-        dump_thresh = -4.0 if is_scalp else -3.0
+        dump_thresh = -float(strat_cfg.get("max_btc_4h_dump_pct", 4.0))
         recent_4h_change = ((close_prices[-1] - close_prices[-5]) / close_prices[-5]) * 100.0 if len(close_prices) >= 5 else 0.0
         is_dumping = recent_4h_change < dump_thresh
 
@@ -102,30 +111,23 @@ def check_market_regime(is_scalp: bool = False) -> Dict[str, Any]:
                     c15_last = float(d_15m[-1][4])
                     c15_prev = float(d_15m[-3][1]) # 30 dk önceki açılış
                     pct_15m = ((c15_last - c15_prev) / c15_prev) * 100.0
-                    if pct_15m < -2.0:
+                    if pct_15m < -2.5:
                         is_15m_dumping = True
         except Exception:
             pass
             
-        # 4. RSI Zayıflık Filtresi (Dinamik Strateji Yapılandırmasından Okunur)
-        try:
-            from db import get_strategy_config
-            strat_cfg = get_strategy_config(use_cache=True) or {}
-            custom_rsi = strat_cfg.get("btc_min_rsi") or strat_cfg.get("min_btc_rsi")
-        except Exception:
-            custom_rsi = None
-            
-        default_floor = 35.0 if is_scalp else 38.0
-        rsi_floor = float(custom_rsi) if custom_rsi is not None else default_floor
+        # 4. RSI Zayıflık Filtresi (Panelden Dinamik Okunur)
+        custom_rsi = strat_cfg.get("btc_min_rsi") or strat_cfg.get("min_btc_rsi")
+        rsi_floor = float(custom_rsi) if custom_rsi is not None else (30.0 if is_scalp else 35.0)
         is_rsi_weak = btc_rsi < rsi_floor
         
         if is_below_ema200 or is_dumping or is_15m_dumping or is_rsi_weak:
             if is_15m_dumping:
-                reason = "BTC son 30 dakikada ani fırtına düşüşü (-%2.0+) başlattı (Fırtına Kalkanı Aktif)"
+                reason = "BTC son 30 dakikada ani fırtına düşüşü (-%2.5+) başlattı (Fırtına Kalkanı Aktif)"
             elif is_below_ema200:
-                reason = f"BTC (${current_btc_price:,.0f}) EMA200 (${ema200:,.0f}) altında kritik panik bölgesinde"
+                reason = f"BTC (${current_btc_price:,.0f}) EMA200 (${ema200:,.0f}) altında tolerans sınırını (>%{btc_ema_tol_pct}) aştı"
             elif is_rsi_weak:
-                reason = f"BTC 1S RSI ({btc_rsi:.1f}) belirlenen taban eşiğin (<{rsi_floor}) altında"
+                reason = f"BTC 1S RSI ({btc_rsi:.1f}) panelden belirlenen taban eşiğin (<{rsi_floor}) altında"
             else:
                 reason = f"BTC son 4 saatte %{recent_4h_change:.1f} sert düştü"
 

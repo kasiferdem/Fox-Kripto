@@ -49,12 +49,16 @@ def generate_v2_dashboard_html(
     sl_pct = float(strategy_config.get("stop_loss_pct", 1.2))
     cb_pct = float(strategy_config.get("trailing_callback_pct", 0.6))
     btc_min_rsi = float(strategy_config.get("btc_min_rsi", 35.0))
+    btc_ema_tol_pct = float(strategy_config.get("btc_ema_tolerance_pct", 10.0))
+    btc_trend_filter_enabled = bool(strategy_config.get("btc_trend_filter_enabled", False))
     retest_req = bool(strategy_config.get("retest_required", False))
     first_pump_blocked = bool(strategy_config.get("first_pump_candle_entry_blocked", False))
     sel_retest_true = "selected" if retest_req else ""
     sel_retest_false = "selected" if not retest_req else ""
     sel_firstpump_true = "selected" if first_pump_blocked else ""
     sel_firstpump_false = "selected" if not first_pump_blocked else ""
+    sel_btctrend_true = "selected" if btc_trend_filter_enabled else ""
+    sel_btctrend_false = "selected" if not btc_trend_filter_enabled else ""
 
     # Tenants Tablosu SSR HTML (Tıklanabilir Satırlar)
     tenants_ssr_html = ""
@@ -696,6 +700,17 @@ def generate_v2_dashboard_html(
           <input type="number" step="0.5" id="param_btc_min_rsi" value="{btc_min_rsi}" style="border-color: #f59e0b; font-weight: 800;" onchange="markCustom()">
         </div>
         <div class="param-box" style="min-width: 140px;">
+          <label data-i18n="p_btc_ema" style="color: #f59e0b; font-weight: 700;">BTC EMA200 Tol (%)</label>
+          <input type="number" step="1.0" id="param_btc_ema_tolerance" value="{btc_ema_tol_pct}" style="border-color: #f59e0b; font-weight: 800;" onchange="markCustom()">
+        </div>
+        <div class="param-box" style="min-width: 150px;">
+          <label data-i18n="p_btc_trend">BTC EMA Trend Filtresi</label>
+          <select id="param_btc_trend_filter_enabled" onchange="markCustom()">
+            <option value="false" {sel_btctrend_false}>Kapalı (Serbest Alım)</option>
+            <option value="true" {sel_btctrend_true}>Açık (EMA200 Zorunlu)</option>
+          </select>
+        </div>
+        <div class="param-box" style="min-width: 140px;">
           <label data-i18n="p_retest">Retest Onayı</label>
           <select id="param_retest_required" onchange="markCustom()">
             <option value="true" {sel_retest_true}>Zorunlu (Retest)</option>
@@ -1120,8 +1135,9 @@ def generate_v2_dashboard_html(
         setV('param_max_positions', p.slots || 1);
         setV('param_tp_pct', p.tp);
         setV('param_sl_pct', p.sl);
-        setV('param_trailing_callback', p.cb);
-        setV('param_btc_min_rsi', p.min_rsi || 38.0);
+        setV('param_btc_min_rsi', p.min_rsi || 35.0);
+        setV('param_btc_ema_tolerance', p.ema_tol || 10.0);
+        if (document.getElementById('param_btc_trend_filter_enabled')) document.getElementById('param_btc_trend_filter_enabled').value = String(p.trend_filter === true);
         if (document.getElementById('param_retest_required')) document.getElementById('param_retest_required').value = String(p.retest !== false);
         if (document.getElementById('param_first_pump_blocked')) document.getElementById('param_first_pump_blocked').value = String(p.firstpump !== false);
       }}
@@ -1287,11 +1303,13 @@ def generate_v2_dashboard_html(
           take_profit_pct: getVal('param_tp_pct', 'p_tp', 2.4),
           stop_loss_pct: getVal('param_sl_pct', 'p_sl', 1.0),
           trailing_callback_pct: getVal('param_trailing_callback', 'p_cb', 0.5),
-          min_5m_volume_usd: getVal('param_min_volume_usd', 'p_vol', 100000),
-          btc_min_rsi: getVal('param_btc_min_rsi', 'p_min_rsi', 38.0),
+          min_5m_volume_usd: getVal('param_min_volume_usd', 'p_vol', 2500.0),
+          btc_min_rsi: getVal('param_btc_min_rsi', 'p_min_rsi', 35.0),
+          btc_ema_tolerance_pct: getVal('param_btc_ema_tolerance', 'p_btc_ema', 10.0),
+          btc_trend_filter_enabled: (document.getElementById('param_btc_trend_filter_enabled')?.value === 'true'),
           first_pump_candle_entry_blocked: (document.getElementById('param_first_pump_blocked')?.value !== 'false'),
           retest_required: (document.getElementById('param_retest_required')?.value !== 'false'),
-          require_futures_oi: true
+          require_futures_oi: false
         }};
 
         const res = await fetch('/api/strategy-config', {{

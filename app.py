@@ -566,7 +566,9 @@ class StrategyConfigRequest(BaseModel):
     first_pump_candle_entry_blocked: Optional[bool] = True
     retest_required: Optional[bool] = True
     require_futures_oi: Optional[bool] = True
-    btc_min_rsi: Optional[float] = 38.0
+    btc_min_rsi: Optional[float] = 35.0
+    btc_ema_tolerance_pct: Optional[float] = 10.0
+    btc_trend_filter_enabled: Optional[bool] = False
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -583,20 +585,22 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "active_preset": req.active_preset,
         "volume_spike_multiplier": req.volume_spike_multiplier,
         "min_volume_usd": req.min_volume_usd,
-        "min_24h_quote_volume_usd": req.min_24h_quote_volume_usd or 5000000.0,
-        "max_daily_trades": req.max_daily_trades or 2,
+        "min_24h_quote_volume_usd": req.min_24h_quote_volume_usd or 1000000.0,
+        "max_daily_trades": req.max_daily_trades or 10,
         "max_recent_gain_24h": req.max_recent_gain_24h,
         "min_ai_score": req.min_ai_score,
         "max_budget_percent": req.max_budget_percent,
-        "max_concurrent_positions": req.max_concurrent_positions or 2,
+        "max_concurrent_positions": req.max_concurrent_positions or 3,
         "trailing_callback_pct": req.trailing_callback_pct,
         "take_profit_pct": req.take_profit_pct if req.take_profit_pct is not None else 2.5,
         "stop_loss_pct": req.stop_loss_pct if req.stop_loss_pct is not None else 1.2,
         "min_5m_volume_usd": req.min_5m_volume_usd or req.min_volume_usd,
-        "first_pump_candle_entry_blocked": req.first_pump_candle_entry_blocked if req.first_pump_candle_entry_blocked is not None else True,
-        "retest_required": req.retest_required if req.retest_required is not None else True,
+        "first_pump_candle_entry_blocked": req.first_pump_candle_entry_blocked if req.first_pump_candle_entry_blocked is not None else False,
+        "retest_required": req.retest_required if req.retest_required is not None else False,
         "require_futures_oi": req.require_futures_oi,
-        "btc_min_rsi": float(req.btc_min_rsi) if req.btc_min_rsi is not None else 38.0
+        "btc_min_rsi": float(req.btc_min_rsi) if req.btc_min_rsi is not None else 35.0,
+        "btc_ema_tolerance_pct": float(req.btc_ema_tolerance_pct) if req.btc_ema_tolerance_pct is not None else 10.0,
+        "btc_trend_filter_enabled": bool(req.btc_trend_filter_enabled) if req.btc_trend_filter_enabled is not None else False
     }
     ok = save_strategy_config(payload)
     if req.execution_mode:
