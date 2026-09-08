@@ -16,17 +16,7 @@ import requests
 from typing import Optional, Dict, Any, List
 from alpaca_client import AlpacaClient
 
-# Windows Console Emoji UnicodeEncodeError Önleyici
-if hasattr(sys.stdout, 'buffer'):
-    try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    except Exception:
-        pass
-if hasattr(sys.stderr, 'buffer'):
-    try:
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-    except Exception:
-        pass
+
 
 try:
     from dotenv import load_dotenv
