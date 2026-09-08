@@ -277,7 +277,7 @@ _poller_running = False
 def _run_stock_poller_loop():
     global _poller_running
     offset = 0
-    print("[@FoxBorsaBot]: Telegram Dinleyicisi Aktif Edildi!")
+    print("[@FoxBorsaBot]: Telegram Dinleyicisi Aktif Edildi!", flush=True)
     while _poller_running:
         try:
             base_url = _get_base_url()
@@ -296,16 +296,16 @@ def _run_stock_poller_loop():
                         try:
                             handle_stock_message(msg)
                         except Exception as msg_err:
-                            print(f"⚠️ [Stock Message Error]: {msg_err}")
+                            pass
             elif res.status_code == 409:
                 time.sleep(5)
             else:
                 time.sleep(2)
-        except Exception as e:
+        except Exception:
             time.sleep(3)
 
 def start_stock_telegram_poller():
-    """Fox Borsa Telegram Poller döngüsünü arka planda başlatır."""
+    """Fox Borsa Telegram Poller dongusunu arka planda baslatir."""
     global _poller_thread, _poller_running
     if _poller_thread and _poller_thread.is_alive():
         return
@@ -314,6 +314,6 @@ def start_stock_telegram_poller():
     _poller_thread.start()
 
 if __name__ == "__main__":
-    print("[@FoxBorsaBot]: Standalone Poller Başlatılıyor...")
+    print("[@FoxBorsaBot]: Standalone Poller Baslatiliyor...", flush=True)
     _poller_running = True
     _run_stock_poller_loop()
