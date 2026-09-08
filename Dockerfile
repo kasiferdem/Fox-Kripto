@@ -3,7 +3,7 @@
 # -----------------------------------------
 FROM python:3.12-slim
 LABEL maintainer="FoxKripto"
-LABEL build.version="20260827-v5-clean"
+LABEL build.version="20260908-v6-stable"
 
 # Çalışma dizinini ayarla
 WORKDIR /app
