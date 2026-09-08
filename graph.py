@@ -280,28 +280,11 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                         trail_callback = float(strat_cfg.get("trailing_callback_pct") or 0.6)
                         callback_mult = 1.0 - (trail_callback / 100.0)
                         
-                        be_enabled = bool(strat_cfg.get("breakeven_enabled", True))
-                        be_trigger = float(strat_cfg.get("breakeven_trigger_pct", 1.0))
-                        
-                        slock_enabled = bool(strat_cfg.get("steplock_enabled", True))
-                        slock_trigger = float(strat_cfg.get("steplock_trigger_pct", 1.8))
-                        slock_lock = float(strat_cfg.get("steplock_lock_pct", 0.9))
-                        
-                        # 🛡️ DİNAMİK 3 KADEMELİ AKILLI ZIRH MOTORU (Panelden Yönetilebilir):
-                        # 1. Ana Trailing TP: Zirve kazanç ana TP hedefini (user_tp) aşmış ve zirveden callback kadar çekilmişse:
-                        if peak_gain_pct >= user_tp and curr_p <= (highest_p * callback_mult):
+                        # 🛡️ 3 EYLÜL GERÇEK TRAILING KÂR ALMA MOTORU:
+                        # Fiyat zirveden trail_callback (%0.6) kadar geri çekildiği anda kârı kasaya kilitler:
+                        if peak_gain_pct >= trail_callback and curr_p <= (highest_p * callback_mult):
                             is_take_profit = True
-                            reason_desc = f"🎯 Trailing TP: Zirve Kâr Realizasyonu (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f})"
-                            sell_fraction = 1.0
-                        # 2. Kademeli Kâr Kilidi (Step-Lock): Fiyat tetik seviyesini (örn. +%1.80) görmüş ve kilit seviyesine (örn. +%0.90) çekilmişse kârı al
-                        elif slock_enabled and peak_gain_pct >= slock_trigger and curr_p <= (recorded_buy_p * (1.0 + (slock_lock / 100.0))):
-                            is_take_profit = True
-                            reason_desc = f"💰 Kademeli Kâr Kilidi: (+%{net_profit_pct:.2f} Net Kâr Cebe / Zirve: +%{peak_gain_pct:.2f})"
-                            sell_fraction = 1.0
-                        # 3. Başa Baş (Breakeven): Fiyat tetik seviyesini (örn. +%1.00) görüp alış seviyesine gevşemişse -> Sıfır Risk Satışı!
-                        elif be_enabled and peak_gain_pct >= be_trigger and curr_p <= (recorded_buy_p * 1.001):
-                            is_take_profit = True
-                            reason_desc = f"🛡️ Başa Baş Koruması: (+%{net_profit_pct:.2f} Komisyonsuz Sıfır Zararla Çıkış / Zirve: +%{peak_gain_pct:.2f})"
+                            reason_desc = f"🎯 Trailing Kâr Realizasyonu (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f})"
                             sell_fraction = 1.0
                         elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
                             # Kullanıcının belirlediği ana TP hedefine ulaşıldı:
