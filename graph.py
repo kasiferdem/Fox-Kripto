@@ -375,8 +375,8 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
         
     from db import get_strategy_config
-    strat_cfg = get_strategy_config(use_cache=True)
-    is_scalp_mode = "scalp" in str(strat_cfg.get("active_preset", "")).lower()
+    strat_cfg = get_strategy_config(use_cache=True) or {}
+    is_scalp_mode = (not strat_cfg.get("retest_required", False)) or ("scalp" in str(strat_cfg.get("active_preset", "")).lower()) or ("armor" in str(strat_cfg.get("active_preset", "")).lower()) or (float(strat_cfg.get("btc_min_rsi") or 35.0) <= 38.0)
     regime = check_market_regime(is_scalp=is_scalp_mode)
     if shield_active and not regime.get("is_bullish"):
         print(f"   🛑 [BTC Rejim Kalkanı]: {regime.get('reason')} - Yeni alım durduruldu.")
