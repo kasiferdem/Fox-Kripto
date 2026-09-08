@@ -187,7 +187,8 @@ class AlpacaClient:
             if cur_price <= 0:
                 return {"status": "failed", "error": f"{symbol} anlık fiyatı okunamadı."}
 
-            qty = round(amount_usd / cur_price, 4)
+            # Alpaca Bracket Order kuralları gereği tam hisse adedi (integer) kullanılır
+            qty = max(1, int(amount_usd // cur_price))
             if qty <= 0:
                 return {"status": "failed", "error": "Geçersiz hisse adedi (Qty <= 0)."}
 
