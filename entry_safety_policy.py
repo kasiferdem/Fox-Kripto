@@ -33,6 +33,8 @@ class OrderIntent:
     entry_price: float
     stop_loss_price: Optional[float] = None
     take_profit_price: Optional[float] = None
+    stop_preflight_ok: bool = True
+    execution_leader_active: bool = True
     created_at_ts: float = field(default_factory=time.time)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -93,7 +95,7 @@ def get_recent_shadow_decisions(limit: int = 20) -> List[Dict[str, Any]]:
 
 def compute_runtime_config_hash() -> str:
     """Veritabanındaki aktif strateji ve sistem ayarlarının değişmez hash imzasını üretir."""
-    strat_cfg = get_strategy_config(use_cache=False) or {}
+    strat_cfg = get_strategy_config(use_cache=True) or {}
     payload = {
         "active_preset": strat_cfg.get("active_preset"),
         "tp": strat_cfg.get("take_profit_pct"),
@@ -115,8 +117,9 @@ class EntrySafetyPolicy:
     def evaluate_intent(intent: OrderIntent) -> Tuple[bool, str, List[str]]:
         reasons = []
         
-        # 1. Kaynak Motor Doğrulaması
-        if intent.source_engine not in ["SCALPING", "WHALE_HUNTING"]:
+        # 1. Kaynak Motor Doğrulaması (Deterministik Motorlar)
+        valid_engines = ["SCALPING", "WHALE_HUNTING", "V2_SCALPING", "V2_WHALE_HUNTING"]
+        if str(intent.source_engine).upper() not in valid_engines:
             reasons.append(f"Geçersiz kaynak motor: {intent.source_engine}")
 
         # 2. Retest Teyidi Doğrulaması
@@ -155,12 +158,16 @@ class EntrySafetyPolicy:
         if not intent.slippage_ok:
             reasons.append("Tahmini slippage izin verilen tavanı aşıyor")
 
-        # 10. Koruyucu Stop Doğrulaması
-        if intent.direction.upper() == "BUY" and not intent.stop_can_be_created:
-            reasons.append("Borsaya iletilebilecek geçerli bir koruyucu stop-loss fiyatı oluşturulamadı")
+        # 10. Koruyucu Stop Doğrulaması & Preflight
+        if intent.direction.upper() == "BUY" and (not intent.stop_can_be_created or not intent.stop_preflight_ok):
+            reasons.append("Borsaya iletilebilecek geçerli bir koruyucu stop-loss fiyatı oluşturulamadı (stop_preflight_failed)")
+
+        # 11. Execution Leader Kontrolü (V1/V2 Çift Emir Engeli - Section 13)
+        if not intent.execution_leader_active:
+            reasons.append("Bu worker aktif execution leader değil (Double Execution Protection)")
 
         # -------------------------------------------------------------
-        # 🛡️ 11. GELİŞMİŞ TESTERE & GÖLGE KALKANI DENETİMİ (ANTI-CHOP SHIELD)
+        # 🛡️ 12. GELİŞMİŞ TESTERE & GÖLGE KALKANI DENETİMİ (ANTI-CHOP SHIELD)
         # -------------------------------------------------------------
         anti_chop_violations = []
         if intent.direction.upper() == "BUY":
@@ -209,6 +216,7 @@ class ExecutionGate:
     """
     Binance / Binance TR Borsa Emirlerini İnfaz Eden Yegane Yetkili Kapı.
     EntrySafetyPolicy onaylamadan hiçbir borsa çağrısı yapmaz.
+    Tüm emirleri BinanceExecutionService üzerinden iletir (Section 5).
     """
     @staticmethod
     def execute(intent: OrderIntent, tenant_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -228,9 +236,10 @@ class ExecutionGate:
         global _processed_idempotency_keys
         _processed_idempotency_keys.add(intent.idempotency_key)
 
-        # 3. Güvenli Mod Kontrolü
-        new_buys = bool(get_system_setting("new_buy_orders_enabled", False))
-        if intent.direction.upper() == "BUY" and not new_buys:
+        # 3. Güvenli Mod Kontrolü (Canlı Alımlar İçin)
+        new_buys = bool(get_system_setting("new_buy_orders_enabled", True))
+        is_paper = bool(tenant_config and tenant_config.get("is_paper_trading"))
+        if intent.direction.upper() == "BUY" and not new_buys and not is_paper:
             return {
                 "status": "NO_TRADE",
                 "symbol": intent.symbol,
@@ -238,13 +247,16 @@ class ExecutionGate:
                 "order_id": None
             }
 
-        # 4. Fiyat Korumalı Limit İnfaz
-        from exchange import execute_spot_trade
-        result = execute_spot_trade(
+        # 4. Merkezi Binance İnfaz Servisi Üzerinden Emir İlet
+        from binance_execution_service import BinanceExecutionService
+        result = BinanceExecutionService.execute_market_order(
             symbol=intent.symbol,
             side=intent.direction,
             amount_usd=intent.amount_usd,
+            entry_price=intent.entry_price,
             stop_loss_price=intent.stop_loss_price,
-            tenant_config=tenant_config
+            take_profit_price=intent.take_profit_price,
+            tenant_config=tenant_config,
+            is_simulated=is_paper
         )
         return result

@@ -48,6 +48,13 @@ def generate_v2_dashboard_html(
     tp_pct = float(strategy_config.get("take_profit_pct", 2.4 if is_scalp else 3.0))
     sl_pct = float(strategy_config.get("stop_loss_pct", 1.0 if is_scalp else 1.2))
     cb_pct = float(strategy_config.get("trailing_callback_pct", 0.5 if is_scalp else 0.5))
+    btc_min_rsi = float(strategy_config.get("btc_min_rsi", 38.0))
+    retest_req = bool(strategy_config.get("retest_required", True))
+    first_pump_blocked = bool(strategy_config.get("first_pump_candle_entry_blocked", True))
+    sel_retest_true = "selected" if retest_req else ""
+    sel_retest_false = "selected" if not retest_req else ""
+    sel_firstpump_true = "selected" if first_pump_blocked else ""
+    sel_firstpump_false = "selected" if not first_pump_blocked else ""
 
     # Tenants Tablosu SSR HTML (Tıklanabilir Satırlar)
     tenants_ssr_html = ""
@@ -678,6 +685,24 @@ def generate_v2_dashboard_html(
           <label data-i18n="p_cb">Trailing SL (%)</label>
           <input type="number" step="0.1" id="param_trailing_callback" value="{cb_pct}" onchange="markCustom()">
         </div>
+        <div class="param-box">
+          <label data-i18n="p_min_rsi" style="color: #f59e0b; font-weight: 700;">BTC Taban RSI</label>
+          <input type="number" step="0.5" id="param_btc_min_rsi" value="{btc_min_rsi}" style="border-color: #f59e0b; font-weight: 800;" onchange="markCustom()">
+        </div>
+        <div class="param-box">
+          <label data-i18n="p_retest">Retest Onayı</label>
+          <select id="param_retest_required" style="width: 100%; padding: 6px; border-radius: 6px; background: var(--bg-card); color: white; border: 1px solid var(--line-2); font-size: 11px;" onchange="markCustom()">
+            <option value="true" {sel_retest_true}>Zorunlu (Retest)</option>
+            <option value="false" {sel_retest_false}>Serbest (Momentum)</option>
+          </select>
+        </div>
+        <div class="param-box">
+          <label data-i18n="p_firstpump">İlk Pump Engeli</label>
+          <select id="param_first_pump_blocked" style="width: 100%; padding: 6px; border-radius: 6px; background: var(--bg-card); color: white; border: 1px solid var(--line-2); font-size: 11px;" onchange="markCustom()">
+            <option value="true" {sel_firstpump_true}>Engelle (Tepe Koruması)</option>
+            <option value="false" {sel_firstpump_false}>İzin Ver (Fırlamaları Yakala)</option>
+          </select>
+        </div>
       </div>
 
       <!-- 4 Temel Eylem Butonu (Sadeleştirilmiş & Eksiksiz) -->
@@ -1065,12 +1090,12 @@ def generate_v2_dashboard_html(
     let currentRisk = '{active_risk}';
 
     const PRESETS_MAP = {{
-      'VOLUME_SCALPING_AGGRESSIVE': {{ min_24h_vol: 3000000, min_vol: 20000, spike: 1.5, daily: 5, gain: 4.0, score: 7.0, budget: 75.0, slots: 3, tp: 2.2, sl: 1.0, cb: 0.4 }},
-      'VOLUME_SCALPING_BALANCED':   {{ min_24h_vol: 5000000, min_vol: 25000, spike: 1.8, daily: 3, gain: 3.5, score: 7.5, budget: 50.0, slots: 2, tp: 2.4, sl: 1.0, cb: 0.5 }},
-      'VOLUME_SCALPING_DEFENSIVE':  {{ min_24h_vol: 10000000, min_vol: 35000, spike: 2.2, daily: 2, gain: 2.5, score: 8.0, budget: 25.0, slots: 1, tp: 2.6, sl: 1.0, cb: 0.6 }},
-      'WHALE_HUNTING_AGGRESSIVE':   {{ min_24h_vol: 5000000, min_vol: 50000, spike: 2.0, daily: 3, gain: 4.0, score: 7.5, budget: 50.0, slots: 3, tp: 4.0, sl: 1.5, cb: 0.6 }},
-      'WHALE_HUNTING_BALANCED':     {{ min_24h_vol: 5000000, min_vol: 50000, spike: 2.5, daily: 2, gain: 3.5, score: 8.0, budget: 35.0, slots: 2, tp: 3.2, sl: 1.2, cb: 0.6 }},
-      'WHALE_HUNTING_DEFENSIVE':    {{ min_24h_vol: 10000000, min_vol: 100000, spike: 3.2, daily: 1, gain: 2.5, score: 8.5, budget: 25.0, slots: 1, tp: 3.0, sl: 1.0, cb: 0.5 }}
+      'VOLUME_SCALPING_AGGRESSIVE': {{ min_24h_vol: 3000000, min_vol: 20000, spike: 1.5, daily: 5, gain: 4.0, score: 7.0, budget: 75.0, slots: 3, tp: 2.2, sl: 1.0, cb: 0.4, min_rsi: 35.0, retest: false, firstpump: false }},
+      'VOLUME_SCALPING_BALANCED':   {{ min_24h_vol: 5000000, min_vol: 25000, spike: 1.8, daily: 3, gain: 3.5, score: 7.5, budget: 50.0, slots: 2, tp: 2.4, sl: 1.0, cb: 0.5, min_rsi: 38.0, retest: true, firstpump: true }},
+      'VOLUME_SCALPING_DEFENSIVE':  {{ min_24h_vol: 10000000, min_vol: 35000, spike: 2.2, daily: 2, gain: 2.5, score: 8.0, budget: 25.0, slots: 1, tp: 2.6, sl: 1.0, cb: 0.6, min_rsi: 40.0, retest: true, firstpump: true }},
+      'WHALE_HUNTING_AGGRESSIVE':   {{ min_24h_vol: 5000000, min_vol: 50000, spike: 2.0, daily: 3, gain: 4.0, score: 7.5, budget: 50.0, slots: 3, tp: 4.0, sl: 1.5, cb: 0.6, min_rsi: 35.0, retest: false, firstpump: false }},
+      'WHALE_HUNTING_BALANCED':     {{ min_24h_vol: 5000000, min_vol: 50000, spike: 2.5, daily: 2, gain: 3.5, score: 8.0, budget: 35.0, slots: 2, tp: 3.2, sl: 1.2, cb: 0.6, min_rsi: 38.0, retest: true, firstpump: true }},
+      'WHALE_HUNTING_DEFENSIVE':    {{ min_24h_vol: 10000000, min_vol: 100000, spike: 3.2, daily: 1, gain: 2.5, score: 8.5, budget: 25.0, slots: 1, tp: 3.0, sl: 1.0, cb: 0.5, min_rsi: 42.0, retest: true, firstpump: true }}
     }};
 
     function applyPresetValues() {{
@@ -1090,6 +1115,9 @@ def generate_v2_dashboard_html(
         setV('param_tp_pct', p.tp);
         setV('param_sl_pct', p.sl);
         setV('param_trailing_callback', p.cb);
+        setV('param_btc_min_rsi', p.min_rsi || 38.0);
+        if (document.getElementById('param_retest_required')) document.getElementById('param_retest_required').value = String(p.retest !== false);
+        if (document.getElementById('param_first_pump_blocked')) document.getElementById('param_first_pump_blocked').value = String(p.firstpump !== false);
       }}
     }}
 
@@ -1254,8 +1282,9 @@ def generate_v2_dashboard_html(
           stop_loss_pct: getVal('param_sl_pct', 'p_sl', 1.0),
           trailing_callback_pct: getVal('param_trailing_callback', 'p_cb', 0.5),
           min_5m_volume_usd: getVal('param_min_volume_usd', 'p_vol', 100000),
-          first_pump_candle_entry_blocked: true,
-          retest_required: true,
+          btc_min_rsi: getVal('param_btc_min_rsi', 'p_min_rsi', 38.0),
+          first_pump_candle_entry_blocked: (document.getElementById('param_first_pump_blocked')?.value !== 'false'),
+          retest_required: (document.getElementById('param_retest_required')?.value !== 'false'),
           require_futures_oi: true
         }};
 

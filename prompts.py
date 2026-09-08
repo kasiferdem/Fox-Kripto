@@ -12,142 +12,94 @@ def _get_api_key():
     raise ValueError("CRITICAL: OPENROUTER_API_KEY is not configured in environment variables.")
 
 # -----------------------------------------
-# -----------------------------------------
-# OPENROUTER & OPENAI ÇOKLU MODEL YEDEKLEME ZİNCİRİ (AI FAILOVER MESH)
-# -----------------------------------------
-MODEL_FALLBACK_CHAINS = {
-    "z-ai/glm-5.2": [
-        "google/gemini-2.5-flash",
-        "google/gemini-2.0-flash-001",
-        "openai/gpt-4o-mini",
-        "meta-llama/llama-3.3-70b-instruct"
-    ],
-    "google/gemini-3.7-flash": [
-        "google/gemini-2.5-flash",
-        "google/gemini-2.0-flash-001",
-        "openai/gpt-4o-mini",
-        "z-ai/glm-5.2"
-    ],
-    "stealth/ox-alpha": [
-        "google/gemini-2.5-flash",
-        "openai/gpt-4o-mini",
-        "meta-llama/llama-3.3-70b-instruct"
-    ],
-    "openai/gpt-6-astral": [
-        "openai/gpt-5.6-sol",
-        "openai/gpt-4o",
-        "google/gemini-2.5-flash",
-        "z-ai/glm-5.2"
-    ]
-}
+from openrouter_gateway import OpenRouterGateway, CriticalNewsAssessment, RoutineReportingSummary
+
+def resolve_legacy_model_alias(model_alias: str) -> Dict[str, Any]:
+    """Geçmiş kayıtlar için model kimliği ve bağımsızlık metadata çözümleyicisi (Section 2)."""
+    if str(model_alias).lower() in ["stealth/ox-alpha", "ox-alpha", "ox_alpha"]:
+        return {
+            "legacyModelAlias": "stealth/ox-alpha",
+            "resolvedModelIdentity": "z-ai/glm-5.3-flash",
+            "independentConfirmation": False
+        }
+    return {
+        "legacyModelAlias": model_alias,
+        "resolvedModelIdentity": model_alias,
+        "independentConfirmation": True
+    }
 
 def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens: int = 250) -> str:
     """
-    Çok Kademeli Yapay Zeka Çağrı Motoru:
-    1. İstenen birincil modele çağrı yapar.
-    2. Model meşgulse/hata verirse (429/402 vb.) sırasıyla Gemini, GPT-4o-mini ve Llama yedeklerine geçer.
-    3. OpenRouter erişilemezse doğrudan OpenAI API üzerinden gpt-4o-mini ile işlemi tamamlar.
+    Merkezi OpenRouterGateway üzerinden güvenli çağrı yönlendirir.
     """
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    key = _get_api_key()
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://fox-kripto.internal",
-        "X-Title": "Fox Multi-Agent Council"
-    }
-    
-    # Model Çağrı Sırası (Birincil Model + Yedek Modeller)
-    fallbacks = MODEL_FALLBACK_CHAINS.get(model, ["google/gemini-2.5-flash", "openai/gpt-4o-mini", "meta-llama/llama-3.3-70b-instruct"])
-    target_models = [model] + [m for m in fallbacks if m != model]
+    # stealth/ox-alpha isteklerini z-ai/glm-5.3-flash'a dönüştür (Section 2)
+    resolved_role = "ROUTINE_REPORTING"
+    if "news" in system_prompt.lower() or "haber" in system_prompt.lower() or "critical" in system_prompt.lower():
+        resolved_role = "CRITICAL_NEWS_ANALYSIS"
+    elif "audit" in system_prompt.lower() or "forensic" in system_prompt.lower():
+        resolved_role = "NIGHTLY_FORENSIC_AUDIT"
         
-    for m in target_models:
-        payload = {
-            "model": m,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ],
-            "temperature": 0.2,
-            "max_tokens": max_tokens
-        }
-        try:
-            res = requests.post(url, json=payload, headers=headers, timeout=10)
-            if res.status_code == 200:
-                data = res.json()
-                content = data["choices"][0]["message"]["content"]
-                if content and content.strip():
-                    return content
-            else:
-                print(f"⚠️ LLM Yanıt Uyarısı ({m} - Status {res.status_code}), sonraki yedek modele geçiliyor...")
-        except Exception as e:
-            print(f"❌ LLM Çağrı Hatası ({m}): {e}")
-            
-    # Son Çare: Doğrudan OpenAI API Yedek Kapısı
-    openai_key = os.environ.get("OPENAI_API_KEY", "")
-    if openai_key and not openai_key.startswith("your_"):
-        try:
-            o_url = "https://api.openai.com/v1/chat/completions"
-            o_headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
-            o_payload = {
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content}
-                ],
-                "temperature": 0.2,
-                "max_tokens": max_tokens
-            }
-            o_res = requests.post(o_url, json=o_payload, headers=o_headers, timeout=10)
-            if o_res.status_code == 200:
-                print("⚡ [Yedek Başarılı]: Doğrudan OpenAI (gpt-4o-mini) üzerinden yanıt alındı.")
-                return o_res.json()["choices"][0]["message"]["content"]
-        except Exception as o_err:
-            print(f"❌ Doğrudan OpenAI API Hatası: {o_err}")
-            
-    return ""
+    res = OpenRouterGateway.invoke(
+        role=resolved_role,
+        system_prompt=system_prompt,
+        user_content=user_content,
+        prompt_version="gateway-v2.4"
+    )
+    return res.get("raw_text", "")
 
 def call_gpt4o(system_prompt: str, user_content: str, max_tokens: int = 1500) -> str:
-    """Gemini 3.7 Flash ve yedek zincirine doğrudan güvenli çağrı yapar."""
-    return call_llm_model("google/gemini-3.7-flash", system_prompt, user_content, max_tokens=max_tokens)
+    """Merkezi gateway üzerinden rutin veya kritik raporlama çağrısı."""
+    return call_llm_model("z-ai/glm-5.3-flash", system_prompt, user_content, max_tokens=max_tokens)
 
 # -----------------------------------------
 # 1. HABER ANALİZ AJANI (NEWS AGENT)
 # -----------------------------------------
 def analyze_crypto_news(news_data: str, portfolio_state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    GPT-4o kullanarak haber metnini analiz eder, sahte haberleri (fake news) filtreler
-    ve -10.0 ile +10.0 arası sentiment_score üretir.
+    OpenRouterGateway (CRITICAL_NEWS_ANALYSIS: Gemini 3.7 Flash) kullanarak haber metnini analiz eder.
+    Yalnızca BLOCK_ONLY yetkisine sahiptir, doğrudan alım emri açamaz (Section 3.2).
     """
     system_prompt = (
-        "Sen kıdemli bir Kripto Piyasa ve Haber Analiz Ajanısın (News Agent).\n"
-        "Görevin: Gelen anlık haberleri, sosyal medya ve makro duyarlılık verilerini incelemek;\n"
-        "spekülatif veya sahte haberleri (fake news) süzmek ve piyasanın yönü için -10.0 (Aşırı Ayı/Düşüş) "
-        "ile +10.0 (Aşırı Boğa/Yükseliş) arasında net bir 'sentiment_score' belirlemektir.\n\n"
-        "ÇIKTI FORMATI: Yalnızca geçerli bir JSON nesnesi döndür:\n"
-        "{\n"
-        '  "sentiment_score": 7.5,\n'
-        '  "analysis_summary": "Haber makroekonomik olarak olumlu ve hacim artışını destekliyor.",\n'
-        '  "is_fake_news": false,\n'
-        '  "market_bias": "BULLISH"\n'
-        "}"
+        "Sen kıdemli bir Kripto Piyasa ve Makro Risk Analiz Ajanısın.\n"
+        "Görevin: Gelen anlık haberleri incelemek ve piyasa için risk şiddeti belirlemektir.\n"
+        "Yalnızca şu severity değerlerinden birini döndür:\n"
+        "NORMAL, CAUTION, HIGH_RISK, HALT_RECOMMENDED, DATA_INSUFFICIENT"
     )
     user_content = f"Gelen Haber & Duyarlılık Verisi:\n{news_data}\n\nPortföy Durumu:\n{portfolio_state}"
     
-    raw_response = call_gpt4o(system_prompt, user_content)
-    if raw_response:
-        try:
-            clean_json = raw_response.strip("` \n").replace("json", "").strip()
-            return json.loads(clean_json)
-        except Exception:
-            pass
-            
-    # Fallback varsayılan analiz
+    res = OpenRouterGateway.invoke(
+        role="CRITICAL_NEWS_ANALYSIS",
+        system_prompt=system_prompt,
+        user_content=user_content,
+        schema_model=CriticalNewsAssessment,
+        prompt_version="news-v2.4"
+    )
+    
+    struct = res.get("structured_data")
+    if struct and isinstance(struct, dict):
+        sev = struct.get("severity", "NORMAL")
+        # Sentiment skorunu severity'ye göre eşleştir (-10 ile +10)
+        score_map = {
+            "NORMAL": 6.5,
+            "CAUTION": 2.0,
+            "HIGH_RISK": -5.0,
+            "HALT_RECOMMENDED": -10.0,
+            "DATA_INSUFFICIENT": 0.0
+        }
+        return {
+            "sentiment_score": score_map.get(sev, 5.0),
+            "severity": sev,
+            "analysis_summary": struct.get("explanation", res.get("raw_text", "")),
+            "is_fake_news": (sev in ["HIGH_RISK", "HALT_RECOMMENDED"]),
+            "market_bias": "BULLISH" if sev == "NORMAL" else ("BEARISH" if sev in ["HIGH_RISK", "HALT_RECOMMENDED"] else "NEUTRAL")
+        }
+        
     return {
-        "sentiment_score": 6.5,
-        "analysis_summary": "Piyasa verisi olumlu trend gösteriyor.",
+        "sentiment_score": 5.0,
+        "severity": "NORMAL",
+        "analysis_summary": "Piyasa verisi normal akışta.",
         "is_fake_news": False,
-        "market_bias": "BULLISH"
+        "market_bias": "NEUTRAL"
     }
 
 # -----------------------------------------

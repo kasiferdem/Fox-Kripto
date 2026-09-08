@@ -120,76 +120,43 @@ def node_gemini_news_report(state: CryptoAgentState) -> Dict[str, Any]:
     print(f"   [Gemini 3.7 Flash Rapor]: Duyarlılık Skoru: {score}/10 | Yön: {analysis.get('market_bias', 'NEUTRAL')}")
     return {"sentiment_score": score}
 
-def node_glm_technical_analysis(state: CryptoAgentState) -> Dict[str, Any]:
-    """[D] GLM-5.2: Teknik analiz ve sinyal üretimi"""
-    print("\n--- [D. NODE: GLM-5.2 TEKNİK ANALİZ] ---")
+def node_technical_second_opinion(state: CryptoAgentState) -> Dict[str, Any]:
+    """[D] TECHNICAL_SECOND_OPINION: GLM-5.3 ile Shadow İkinci Görüş (Section 3.3)"""
+    print("\n--- [D. NODE: GLM-5.3 SHADOW İKİNCİ GÖRÜŞ] ---")
     candidates = state.get("filtered_candidates") or []
     if not candidates:
-        print("   [GLM-5.2]: Ön filtreden geçen aday yok, HOLD.")
-        return {"glm_technical": None}
+        print("   [GLM-5.3 Shadow]: Ön filtreden geçen aday yok, HOLD.")
+        return {"glm_technical": None, "ox_shadow": None}
         
     top_cand = candidates[0]
+    from openrouter_gateway import OpenRouterGateway, TechnicalSecondOpinion
+    
     sys_prompt = (
-        "Sen Fox AI sisteminin Baş Teknik Analistisin (z-ai/glm-5.2).\n"
-        "Gelen aday coin verisini teknik göstergeler ve fiyat hareketi (Price Action) açısından değerlendir.\n"
-        "Yalnızca geçerli bir JSON nesnesi döndür:\n"
-        '{"approved": true, "symbol": "COIN/USDT", "entry_reason": "Hacim kırılımı ve dip formasyonu teyitli.", "confidence": 8.5}'
+        "Sen Fox AI sisteminin Shadow Teknik İkinci Görüş Uzmanısın (z-ai/glm-5.3).\n"
+        "Görevin: Python tarafından hesaplanmış teknik metrikleri yorumlamak ve risk analizi sunmaktır.\n"
+        "NOT: Emir açma yetkin yoktur; değerlendirmen yalnızca gölge defterine kaydedilir."
     )
-    user_p = f"Aday Coin Verisi: {json.dumps(top_cand)}"
-    raw = call_llm_model("z-ai/glm-5.2", sys_prompt, user_p, max_tokens=250)
-    try:
-        clean = raw
-        if "{" in raw and "}" in raw:
-            clean = raw[raw.find("{"):raw.rfind("}")+1]
-        data = json.loads(clean)
-        print(f"   [GLM-5.2 / Llama Kararı]: {data.get('symbol', top_cand['symbol'])} - Onay: {data.get('approved')} ({data.get('entry_reason')})")
-        return {"glm_technical": data}
-    except Exception:
-        fallback = {"approved": True, "symbol": top_cand["symbol"], "entry_reason": "Hacim ve momentum kırılımı onaylandı.", "confidence": 8.0}
-        return {"glm_technical": fallback}
-
-def node_ox_shadow_analysis(state: CryptoAgentState) -> Dict[str, Any]:
-    """[E] OX Alpha: Shadow (Gölge) Analiz"""
-    print("\n--- [E. NODE: OX ALPHA SHADOW ANALİZ] ---")
-    candidates = state.get("filtered_candidates") or []
-    if not candidates:
-        return {"ox_shadow": None}
-        
-    top_cand = candidates[0]
-    sys_prompt = (
-        "Sen Fox AI sisteminin Piyasa Yapıcı / Quant Gölge Denetçisisin (stealth/ox-alpha).\n"
-        "Gelen aday coin için tahta likiditesi ve emir defteri derinliği açısından bağımsız gölge analiz yap.\n"
-        "Yalnızca geçerli bir JSON nesnesi döndür:\n"
-        '{"shadow_approved": true, "symbol": "COIN/USDT", "shadow_note": "Likidite ve tahta derinliği sağlıklı.", "liquidity_score": 9.0}'
+    user_p = f"Python Tarafından Hesaplanmış Aday Verisi:\n{json.dumps(top_cand)}"
+    
+    res = OpenRouterGateway.invoke(
+        role="TECHNICAL_SECOND_OPINION",
+        system_prompt=sys_prompt,
+        user_content=user_p,
+        schema_model=TechnicalSecondOpinion,
+        prompt_version="opinion-v2.4"
     )
-    user_p = f"Aday Coin: {json.dumps(top_cand)}"
-    raw = call_llm_model("stealth/ox-alpha", sys_prompt, user_p, max_tokens=250)
-    try:
-        clean = raw
-        if "{" in raw and "}" in raw:
-            clean = raw[raw.find("{"):raw.rfind("}")+1]
-        data = json.loads(clean)
-        print(f"   [OX Alpha Shadow]: {data.get('symbol', top_cand['symbol'])} - Gölge Onay: {data.get('shadow_approved')} ({data.get('shadow_note')})")
-        return {"ox_shadow": data}
-    except Exception:
-        fallback = {"shadow_approved": True, "symbol": top_cand["symbol"], "shadow_note": "Tahta derinliği ve emir defteri dengeli.", "liquidity_score": 8.5}
-        return {"ox_shadow": fallback}
-
-def node_eval_benchmark_logger(state: CryptoAgentState) -> Dict[str, Any]:
-    """[G] Karşılaştırma ve Eval Kaydı (GLM vs OX Alpha Benchmark)"""
-    print("\n--- [G. NODE: KARŞILAŞTIRMA VE EVAL KAYDI] ---")
-    glm_res = state.get("glm_technical") or {}
-    ox_res = state.get("ox_shadow") or {}
-    eval_data = {
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-        "glm_model": "z-ai/glm-5.2",
-        "glm_decision": glm_res,
-        "ox_model": "stealth/ox-alpha",
-        "ox_shadow_decision": ox_res,
-        "models_aligned": (bool(glm_res.get("approved")) == bool(ox_res.get("shadow_approved")))
+    
+    struct = res.get("structured_data") or {}
+    print(f"   [GLM-5.3 Shadow]: {top_cand.get('symbol')} - Skor: {struct.get('alignment_score', 7.0)}/10 ({struct.get('summary_tr', 'Değerlendirildi')})")
+    return {
+        "glm_technical": struct,
+        "ox_shadow": {
+            "legacyModelAlias": "stealth/ox-alpha",
+            "resolvedModelIdentity": "z-ai/glm-5.3-flash",
+            "independentConfirmation": False,
+            "data": struct
+        }
     }
-    print(f"   [Eval Benchmark]: GLM-5.2 ({glm_res.get('approved')}) vs OX Alpha ({ox_res.get('shadow_approved')}) -> Model Uyumu: {eval_data['models_aligned']}")
-    return {"eval_record": eval_data}
 
 def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     """[F & H] Deterministik RiskPolicyEngine: Kurallar, Bütçe Limiti, 3 Kademeli DCA ve Pozisyon Denetimi"""
@@ -398,11 +365,12 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                                 return {"trade_proposal": dca_proposal, "policy_check_passed": True, "human_approval": "Approved"}
 
     # -------------------------------------------------------------
-    # 2. YENİ POZİSYON İÇİN POLİTİKA VE REJİM KONTROLLERİ
+    # 2. YENİ POZİSYON İÇİN POLİTİKA VE REJİM KONTROLLERİ (DETERMİNİSTİK)
     # -------------------------------------------------------------
-    glm_decision = state.get("glm_technical")
-    if not glm_decision or not glm_decision.get("approved"):
-        print("   🛑 [Politika Kontrolü]: GLM-5.2 teknik onay vermedi, işlem reddedildi.")
+    # AI Yalnızca BLOCK_ONLY Yetkisine Sahiptir (Section 1 & 3.2)
+    sentiment_score = float(state.get("sentiment_score", 5.0))
+    if sentiment_score < -4.0:
+        print(f"   🛑 [Kritik Haber Kalkanı]: Makro/Haber risk skoru ({sentiment_score:.1f}) sebebiyle işlem durduruldu (BLOCK_ONLY).")
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
         
     from db import get_strategy_config
@@ -499,7 +467,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         "take_profit_percent": dynamic_tp_pct,
         "stop_loss_percent": dynamic_sl_pct,
         "stage": "INITIAL",
-        "risk_justification": f"GLM-5.2 & OX Alpha Onaylı Alım: Bütçe %{user_max_pct:.0f} (${exec_amount_usd:.2f}) | ATR TP: +%{dynamic_tp_pct:.1f} | ATR SL: -%{dynamic_sl_pct:.1f}"
+        "risk_justification": f"V2.3 Deterministik Retest Onaylı Alım: Bütçe %{user_max_pct:.0f} (${exec_amount_usd:.2f}) | ATR TP: +%{dynamic_tp_pct:.1f} | ATR SL: -%{dynamic_sl_pct:.1f}"
     }
     print(f"   ✅ [Risk Engine Onayı]: ALIM ({fresh_coin}) - Fiyat: ${real_entry_price} | Bütçe: ${proposal['amount_usd']}")
     return {"trade_proposal": proposal, "policy_check_passed": True, "human_approval": "Approved"}
@@ -639,24 +607,20 @@ def create_crypto_graph():
     workflow = StateGraph(CryptoAgentState)
     
     # 1. Düğümleri Ekle
-    workflow.add_node("fetch_live_data", node_fetch_live_data)                 # [A]
-    workflow.add_node("deterministic_prefilter", node_deterministic_prefilter) # [B]
-    workflow.add_node("gemini_news_report", node_gemini_news_report)           # [C]
-    workflow.add_node("glm_technical_analysis", node_glm_technical_analysis)   # [D]
-    workflow.add_node("ox_shadow_analysis", node_ox_shadow_analysis)           # [E]
-    workflow.add_node("eval_benchmark_logger", node_eval_benchmark_logger)     # [G]
-    workflow.add_node("deterministic_risk_policy", node_deterministic_risk_policy) # [F]
-    workflow.add_node("reject_trade", node_reject_trade)                       # [I]
-    workflow.add_node("execute_trade", node_execute_trade)                     # [J]
+    workflow.add_node("fetch_live_data", node_fetch_live_data)                         # [A]
+    workflow.add_node("deterministic_prefilter", node_deterministic_prefilter)         # [B]
+    workflow.add_node("gemini_news_report", node_gemini_news_report)                   # [C]
+    workflow.add_node("technical_second_opinion", node_technical_second_opinion)       # [D]
+    workflow.add_node("deterministic_risk_policy", node_deterministic_risk_policy)     # [F]
+    workflow.add_node("reject_trade", node_reject_trade)                               # [I]
+    workflow.add_node("execute_trade", node_execute_trade)                             # [J]
     
     # 2. Akış Kenarlarını (Edges) Bağla
     workflow.set_entry_point("fetch_live_data")
     workflow.add_edge("fetch_live_data", "deterministic_prefilter")
     workflow.add_edge("deterministic_prefilter", "gemini_news_report")
-    workflow.add_edge("gemini_news_report", "glm_technical_analysis")
-    workflow.add_edge("glm_technical_analysis", "ox_shadow_analysis")
-    workflow.add_edge("ox_shadow_analysis", "eval_benchmark_logger")
-    workflow.add_edge("eval_benchmark_logger", "deterministic_risk_policy")
+    workflow.add_edge("gemini_news_report", "technical_second_opinion")
+    workflow.add_edge("technical_second_opinion", "deterministic_risk_policy")
     
     # 3. Şartlı Kapı: [H] Kurallar Geçti mi?
     workflow.add_conditional_edges(

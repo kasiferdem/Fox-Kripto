@@ -566,13 +566,14 @@ class StrategyConfigRequest(BaseModel):
     first_pump_candle_entry_blocked: Optional[bool] = True
     retest_required: Optional[bool] = True
     require_futures_oi: Optional[bool] = True
+    btc_min_rsi: Optional[float] = 38.0
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
     from db import get_strategy_config, STRATEGY_PRESETS, get_system_setting
     cfg = get_strategy_config(use_cache=False)
     cfg["execution_mode"] = get_system_setting("execution_mode", "PAPER_TRADING")
-    cfg["new_buy_orders_enabled"] = bool(get_system_setting("new_buy_orders_enabled", False))
+    cfg["new_buy_orders_enabled"] = bool(get_system_setting("new_buy_orders_enabled", True))
     return {"status": "success", "config": cfg, "presets": STRATEGY_PRESETS}
 
 @app_api.post("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
@@ -589,12 +590,13 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "max_budget_percent": req.max_budget_percent,
         "max_concurrent_positions": req.max_concurrent_positions or 2,
         "trailing_callback_pct": req.trailing_callback_pct,
-        "take_profit_pct": req.take_profit_pct,
-        "stop_loss_pct": req.stop_loss_pct,
+        "take_profit_pct": req.take_profit_pct if req.take_profit_pct is not None else 2.5,
+        "stop_loss_pct": req.stop_loss_pct if req.stop_loss_pct is not None else 1.2,
         "min_5m_volume_usd": req.min_5m_volume_usd or req.min_volume_usd,
         "first_pump_candle_entry_blocked": req.first_pump_candle_entry_blocked if req.first_pump_candle_entry_blocked is not None else True,
         "retest_required": req.retest_required if req.retest_required is not None else True,
-        "require_futures_oi": req.require_futures_oi
+        "require_futures_oi": req.require_futures_oi,
+        "btc_min_rsi": float(req.btc_min_rsi) if req.btc_min_rsi is not None else 38.0
     }
     ok = save_strategy_config(payload)
     if req.execution_mode:
@@ -1459,7 +1461,12 @@ def get_dashboard_html():
                 setVal('strat-minscore', 4.5);
                 setVal('strat-maxbudget', 25.0);
                 setVal('strat-trailcallback', 0.6);
-                if (desc) desc.innerHTML = '💡 <em>Açıklama: 🛡️ 3 Kademeli Akıllı Zırh: +%1.0 Breakeven sıfır risk, +%1.5 balina kâr kilidi (%0.6), +%3.0 ralli takipçisi ve %25 (4 slot) kasa disiplini.</em>';
+                setVal('strat-minrsi', 38.0);
+                setVal('strat-tp', 2.5);
+                setVal('strat-sl', 1.2);
+                setVal('strat-retest', 'true');
+                setVal('strat-firstpump', 'true');
+                if (desc) desc.innerHTML = '💡 <em>Açıklama: 🛡️ 3 Kademeli Akıllı Zırh: BTC Taban RSI (38.0), +%1.0 Breakeven sıfır risk, +%1.5 kâr kilidi, +%2.5 TP, %1.2 SL ve %25 kasa disiplini.</em>';
             } else if (preset === 'v21_balanced' || preset === 'agile_21_august') {
                 setVal('strat-spike', 1.2);
                 setVal('strat-minvol', 4000);
@@ -1467,7 +1474,12 @@ def get_dashboard_html():
                 setVal('strat-minscore', 5.5);
                 setVal('strat-maxbudget', 33.0);
                 setVal('strat-trailcallback', 0.8);
-                if (desc) desc.innerHTML = '💡 <em>Açıklama: v2.1 Dengeli Motor: %33 max bütçe (3 slot), $4.000 min hacim ve 1.2x erken balina teyidi ile çalışır.</em>';
+                setVal('strat-minrsi', 38.0);
+                setVal('strat-tp', 3.0);
+                setVal('strat-sl', 1.5);
+                setVal('strat-retest', 'true');
+                setVal('strat-firstpump', 'true');
+                if (desc) desc.innerHTML = '💡 <em>Açıklama: v2.1 Dengeli Motor: BTC RSI (38.0), %33 max bütçe (3 slot), $4.000 min hacim ve 1.2x erken balina teyidi ile çalışır.</em>';
             } else if (preset === 'v21_agile') {
                 setVal('strat-spike', 1.15);
                 setVal('strat-minvol', 2500);
@@ -1475,7 +1487,12 @@ def get_dashboard_html():
                 setVal('strat-minscore', 4.5);
                 setVal('strat-maxbudget', 50.0);
                 setVal('strat-trailcallback', 0.6);
-                if (desc) desc.innerHTML = '💡 <em>Açıklama: v2.1 Hızlı Momentum: %50 max bütçe (2 slot), $2.500 min hacim ve 1.15x erken ivmeyle çalışır.</em>';
+                setVal('strat-minrsi', 35.0);
+                setVal('strat-tp', 2.0);
+                setVal('strat-sl', 1.0);
+                setVal('strat-retest', 'false');
+                setVal('strat-firstpump', 'false');
+                if (desc) desc.innerHTML = '💡 <em>Açıklama: 🚀 v2.1 Hızlı Momentum (Scalp): BTC RSI (35.0), Anlık kırılımlar ve hızlı mum fırlamalarını anında yakalar.</em>';
             } else if (preset === 'v21_defensive' || preset === 'defensive_22_august') {
                 setVal('strat-spike', 1.5);
                 setVal('strat-minvol', 10000);
@@ -1483,7 +1500,12 @@ def get_dashboard_html():
                 setVal('strat-minscore', 7.0);
                 setVal('strat-maxbudget', 20.0);
                 setVal('strat-trailcallback', 1.0);
-                if (desc) desc.innerHTML = '💡 <em>Açıklama: v2.1 Yüksek Güvenlik: Maksimum nakit koruma (%20 bütçe / 5 slot), 1.5x büyük balina girişlerinde devreye girer.</em>';
+                setVal('strat-minrsi', 42.0);
+                setVal('strat-tp', 3.5);
+                setVal('strat-sl', 1.5);
+                setVal('strat-retest', 'true');
+                setVal('strat-firstpump', 'true');
+                if (desc) desc.innerHTML = '💡 <em>Açıklama: v2.1 Yüksek Güvenlik: Maksimum nakit koruma (BTC RSI 42.0 / %20 bütçe), 1.5x büyük balina girişlerinde devreye girer.</em>';
             } else if (preset === 'v20_classic') {
                 setVal('strat-spike', 1.1);
                 setVal('strat-minvol', 2000);
@@ -1491,6 +1513,11 @@ def get_dashboard_html():
                 setVal('strat-minscore', 4.0);
                 setVal('strat-maxbudget', 50.0);
                 setVal('strat-trailcallback', 0.5);
+                setVal('strat-minrsi', 30.0);
+                setVal('strat-tp', 2.0);
+                setVal('strat-sl', 1.2);
+                setVal('strat-retest', 'false');
+                setVal('strat-firstpump', 'false');
                 if (desc) desc.innerHTML = '💡 <em>Açıklama: v2.0 Klasik Serbest Motor: Kısıtlamasız alım, $2.000 min hacim ve 1.1x erken balina girişi.</em>';
             } else if (preset === 'v10_legacy') {
                 setVal('strat-spike', 1.5);
@@ -1499,16 +1526,23 @@ def get_dashboard_html():
                 setVal('strat-minscore', 7.0);
                 setVal('strat-maxbudget', 25.0);
                 setVal('strat-trailcallback', 1.0);
+                setVal('strat-minrsi', 38.0);
+                setVal('strat-tp', 2.5);
+                setVal('strat-sl', 1.5);
+                setVal('strat-retest', 'true');
+                setVal('strat-firstpump', 'true');
                 if (desc) desc.innerHTML = '💡 <em>Açıklama: v1.0 Orijinal Klasik Motor: İlk sürüm kuralları ve standart hacim filtresi ile çalışır.</em>';
             }
         };
         </script>
         <div class="card" style="margin-bottom: 24px; border: 1px solid rgba(99, 102, 241, 0.4); background: linear-gradient(180deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95)); box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
             <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>⚡ <strong>v2.1 Strateji & Hacim Hassasiyet Seçici (Al-Sat Çeviklik Motoru)</strong></span>
+                <span>⚡ <strong>v2.1 Strateji, Risk & Al-Sat Dinamik Kontrol Merkezi</strong></span>
                 <span id="active-strategy-badge" class="badge" style="background: rgba(99, 102, 241, 0.25); color: #818cf8; border: 1px solid #6366f1; font-size: 13px; padding: 6px 12px;">__STRAT_BADGE__</span>
             </div>
-            <div style="display: grid; grid-template-columns: 1.3fr 0.7fr 0.8fr 0.7fr 0.7fr 0.9fr 0.8fr auto; gap: 10px; align-items: end; margin-top: 10px;">
+            
+            <!-- SATIR 1: Temel Hacim & Bütçe Ayarları -->
+            <div style="display: grid; grid-template-columns: 1.4fr 0.7fr 0.8fr 0.7fr 0.7fr 0.9fr 0.8fr; gap: 10px; align-items: end; margin-top: 10px;">
                 <div>
                     <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🎯 Hazır Strateji & Sürüm</label>
                     <select id="strategy-preset-select" onchange="window.onPresetChange(this.value)" oninput="window.onPresetChange(this.value)" style="width: 100%; padding: 9px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 13px;">
@@ -1545,10 +1579,41 @@ def get_dashboard_html():
                     <label style="font-size: 12px; color: #34d399; display: block; margin-bottom: 5px; font-weight: 600;">🪜 Zirve Çekilme %</label>
                     <input type="number" id="strat-trailcallback" step="0.1" min="0.2" max="3.0" value="__STRAT_TRAILCALLBACK__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #34d399; font-weight: 700; border: 1px solid #10b981;">
                 </div>
+            </div>
+
+            <!-- SATIR 2: BTC Kalkanı, TP/SL, Retest ve Hızlı Aksiyon -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1.3fr 1.3fr auto; gap: 10px; align-items: end; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
                 <div>
-                    <button id="btn-save-strat" class="btn btn-primary" onclick="saveStrategySettings()" style="height: 38px; white-space: nowrap; font-weight: 600;">💾 Profili Uygula</button>
+                    <label style="font-size: 12px; color: #f59e0b; display: block; margin-bottom: 5px; font-weight: 600;">🛡️ BTC Taban RSI</label>
+                    <input type="number" id="strat-minrsi" step="0.5" min="20.0" max="60.0" value="__STRAT_MINRSI__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #f59e0b; font-weight: 700; border: 1px solid #f59e0b;">
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: #10b981; display: block; margin-bottom: 5px; font-weight: 600;">🎯 Hedef Kâr (TP %)</label>
+                    <input type="number" id="strat-tp" step="0.1" min="0.5" max="50.0" value="__STRAT_TP__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #10b981; font-weight: 700; border: 1px solid #10b981;">
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: #ef4444; display: block; margin-bottom: 5px; font-weight: 600;">🛑 Stop Loss (SL %)</label>
+                    <input type="number" id="strat-sl" step="0.1" min="0.3" max="20.0" value="__STRAT_SL__" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: #ef4444; font-weight: 700; border: 1px solid #ef4444;">
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🔄 Retest Onayı</label>
+                    <select id="strat-retest" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 12px;">
+                        <option value="true" __STRAT_SEL_RETEST_YES__>✅ Zorunlu (Güvenli Retest)</option>
+                        <option value="false" __STRAT_SEL_RETEST_NO__>⚡ Serbest (Hızlı Momentum Kırılımı)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 5px;">🚫 İlk Pump Mum Engeli</label>
+                    <select id="strat-firstpump" style="width: 100%; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.9); color: white; border: 1px solid var(--border); font-size: 12px;">
+                        <option value="true" __STRAT_SEL_FIRSTPUMP_YES__>🛡️ Engelle (Tepe FOMO Koruması)</option>
+                        <option value="false" __STRAT_SEL_FIRSTPUMP_NO__>⚡ İzin Ver (Anlık Fırlamaları Yakala)</option>
+                    </select>
+                </div>
+                <div>
+                    <button id="btn-save-strat" class="btn btn-primary" onclick="saveStrategySettings()" style="height: 38px; white-space: nowrap; font-weight: 700; padding: 0 18px; box-shadow: 0 4px 14px rgba(99,102,241,0.4);">💾 Profili Uygula</button>
                 </div>
             </div>
+
             <div id="strat-desc" style="font-size: 12px; color: #94a3b8; margin-top: 10px;">
                 💡 <em>Açıklama: v2.1 Kurumsal Motor: %25 max bütçe (4 slot), 3 Kademeli DCA, BTC RSI kalkanı ve 1.3x hacim teyidi ile çalışır.</em>
             </div>
@@ -2460,6 +2525,11 @@ __SSR_TENANTS_HTML__
                 const minscore = parseFloat(document.getElementById('strat-minscore').value) || 5.5;
                 const maxbudget = parseFloat(document.getElementById('strat-maxbudget').value) || 33.0;
                 const trailcallback = parseFloat(document.getElementById('strat-trailcallback').value) || 0.8;
+                const minrsi = parseFloat(document.getElementById('strat-minrsi').value) || 38.0;
+                const tp = parseFloat(document.getElementById('strat-tp').value) || 2.5;
+                const sl = parseFloat(document.getElementById('strat-sl').value) || 1.2;
+                const retest = (document.getElementById('strat-retest').value === 'true');
+                const firstpump = (document.getElementById('strat-firstpump').value === 'true');
 
                 try {
                     const res = await fetch('/api/strategy-config', {
@@ -2472,14 +2542,18 @@ __SSR_TENANTS_HTML__
                             max_recent_gain_24h: maxgain,
                             min_ai_score: minscore,
                             max_budget_percent: maxbudget,
-                            trailing_callback_pct: trailcallback
+                            trailing_callback_pct: trailcallback,
+                            btc_min_rsi: minrsi,
+                            take_profit_pct: tp,
+                            stop_loss_pct: sl,
+                            retest_required: retest,
+                            first_pump_candle_entry_blocked: firstpump
                         })
                     });
                     const data = await res.json();
                     if (data.status === 'success') {
                         updateStrategyBadge(preset, spike);
-                        showToast('✅ Strateji ve Sürüm Profili Başarıyla Kaydedildi!<br><br><b>Sürüm:</b> ' + preset + ' (' + spike + 'x)<br><b>Bütçe:</b> %' + maxbudget + ' | <b>Min Hacim:</b> $' + minvol + '<br><b>Tavan:</b> %' + maxgain + ' | <b>Zirve Kilidi:</b> %' + trailcallback, 'success');
-                        loadStrategyConfig();
+                        showToast('✅ Strateji ve Risk Profili Başarıyla Kaydedildi!<br><br><b>Sürüm:</b> ' + preset + '<br><b>BTC Taban RSI:</b> ' + minrsi + ' | <b>TP:</b> %' + tp + ' | <b>SL:</b> %' + sl + '<br><b>Bütçe:</b> %' + maxbudget + ' | <b>Retest:</b> ' + (retest ? 'Zorunlu' : 'Serbest'), 'success');
                     } else {
                         showToast('❌ Kaydetme Başarısız: ' + (data.detail || JSON.stringify(data)), 'error');
                     }
@@ -2720,6 +2794,11 @@ __SSR_TENANTS_HTML__
     strat_minscore = float(strat_cfg.get("min_ai_score", 4.5))
     strat_maxbudget = float(strat_cfg.get("max_budget_percent", 25.0))
     strat_trailcallback = float(strat_cfg.get("trailing_callback_pct", 0.6))
+    strat_minrsi = float(strat_cfg.get("btc_min_rsi", 38.0))
+    strat_tp = float(strat_cfg.get("take_profit_pct", 2.5))
+    strat_sl = float(strat_cfg.get("stop_loss_pct", 1.2))
+    strat_retest = bool(strat_cfg.get("retest_required", True))
+    strat_firstpump = bool(strat_cfg.get("first_pump_candle_entry_blocked", True))
 
     sel_armor = "selected" if active_preset in ["v21_smart_armor", "smart_armor"] else ""
     sel_balanced = "selected" if active_preset == "v21_balanced" else ""
@@ -2728,6 +2807,11 @@ __SSR_TENANTS_HTML__
     sel_v20 = "selected" if active_preset == "v20_classic" else ""
     sel_v10 = "selected" if active_preset == "v10_legacy" else ""
     sel_cust = "selected" if active_preset == "custom" else ""
+
+    sel_retest_yes = "selected" if strat_retest else ""
+    sel_retest_no = "selected" if not strat_retest else ""
+    sel_firstpump_yes = "selected" if strat_firstpump else ""
+    sel_firstpump_no = "selected" if not strat_firstpump else ""
     
     if active_preset in ["v21_smart_armor", "smart_armor"]:
         strat_badge_text = f"🛡️ v2.1 3 Kademeli Akıllı Zırh ({strat_spike}x) Aktif"
@@ -2773,6 +2857,13 @@ __SSR_TENANTS_HTML__
         .replace("__STRAT_MINSCORE__", str(strat_minscore))
         .replace("__STRAT_MAXBUDGET__", str(strat_maxbudget))
         .replace("__STRAT_TRAILCALLBACK__", str(strat_trailcallback))
+        .replace("__STRAT_MINRSI__", str(strat_minrsi))
+        .replace("__STRAT_TP__", str(strat_tp))
+        .replace("__STRAT_SL__", str(strat_sl))
+        .replace("__STRAT_SEL_RETEST_YES__", sel_retest_yes)
+        .replace("__STRAT_SEL_RETEST_NO__", sel_retest_no)
+        .replace("__STRAT_SEL_FIRSTPUMP_YES__", sel_firstpump_yes)
+        .replace("__STRAT_SEL_FIRSTPUMP_NO__", sel_firstpump_no)
     )
     return HTMLResponse(content=res_html)
 

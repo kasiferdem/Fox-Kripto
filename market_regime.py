@@ -107,8 +107,16 @@ def check_market_regime(is_scalp: bool = False) -> Dict[str, Any]:
         except Exception:
             pass
             
-        # 4. RSI Zayıflık Filtresi
-        rsi_floor = 36.0 if is_scalp else 42.0
+        # 4. RSI Zayıflık Filtresi (Dinamik Strateji Yapılandırması)
+        try:
+            from db import get_strategy_config
+            strat_cfg = get_strategy_config(use_cache=True) or {}
+            custom_rsi = strat_cfg.get("btc_min_rsi") or strat_cfg.get("min_btc_rsi")
+        except Exception:
+            custom_rsi = None
+            
+        default_floor = 35.0 if is_scalp else 38.0
+        rsi_floor = float(custom_rsi) if custom_rsi is not None else default_floor
         is_rsi_weak = btc_rsi < rsi_floor
         
         if is_below_ema200 or is_dumping or is_15m_dumping or is_rsi_weak:

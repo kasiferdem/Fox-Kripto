@@ -1,4 +1,4 @@
-import os, sys, time
+import os, sys, time, json
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
 from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
@@ -511,8 +511,16 @@ def get_active_cooldowns_from_db(tenant_id: str) -> List[str]:
 # SİSTEM AYARLARI VE KONTROL MERKEZİ (SYSTEM SETTINGS)
 # -------------------------------------------------------------
 
+_cached_system_settings: Optional[Dict[str, Any]] = None
+_cached_system_settings_ts: float = 0.0
+
 def get_system_setting(key: str, default: Any = None) -> Any:
-    """Supabase crypto_agent_states üzerinden global veya tenant sistem ayarını okur."""
+    """Supabase crypto_agent_states üzerinden global veya tenant sistem ayarını okur (5s cache)."""
+    global _cached_system_settings, _cached_system_settings_ts
+    now = time.time()
+    if _cached_system_settings is not None and (now - _cached_system_settings_ts < 5.0):
+        return _cached_system_settings.get(key, default)
+        
     client = get_supabase()
     if not client: return default
     session_id = "global_system_settings"
@@ -520,6 +528,8 @@ def get_system_setting(key: str, default: Any = None) -> Any:
         res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
         if res.data and len(res.data) > 0:
             data = res.data[0].get("state_data") or {}
+            _cached_system_settings = data
+            _cached_system_settings_ts = now
             return data.get(key, default)
         return default
     except Exception as e:
@@ -655,10 +665,10 @@ _cached_strategy_config = None
 _cached_strategy_config_ts = 0
 
 def get_strategy_config(use_cache: bool = True) -> dict:
-    """Veritabanından aktif strateji ve risk profilini çeker."""
+    """Veritabanından aktif strateji ve risk profilini çeker (15s cache + yerel yedek)."""
     global _cached_strategy_config, _cached_strategy_config_ts
     now = time.time()
-    if use_cache and _cached_strategy_config and (now - _cached_strategy_config_ts < 2):
+    if use_cache and _cached_strategy_config and (now - _cached_strategy_config_ts < 15):
         return _cached_strategy_config
     
     client = get_supabase()
@@ -672,37 +682,65 @@ def get_strategy_config(use_cache: bool = True) -> dict:
         except Exception:
             pass
             
-    # Varsayılan profil: v2.1 Kurumsal & Dengeli
+    # Yerel yedek dosyasından oku (varsa)
+    local_path = os.path.join(os.path.dirname(__file__), "strategy_config_local.json")
+    if os.path.exists(local_path):
+        try:
+            with open(local_path, "r", encoding="utf-8") as f:
+                _cached_strategy_config = json.load(f)
+                _cached_strategy_config_ts = now
+                return _cached_strategy_config
+        except Exception:
+            pass
+
+    # Varsayılan profil: v2.1 3 Kademeli Akıllı Zırh & Dinamik Risk
     _cached_strategy_config = {
-        "active_preset": "v21_balanced",
-        "volume_spike_multiplier": 1.3,
-        "min_volume_usd": 10000.0,
-        "max_recent_gain_24h": 12.0,
-        "min_ai_score": 6.0,
+        "active_preset": "v21_smart_armor",
+        "volume_spike_multiplier": 1.15,
+        "min_volume_usd": 2500.0,
+        "max_recent_gain_24h": 60.0,
+        "min_ai_score": 4.5,
         "max_budget_percent": 25.0,
+        "trailing_callback_pct": 0.6,
+        "btc_min_rsi": 38.0,
+        "take_profit_pct": 2.5,
+        "stop_loss_pct": 1.2,
+        "retest_required": True,
+        "first_pump_candle_entry_blocked": True,
         "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     }
     _cached_strategy_config_ts = now
     return _cached_strategy_config
 
 def save_strategy_config(config_data: dict) -> bool:
-    """Strateji ve risk profilini Supabase'e kaydeder."""
+    """Strateji ve risk profilini Supabase'e ve yerel yedeğe kaydeder."""
     global _cached_strategy_config, _cached_strategy_config_ts
-    client = get_supabase()
-    if not client: return False
+    config_data["updated_at"] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    
+    # 1. Yerel yedeğe yaz (Her zaman garantili kalıcılık)
     try:
-        config_data["updated_at"] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        local_path = os.path.join(os.path.dirname(__file__), "strategy_config_local.json")
+        with open(local_path, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, indent=2, ensure_ascii=False)
+    except Exception as e_loc:
+        print(f"⚠️ [Yerel Strateji Kayıt]: {e_loc}")
+        
+    _cached_strategy_config = config_data
+    _cached_strategy_config_ts = time.time()
+
+    # 2. Supabase'e kaydet
+    client = get_supabase()
+    if not client: return True
+    try:
         client.table("crypto_agent_states").upsert({
             "session_id": "system_strategy_config",
             "updated_at": config_data["updated_at"],
             "state_data": config_data
         }).execute()
-        _cached_strategy_config = config_data
-        _cached_strategy_config_ts = time.time()
         return True
     except Exception as e:
-        print(f"⚠️ [Strateji Kaydetme Hatası]: {e}")
-        return False
+        print(f"⚠️ [Strateji Supabase Kaydetme]: {e}")
+        return True
 
 if __name__ == "__main__":
     print("🚀 Multi-Tenant db.py Modülü Test Ediliyor...")
