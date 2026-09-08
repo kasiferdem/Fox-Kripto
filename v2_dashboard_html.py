@@ -649,81 +649,103 @@ def generate_v2_dashboard_html(
         <button id="pill-cus" class="{pill_cus_cls}" onclick="switchRisk('CUSTOM')" data-i18n="prof_cus">Özel Ayarlar</button>
       </div>
 
-      <!-- İnce Ayar Parametre Alanı -->
-      <div class="param-grid" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));">
-        <div class="param-box">
-          <label data-i18n="p_vol24">Min 24s Hacim ($)</label>
-          <input type="number" id="param_min_24h_vol" value="{min_24h_vol}" onchange="markCustom()">
+      <!-- İnce Ayar Parametre Alanı (3 Düzenli & Hizalı Kategori) -->
+      <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px;">
+        
+        <!-- 1. Grup: Hacim & Tarama Filtreleri -->
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px;">
+          <div style="font-size: 11.5px; font-weight: 700; color: var(--fox-flame); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.03em;">📊 1. Hacim & Tarama Filtreleri</div>
+          <div class="param-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 0; padding: 0; background: transparent; border: none;">
+            <div class="param-box">
+              <label data-i18n="p_vol24">Min 24s Hacim ($)</label>
+              <input type="number" id="param_min_24h_vol" value="{min_24h_vol}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_vol">Min 5dk Hacim ($)</label>
+              <input type="number" id="param_min_volume_usd" value="{min_vol}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_spike">Hacim Çarpanı (x)</label>
+              <input type="number" step="0.05" id="param_volume_spike" value="{spike_mult}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_gain">Maks 24s Prim (%)</label>
+              <input type="number" step="0.5" id="param_max_gain_24h" value="{max_gain}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_score">Min AI Skoru</label>
+              <input type="number" step="0.1" id="param_min_ai_score" value="{ai_score}" onchange="markCustom()">
+            </div>
+          </div>
         </div>
-        <div class="param-box">
-          <label data-i18n="p_vol">Min 5dk Hacim ($)</label>
-          <input type="number" id="param_min_volume_usd" value="{min_vol}" onchange="markCustom()">
+
+        <!-- 2. Grup: Kâr / Zarar & Kasa Hedefleri -->
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px;">
+          <div style="font-size: 11.5px; font-weight: 700; color: var(--ok-fg); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.03em;">🎯 2. Kâr / Zarar & Pozisyon Hedefleri</div>
+          <div class="param-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 0; padding: 0; background: transparent; border: none;">
+            <div class="param-box">
+              <label data-i18n="p_tp">Hedef Kâr (%)</label>
+              <input type="number" step="0.1" id="param_tp_pct" value="{tp_pct}" style="color: var(--ok-fg); font-weight: 800;" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_sl">Zarar Kes (%)</label>
+              <input type="number" step="0.1" id="param_sl_pct" value="{sl_pct}" style="color: var(--stop-fg); font-weight: 800;" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_cb">Trailing SL (%)</label>
+              <input type="number" step="0.1" id="param_trailing_callback" value="{cb_pct}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_budget">Kasa Bütçesi (%)</label>
+              <input type="number" step="1" id="param_max_budget" value="{max_budget}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_slots" style="color: var(--fox-flame); font-weight: 700;">Maks Açık Slot</label>
+              <input type="number" min="1" max="6" step="1" id="param_max_positions" value="{max_positions}" style="border-color: var(--fox-flame); font-weight: 800;" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_daily">Günlük İşlem Kotası</label>
+              <input type="number" min="1" max="50" step="1" id="param_max_daily_trades" value="{max_daily}" onchange="markCustom()">
+            </div>
+          </div>
         </div>
-        <div class="param-box">
-          <label data-i18n="p_spike">Hacim Çarpanı (x)</label>
-          <input type="number" step="0.1" id="param_volume_spike" value="{spike_mult}" onchange="markCustom()">
+
+        <!-- 3. Grup: BTC Rejim & Giriş Kuralları -->
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px;">
+          <div style="font-size: 11.5px; font-weight: 700; color: #f59e0b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.03em;">🛡️ 3. BTC Rejim & Giriş Kuralları</div>
+          <div class="param-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 0; padding: 0; background: transparent; border: none;">
+            <div class="param-box">
+              <label data-i18n="p_min_rsi" style="color: #f59e0b; font-weight: 700;">BTC Taban RSI</label>
+              <input type="number" step="0.5" id="param_btc_min_rsi" value="{btc_min_rsi}" style="border-color: #f59e0b; font-weight: 800;" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_btc_ema" style="color: #f59e0b; font-weight: 700;">BTC EMA200 Tol (%)</label>
+              <input type="number" step="1.0" id="param_btc_ema_tolerance" value="{btc_ema_tol_pct}" style="border-color: #f59e0b; font-weight: 800;" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_btc_trend">BTC Trend Filtresi</label>
+              <select id="param_btc_trend_filter_enabled" onchange="markCustom()">
+                <option value="false" {sel_btctrend_false}>Kapalı (Serbest Alım)</option>
+                <option value="true" {sel_btctrend_true}>Açık (EMA200 Zorunlu)</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_retest">Retest Onayı</label>
+              <select id="param_retest_required" onchange="markCustom()">
+                <option value="true" {sel_retest_true}>Zorunlu (Retest)</option>
+                <option value="false" {sel_retest_false}>Serbest (Momentum)</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label data-i18n="p_firstpump">İlk Pump Engeli</label>
+              <select id="param_first_pump_blocked" onchange="markCustom()">
+                <option value="true" {sel_firstpump_true}>Engelle (Tepe Koru)</option>
+                <option value="false" {sel_firstpump_false}>İzin Ver (Fırlamaları Yakala)</option>
+              </select>
+            </div>
+          </div>
         </div>
-        <div class="param-box">
-          <label data-i18n="p_daily">Günlük İşlem Kotası</label>
-          <input type="number" min="1" max="50" step="1" id="param_max_daily_trades" value="{max_daily}" onchange="markCustom()">
-        </div>
-        <div class="param-box">
-          <label data-i18n="p_gain">Maks 24s Prim (%)</label>
-          <input type="number" step="0.5" id="param_max_gain_24h" value="{max_gain}" onchange="markCustom()">
-        </div>
-        <div class="param-box">
-          <label data-i18n="p_score">Min AI Skoru</label>
-          <input type="number" step="0.1" id="param_min_ai_score" value="{ai_score}" onchange="markCustom()">
-        </div>
-        <div class="param-box">
-          <label data-i18n="p_budget">Kasa Bütçesi (%)</label>
-          <input type="number" step="1" id="param_max_budget" value="{max_budget}" onchange="markCustom()">
-        </div>
-        <div class="param-box">
-          <label data-i18n="p_slots" style="color: var(--fox-flame); font-weight: 700;">Maks Açık Slot</label>
-          <input type="number" min="1" max="6" step="1" id="param_max_positions" value="{max_positions}" style="border-color: var(--fox-flame); font-weight: 800;" onchange="markCustom()">
-        </div>
-        <div class="param-box">
-          <label data-i18n="p_tp">Hedef Kâr (%)</label>
-          <input type="number" step="0.1" id="param_tp_pct" value="{tp_pct}" onchange="markCustom()">
-        </div>
-        <div class="param-box">
-          <label data-i18n="p_sl">Zarar Kes (%)</label>
-          <input type="number" step="0.1" id="param_sl_pct" value="{sl_pct}" onchange="markCustom()">
-        </div>
-        <div class="param-box">
-          <label data-i18n="p_cb">Trailing SL (%)</label>
-          <input type="number" step="0.1" id="param_trailing_callback" value="{cb_pct}" onchange="markCustom()">
-        </div>
-        <div class="param-box">
-          <label data-i18n="p_min_rsi" style="color: #f59e0b; font-weight: 700;">BTC Taban RSI</label>
-          <input type="number" step="0.5" id="param_btc_min_rsi" value="{btc_min_rsi}" style="border-color: #f59e0b; font-weight: 800;" onchange="markCustom()">
-        </div>
-        <div class="param-box" style="min-width: 140px;">
-          <label data-i18n="p_btc_ema" style="color: #f59e0b; font-weight: 700;">BTC EMA200 Tol (%)</label>
-          <input type="number" step="1.0" id="param_btc_ema_tolerance" value="{btc_ema_tol_pct}" style="border-color: #f59e0b; font-weight: 800;" onchange="markCustom()">
-        </div>
-        <div class="param-box" style="min-width: 150px;">
-          <label data-i18n="p_btc_trend">BTC EMA Trend Filtresi</label>
-          <select id="param_btc_trend_filter_enabled" onchange="markCustom()">
-            <option value="false" {sel_btctrend_false}>Kapalı (Serbest Alım)</option>
-            <option value="true" {sel_btctrend_true}>Açık (EMA200 Zorunlu)</option>
-          </select>
-        </div>
-        <div class="param-box" style="min-width: 140px;">
-          <label data-i18n="p_retest">Retest Onayı</label>
-          <select id="param_retest_required" onchange="markCustom()">
-            <option value="true" {sel_retest_true}>Zorunlu (Retest)</option>
-            <option value="false" {sel_retest_false}>Serbest (Momentum)</option>
-          </select>
-        </div>
-        <div class="param-box" style="min-width: 150px;">
-          <label data-i18n="p_firstpump">İlk Pump Engeli</label>
-          <select id="param_first_pump_blocked" onchange="markCustom()">
-            <option value="true" {sel_firstpump_true}>Engelle (Tepe Koruması)</option>
-            <option value="false" {sel_firstpump_false}>İzin Ver (Fırlamaları Yakala)</option>
-          </select>
-        </div>
+
       </div>
 
       <!-- 4 Temel Eylem Butonu (Sadeleştirilmiş & Eksiksiz) -->
