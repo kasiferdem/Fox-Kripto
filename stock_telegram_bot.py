@@ -14,9 +14,15 @@ import threading
 import requests
 from typing import Optional, Dict, Any, List
 from alpaca_client import AlpacaClient
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-STOCK_TELEGRAM_BOT_TOKEN = os.environ.get("STOCK_TELEGRAM_BOT_TOKEN", "8729610871:AAFGM3TOm7ZGXLVpG1m8sGSwk4l5L7zBsdg")
-BASE_URL = f"https://api.telegram.org/bot{STOCK_TELEGRAM_BOT_TOKEN}"
+def _get_base_url() -> str:
+    token = os.environ.get("STOCK_TELEGRAM_BOT_TOKEN", "").strip()
+    return f"https://api.telegram.org/bot{token}"
 
 # Ana Klavye Butonları
 MAIN_KEYBOARD = {
@@ -38,7 +44,8 @@ def send_stock_telegram_message(
     """Fox Borsa Telegram Botu üzerinden mesaj gönderir."""
     if not chat_id or not text:
         return False
-    url = f"{BASE_URL}/sendMessage"
+    base_url = _get_base_url()
+    url = f"{base_url}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": text,
@@ -55,7 +62,7 @@ def send_stock_telegram_message(
         if r.status_code != 200:
             # Markdown fallback
             payload.pop("parse_mode", None)
-            requests.post(url, json=payload, timeout=8)
+            r = requests.post(url, json=payload, timeout=8)
         return r.status_code == 200
     except Exception as e:
         print(f"⚠️ [Stock Telegram Hatası]: {e}")
@@ -266,7 +273,8 @@ def _run_stock_poller_loop():
     print("🚀 [@FoxBorsaBot]: Telegram Dinleyicisi Başlatıldı!")
     while _poller_running:
         try:
-            url = f"{BASE_URL}/getUpdates?offset={offset}&timeout=15"
+            base_url = _get_base_url()
+            url = f"{base_url}/getUpdates?offset={offset}&timeout=15"
             res = requests.get(url, timeout=20)
             if res.status_code == 200:
                 data = res.json()
