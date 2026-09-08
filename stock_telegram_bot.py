@@ -151,19 +151,54 @@ def handle_stock_message(msg: Dict[str, Any]):
     elif "bakiye" in text_lower or text_lower == "/bakiye" or "cüzdan" in text_lower:
         acc = alpaca.get_account()
         if acc.get("status") == "success":
-            port_val = acc.get("portfolio_value", 100000.0)
-            cash_val = acc.get("cash", 100000.0)
-            power_val = acc.get("buying_power", 400000.0)
+            port_val = float(acc.get("portfolio_value", 100000.0) or 100000.0)
+            cash_val = float(acc.get("cash", 100000.0) or 100000.0)
+            power_val = float(acc.get("buying_power", 400000.0) or 400000.0)
             is_p = acc.get("is_paper", True)
+            
+            raw_acc = acc.get("raw") or {}
+            last_equity = float(raw_acc.get("last_equity") or 100000.0)
+            daily_diff_usd = port_val - last_equity
+            daily_diff_pct = ((port_val - last_equity) / last_equity * 100.0) if last_equity > 0 else 0.0
+            
+            # Açık pozisyonlar ve anlık kâr/zarar toplamı
+            positions = alpaca.get_positions()
+            open_pos_count = len(positions)
+            unrealized_total_usd = sum(float(p.get("unrealized_pl", 0.0) or 0.0) for p in positions)
+            
+            rate_try = 48.0
+            try:
+                from exchange import get_live_usd_try_rate
+                live_r = get_live_usd_try_rate()
+                if live_r > 0: rate_try = live_r
+            except Exception:
+                pass
+                
+            tot_try = port_val * rate_try
+            daily_diff_try = daily_diff_usd * rate_try
+            
+            pnl_sign = "+" if daily_diff_usd >= 0 else ""
+            pnl_emoji = "🟢" if daily_diff_usd >= 0 else "🔴"
+            
+            unreal_sign = "+" if unrealized_total_usd >= 0 else ""
+            unreal_emoji = "📈" if unrealized_total_usd >= 0 else "📉"
             
             bal_msg = (
                 "💼 *ALPACA HESAP VE PORTFÖY DURUMU*\n\n"
-                f"💵 *Toplam Portföy Değeri:* `${port_val:,.2f} USD`\n"
+                f"💵 *Toplam Portföy Değeri:* `${port_val:,.2f} USD` (~₺{tot_try:,.2f} TL)\n"
                 f"🟢 *Kullanılabilir Serbest Nakit:* `${cash_val:,.2f} USD`\n"
-                f"🚀 *Gün İçi Alım Gücü (4x Margin):* `${power_val:,.2f} USD`\n"
+                f"🚀 *Gün İçi Alım Gücü (4x):* `${power_val:,.2f} USD`\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"{pnl_emoji} *GÜNLÜK NET KÂR / ZARAR (PnL):*\n"
+                f"• Net Değişim: *{pnl_sign}${daily_diff_usd:,.2f} USD* ({pnl_sign}₺{daily_diff_try:,.2f} TL)\n"
+                f"• Getiri Oranı: *{pnl_sign}%{daily_diff_pct:.2f}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"{unreal_emoji} *AÇIK POZİSYONLAR DURUMU ({open_pos_count} Hisse):*\n"
+                f"• Canlı Açık Kâr/Zarar: *{unreal_sign}${unrealized_total_usd:,.2f} USD*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"🏢 *Aracı Kurum:* Alpaca Securities LLC\n"
                 f"🧪 *Hesap Modu:* `{'Paper Sandbox ($100K)' if is_p else 'Live Real Trading'}`\n"
-                f"🟢 *Hesap Durumu:* `ACTIVE (İşleme Açık)`"
+                f"🟢 *Hesap Durumu:* `ACTIVE (İşleme Açık)` ✅"
             )
         else:
             bal_msg = f"⚠️ Bakiye sorgulanamadı: {acc.get('error')}"
