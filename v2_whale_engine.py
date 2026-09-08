@@ -23,16 +23,16 @@ class V2WhaleHuntingEngine:
             db_cfg = {}
 
         self.params = {
-            "name": str(db_cfg.get("name", "WHALE_BALANCED_RESEARCH_V1")),
-            "min_volume_multiplier": float(db_cfg.get("volume_spike_multiplier") or db_cfg.get("spike") or db_cfg.get("min_volume_multiplier") or 2.0),
-            "min_taker_buy_pct": float(db_cfg.get("min_taker_buy_pct") or 55.0),
-            "min_24h_volume_usd": float(db_cfg.get("min_24h_vol") or db_cfg.get("min_24h_volume_usd") or db_cfg.get("min_volume_usd") or 5000000.0),
-            "min_evidence_groups_required": int(db_cfg.get("min_evidence_groups_required") or 4),
-            "max_spread_pct": float(db_cfg.get("max_spread_pct") or 0.20),
-            "min_net_rr": float(db_cfg.get("min_net_rr") or 1.50),
-            "min_strategy_score": float(db_cfg.get("min_score") or db_cfg.get("score") or db_cfg.get("min_ai_score") or db_cfg.get("min_strategy_score") or 7.0),
-            "target_take_profit_pct": float(db_cfg.get("take_profit_percent") or db_cfg.get("tp") or db_cfg.get("target_take_profit_pct") or 3.0),
-            "target_stop_loss_pct": float(db_cfg.get("stop_loss_percent") or db_cfg.get("sl") or db_cfg.get("target_stop_loss_pct") or 1.2)
+            "name": str(db_cfg.get("name") or db_cfg.get("active_preset") or "WHALE_BALANCED_RESEARCH_V23"),
+            "min_volume_multiplier": float(db_cfg.get("volume_spike_multiplier") or db_cfg.get("spike") or db_cfg.get("min_volume_multiplier") or 1.15),
+            "min_taker_buy_pct": float(db_cfg.get("min_taker_buy_pct") or 50.0),
+            "min_24h_volume_usd": float(db_cfg.get("min_24h_quote_volume_usd") or db_cfg.get("min_24h_vol") or db_cfg.get("min_volume_usd") or 1000000.0),
+            "min_evidence_groups_required": int(db_cfg.get("min_evidence_groups_required") or 2),
+            "max_spread_pct": float(db_cfg.get("max_spread_pct") or 0.35),
+            "min_net_rr": float(db_cfg.get("min_net_rr") or 1.20),
+            "min_strategy_score": float(db_cfg.get("min_ai_score") or db_cfg.get("min_score") or db_cfg.get("score") or db_cfg.get("min_strategy_score") or 4.5),
+            "target_take_profit_pct": float(db_cfg.get("take_profit_pct") or db_cfg.get("take_profit_percent") or db_cfg.get("tp") or db_cfg.get("target_take_profit_pct") or 2.5),
+            "target_stop_loss_pct": float(db_cfg.get("stop_loss_pct") or db_cfg.get("stop_loss_percent") or db_cfg.get("sl") or db_cfg.get("target_stop_loss_pct") or 1.2)
         }
         if custom_params:
             self.params.update(custom_params)
