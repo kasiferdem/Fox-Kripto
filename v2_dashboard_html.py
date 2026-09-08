@@ -398,7 +398,7 @@ def generate_v2_dashboard_html(
       color: var(--ink-3);
       margin-bottom: 4px;
     }}
-    .param-box input {{
+    .param-box input, .param-box select {{
       width: 100%;
       height: 38px;
       padding: 0 10px;
@@ -406,12 +406,18 @@ def generate_v2_dashboard_html(
       border: 1px solid var(--line);
       background: var(--card);
       color: var(--ink);
-      font-size: 14px;
+      font-size: 13px;
       font-family: inherit;
       font-variant-numeric: tabular-nums;
       font-weight: 600;
+      cursor: pointer;
     }}
-    .param-box input:focus {{ outline: none; border-color: var(--fox-action); }}
+    .param-box select option {{
+      background-color: #1c1817;
+      color: #f8fafc;
+      padding: 8px;
+    }}
+    .param-box input:focus, .param-box select:focus {{ outline: none; border-color: var(--fox-action); }}
 
     /* 10 Kurumsal Teyit Matrisi */
     .audit-grid {{
@@ -689,16 +695,16 @@ def generate_v2_dashboard_html(
           <label data-i18n="p_min_rsi" style="color: #f59e0b; font-weight: 700;">BTC Taban RSI</label>
           <input type="number" step="0.5" id="param_btc_min_rsi" value="{btc_min_rsi}" style="border-color: #f59e0b; font-weight: 800;" onchange="markCustom()">
         </div>
-        <div class="param-box">
+        <div class="param-box" style="min-width: 140px;">
           <label data-i18n="p_retest">Retest Onayı</label>
-          <select id="param_retest_required" style="width: 100%; padding: 6px; border-radius: 6px; background: var(--bg-card); color: white; border: 1px solid var(--line-2); font-size: 11px;" onchange="markCustom()">
+          <select id="param_retest_required" onchange="markCustom()">
             <option value="true" {sel_retest_true}>Zorunlu (Retest)</option>
             <option value="false" {sel_retest_false}>Serbest (Momentum)</option>
           </select>
         </div>
-        <div class="param-box">
+        <div class="param-box" style="min-width: 150px;">
           <label data-i18n="p_firstpump">İlk Pump Engeli</label>
-          <select id="param_first_pump_blocked" style="width: 100%; padding: 6px; border-radius: 6px; background: var(--bg-card); color: white; border: 1px solid var(--line-2); font-size: 11px;" onchange="markCustom()">
+          <select id="param_first_pump_blocked" onchange="markCustom()">
             <option value="true" {sel_firstpump_true}>Engelle (Tepe Koruması)</option>
             <option value="false" {sel_firstpump_false}>İzin Ver (Fırlamaları Yakala)</option>
           </select>
