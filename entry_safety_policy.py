@@ -122,12 +122,16 @@ class EntrySafetyPolicy:
         if str(intent.source_engine).upper() not in valid_engines:
             reasons.append(f"Geçersiz kaynak motor: {intent.source_engine}")
 
-        # 2. Retest Teyidi Doğrulaması
-        if intent.direction.upper() == "BUY" and intent.signal_state != "RETEST_CONFIRMED":
+        strat_cfg = get_strategy_config(use_cache=True) or {}
+        retest_req = bool(strat_cfg.get("retest_required", False))
+        first_pump_blocked = bool(strat_cfg.get("first_pump_candle_entry_blocked", False))
+
+        # 2. Retest Teyidi Doğrulaması (Dinamik Ayara Bağlı)
+        if retest_req and intent.direction.upper() == "BUY" and intent.signal_state != "RETEST_CONFIRMED":
             reasons.append(f"Sinyal durumu RETEST_CONFIRMED değil ({intent.signal_state})")
 
-        # 3. Canlı / İlk Pump Mumu Engeli
-        if intent.direction.upper() == "BUY" and intent.first_pump_entry is not False:
+        # 3. Canlı / İlk Pump Mumu Engeli (Dinamik Ayara Bağlı)
+        if first_pump_blocked and intent.direction.upper() == "BUY" and intent.first_pump_entry is not False:
             reasons.append("Canlı ilk pump mumundan alım engeli aktif (first_pump_entry=True)")
 
         # 4. Risk Kararı
