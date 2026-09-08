@@ -642,14 +642,16 @@ class BinanceGlobalRESTClient:
         """Binance Global üzerinde fiziksel STOP_LOSS_LIMIT emri kurar."""
         clean_symbol = symbol.replace("/", "").replace("_", "").upper()
         l_price = limit_price if limit_price else round(stop_price * 0.995, 6 if stop_price < 1 else 2)
+        qty_str = format_quantity_by_step(quantity, clean_symbol)
+        p_dec = 4 if l_price < 1 else 2
         params = {
             "symbol": clean_symbol,
             "side": "SELL",
             "type": "STOP_LOSS_LIMIT",
             "timeInForce": "GTC",
-            "quantity": f"{quantity:.4f}" if quantity < 1 else f"{int(quantity)}",
-            "price": f"{l_price:.4f}" if l_price < 1 else f"{l_price:.2f}",
-            "stopPrice": f"{stop_price:.4f}" if stop_price < 1 else f"{stop_price:.2f}"
+            "quantity": qty_str,
+            "price": f"{l_price:.{p_dec}f}",
+            "stopPrice": f"{stop_price:.{p_dec}f}"
         }
         query_str = self._sign(params)
         url = f"{self.base_url}/api/v3/order?{query_str}"
@@ -1239,15 +1241,29 @@ def execute_spot_trade(
         
     quantity = amount_usd / price if price > 0 else 0
     
-    if side.lower() == "sell" and exchange and hasattr(exchange, "fetch_balance"):
+    if side.lower() == "sell" and exchange:
         base_asset = symbol.split("/")[0].split("_")[0].upper()
+        clean_s = symbol.replace("/", "").replace("_", "").upper()
+        # 🔓 1. Önce bu coine ait açık stop/limit emirlerini iptal et ki kilitli bakiye %100 serbest kalsın!
         try:
-            bal_check = exchange.fetch_balance()
-            free_c = float(bal_check.get("free", {}).get(base_asset, 0.0))
-            if free_c > 0:
-                quantity = free_c
+            if hasattr(exchange, "base_url") and hasattr(exchange, "_sign"):
+                c_params = {"symbol": clean_s}
+                c_query = exchange._sign(c_params)
+                c_url = f"{exchange.base_url}/api/v3/openOrders?{c_query}"
+                headers_c = {"X-MBX-APIKEY": exchange.apiKey}
+                requests.delete(c_url, headers=headers_c, timeout=5)
         except Exception:
             pass
+
+        # 💰 2. Şimdi cüzdandaki serbest bakiyeyi (%100 tam pozisyon) oku
+        if hasattr(exchange, "fetch_balance"):
+            try:
+                bal_check = exchange.fetch_balance()
+                total_c = float(bal_check.get("free", {}).get(base_asset, 0.0) or bal_check.get("total", {}).get(base_asset, 0.0))
+                if total_c > 0:
+                    quantity = total_c
+            except Exception:
+                pass
 
     if exchange and getattr(exchange, "apiKey", None) and not is_testnet:
         try:
