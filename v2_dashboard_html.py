@@ -717,9 +717,12 @@ def generate_v2_dashboard_html(
               <label data-i18n="p_sl">Zarar Kes (%)</label>
               <input type="number" step="0.1" id="param_sl_pct" value="{sl_pct}" style="color: var(--stop-fg); font-weight: 800;" onchange="markCustom()">
             </div>
-            <div class="param-box">
-              <label data-i18n="p_cb">Trailing SL (%)</label>
-              <input type="number" step="0.1" id="param_trailing_callback" value="{cb_pct}" onchange="markCustom()">
+            <div class="param-box" id="box_trailing_callback">
+              <label id="lbl_trailing_callback">
+                <span data-i18n="p_cb">Trailing SL (%)</span>
+                <span id="badge_trailing_mode" style="font-size: 9.5px; color: #10b981; margin-left: 3px; font-weight: 700;">(Klasik Mod)</span>
+              </label>
+              <input type="number" step="0.1" id="param_trailing_callback" value="{cb_pct}">
             </div>
             <div class="param-box">
               <label data-i18n="p_budget">Kasa Bütçesi (%)</label>
@@ -817,48 +820,48 @@ def generate_v2_dashboard_html(
           <div class="param-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0; padding: 0; background: transparent; border: none;">
             <div class="param-box">
               <label style="color: #a855f7; font-weight: 700;">R-Tabanlı Çıkış (Pol. C)</label>
-              <select id="param_r_exit_enabled" onchange="markCustom()">
-                <option value="false" {sel_rexit_false}>🔴 Kapalı (Klasik Trailing)</option>
+              <select id="param_r_exit_enabled" onchange="syncTrailingLabels()">
+                <option value="false" {sel_rexit_false}>🔴 Kapalı (Kart 2 Trailing Aktif)</option>
                 <option value="true" {sel_rexit_true}>🟢 Açık (Kademeli R Çıkışı)</option>
               </select>
             </div>
             <div class="param-box">
               <label>1. Kâr Eşiği (1R)</label>
-              <input type="number" min="0.5" max="5.0" step="0.1" id="param_r_first_tp_at_r" value="{r_first_tp_r}" onchange="markCustom()">
+              <input type="number" min="0.5" max="5.0" step="0.1" id="param_r_first_tp_at_r" value="{r_first_tp_r}">
             </div>
             <div class="param-box">
               <label>1. Kâr Satış Oranı (%)</label>
-              <input type="number" min="10" max="100" step="5" id="param_r_first_tp_qty_pct" value="{r_first_tp_qty}" onchange="markCustom()">
+              <input type="number" min="10" max="100" step="5" id="param_r_first_tp_qty_pct" value="{r_first_tp_qty}">
             </div>
             <div class="param-box">
-              <label>Kalan İçin Trailing (R)</label>
-              <input type="number" min="1.0" max="10.0" step="0.1" id="param_r_trailing_at_r" value="{r_trailing_r}" onchange="markCustom()">
+              <label style="color: #c084fc; font-weight: 700;">Kalan %60 İçin Trailing (R)</label>
+              <input type="number" min="1.0" max="10.0" step="0.1" id="param_r_trailing_at_r" value="{r_trailing_r}">
             </div>
             <div class="param-box">
               <label>Final TP Hedefi (R)</label>
-              <input type="number" min="1.5" max="15.0" step="0.1" id="param_r_final_target_r" value="{r_final_target_r}" onchange="markCustom()">
+              <input type="number" min="1.5" max="15.0" step="0.1" id="param_r_final_target_r" value="{r_final_target_r}">
             </div>
             <div class="param-box">
               <label>ATR Dinamik (Pol. D)</label>
-              <select id="param_use_atr_dynamic_r" onchange="markCustom()">
+              <select id="param_use_atr_dynamic_r">
                 <option value="false" {sel_atrdyn_false}>🔴 Sabit R</option>
                 <option value="true" {sel_atrdyn_true}>🟢 ATR Dinamik R</option>
               </select>
             </div>
             <div class="param-box">
               <label style="color: #f59e0b; font-weight: 700;">Net Avantaj Kapısı</label>
-              <select id="param_net_advantage_gate_enabled" onchange="markCustom()">
+              <select id="param_net_advantage_gate_enabled">
                 <option value="false" {sel_netadv_false}>🔴 Kapalı (Serbest Giriş)</option>
                 <option value="true" {sel_netadv_true}>🟢 Açık (Net R/R Filtresi)</option>
               </select>
             </div>
             <div class="param-box">
               <label>Min Net R/R Oranı</label>
-              <input type="number" min="1.0" max="5.0" step="0.1" id="param_minimum_expected_net_rr" value="{min_net_rr}" onchange="markCustom()">
+              <input type="number" min="1.0" max="5.0" step="0.1" id="param_minimum_expected_net_rr" value="{min_net_rr}">
             </div>
           </div>
           <div style="font-size: 11px; color: var(--ink-3); margin-top: 6px;">
-            💡 <em>Politika C: Fiyat +{r_first_tp_r}R kâra ulaştığında pozisyonun %{r_first_tp_qty:.0f}'i satılır ve stop derhal komisyon korumalı başabaşa (Break-Even) çekilir. Kalan kısım ise +{r_trailing_r}R üzerinde trailing ile sürülerek kâr maksimize edilir. Net Avantaj Kapısı açıkken komisyon ve slippage düşüldükten sonra net kazanç/kayıp potansiyeli en az {min_net_rr}x olmayan işlemlere girilmez.</em>
+            💡 <em><strong>Hiyerarşi & Çakışma Önleme:</strong> R-Tabanlı Çıkış AÇIK olduğunda, Kart 2'deki sabit trailing otomatik devre dışı kalır (Kart 2'de pasif etiketi belirir). Önce +{r_first_tp_r}R kârda pozisyonun %{r_first_tp_qty:.0f}'i satılıp stop başabaşa çekilir; kalan kısım ise yukarıdaki R-Trailing ile sürülür. Kart 5 KAPALI olduğunda ise sistem Kart 2'deki klasik sabit trailing (%{cb_pct}) ile çalışır.</em>
           </div>
         </div>
 
@@ -1399,6 +1402,32 @@ def generate_v2_dashboard_html(
       if (badge) badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + (curLang === 'tr' ? 'Özel Ayarlar' : 'Custom') + ' · v2.3 Aktif';
     }}
 
+    function syncTrailingLabels() {{
+      const isRExit = (document.getElementById('param_r_exit_enabled')?.value === 'true');
+      const badge = document.getElementById('badge_trailing_mode');
+      const inp = document.getElementById('param_trailing_callback');
+      const box = document.getElementById('box_trailing_callback');
+      if (badge && inp) {{
+        if (isRExit) {{
+          badge.textContent = '(Kart 5 Devrede - Pasif)';
+          badge.style.color = '#c084fc';
+          badge.style.background = 'rgba(192,132,252,0.12)';
+          badge.style.padding = '1px 5px';
+          badge.style.borderRadius = '4px';
+          inp.style.opacity = '0.45';
+          inp.title = 'Kart 5 (R-Tabanlı Çıkış) açık olduğu için Kart 2 klasik sabit trailing devre dışıdır.';
+        }} else {{
+          badge.textContent = '(Klasik Sabit Mod)';
+          badge.style.color = '#10b981';
+          badge.style.background = 'rgba(16,185,129,0.12)';
+          badge.style.padding = '1px 5px';
+          badge.style.borderRadius = '4px';
+          inp.style.opacity = '1.0';
+          inp.title = 'Klasik sabit trailing devrededir.';
+        }}
+      }}
+    }}
+
     function switchRisk(risk) {{
       currentRisk = risk;
       document.querySelectorAll('.profile-btn').forEach(btn => {{
@@ -1668,11 +1697,12 @@ def generate_v2_dashboard_html(
       }}
     }}
 
-    // Sayfa Yüklendiğinde Kayıtlı Dili Uygula
+    // Sayfa Yüklendiğinde Kayıtlı Dili Uygula ve Trailing Rozetlerini Senkronize Et
     document.addEventListener('DOMContentLoaded', () => {{
       if (curLang && curLang !== 'tr') {{
         applyLanguage(curLang);
       }}
+      syncTrailingLabels();
     }});
   </script>
 </body>
