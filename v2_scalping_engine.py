@@ -16,24 +16,38 @@ class V2ScalpingEngine:
     """
     def __init__(self, risk_level: str = "BALANCED", custom_params: Optional[Dict[str, Any]] = None):
         self.risk_level = risk_level.upper() if risk_level else "BALANCED"
-        self.params = {
-            "name": "SCALPING_BALANCED_RESEARCH_V1",
-            "timeframes": ["1m", "3m", "5m"],
-            "max_24h_premium_pct": 3.5,
-            "min_spike_multiplier": 1.4,
-            "min_5m_volume_usd": 15000.0,
-            "min_taker_buy_pct": 58.0,
-            "max_spread_pct": 0.25,
-            "max_single_candle_spike_pct": 2.20,
-            "retest_required": True,
-            "first_pump_candle_blocked": True,
-            "min_strategy_score": 7.5,
-            "target_take_profit_pct": 2.4,
-            "target_stop_loss_pct": 1.0,
-            "min_net_rr": 1.25
-        }
+        try:
+            from db import get_strategy_config
+            db_cfg = get_strategy_config(use_cache=True) or {}
+        except Exception:
+            db_cfg = {}
+
+        merged = dict(db_cfg)
         if custom_params:
-            self.params.update(custom_params)
+            merged.update(custom_params)
+
+        self.params = {
+            "name": str(merged.get("name") or merged.get("active_preset") or "SCALPING_BALANCED_RESEARCH_V1"),
+            "timeframes": ["1m", "3m", "5m"],
+            "max_24h_premium_pct": float(merged.get("max_recent_gain_24h") or merged.get("max_24h_premium_pct") or 60.0),
+            "max_recent_gain_24h": float(merged.get("max_recent_gain_24h") or merged.get("max_24h_premium_pct") or 60.0),
+            "min_spike_multiplier": float(merged.get("volume_spike_multiplier") or merged.get("min_spike_multiplier") or 1.15),
+            "volume_spike_multiplier": float(merged.get("volume_spike_multiplier") or merged.get("min_spike_multiplier") or 1.15),
+            "min_5m_volume_usd": float(merged.get("min_5m_volume_usd") or merged.get("min_volume_usd") or 2500.0),
+            "min_volume_usd": float(merged.get("min_5m_volume_usd") or merged.get("min_volume_usd") or 2500.0),
+            "min_taker_buy_pct": float(merged.get("min_taker_buy_pct") or 50.0),
+            "max_spread_pct": float(merged.get("max_spread_pct") or 0.25),
+            "max_single_candle_spike_pct": float(merged.get("max_single_candle_spike_pct") or 2.20),
+            "retest_required": bool(merged.get("retest_required", False)),
+            "first_pump_candle_blocked": bool(merged.get("first_pump_candle_entry_blocked", False)),
+            "first_pump_candle_entry_blocked": bool(merged.get("first_pump_candle_entry_blocked", False)),
+            "min_strategy_score": float(merged.get("min_ai_score") or merged.get("min_strategy_score") or 4.5),
+            "min_ai_score": float(merged.get("min_ai_score") or merged.get("min_strategy_score") or 4.5),
+            "target_take_profit_pct": float(merged.get("take_profit_pct") or merged.get("target_take_profit_pct") or 2.5),
+            "target_stop_loss_pct": float(merged.get("stop_loss_pct") or merged.get("target_stop_loss_pct") or 1.2),
+            "min_net_rr": float(merged.get("min_net_rr") or 1.25)
+        }
+        self.params.update(merged)
 
     def evaluate_candidate(
         self,
@@ -56,9 +70,9 @@ class V2ScalpingEngine:
         scores = {}
         
         # 1. 24s Dip/Prim Kontrolü (Anti-FOMO Tavanı)
-        max_premium = self.params.get("max_24h_premium_pct", 3.5)
+        max_premium = float(self.params.get("max_recent_gain_24h") or self.params.get("max_24h_premium_pct") or 60.0)
         if gain_24h > max_premium:
-            failed_criteria.append(f"24s Artış (+%{gain_24h:.1f}) tavan sınırını (+%{max_premium}) aşıyor (Tepeden Alma Engeli).")
+            failed_criteria.append(f"24s Artış (+%{gain_24h:.1f}) tavan sınırını (+%{max_premium:.1f}) aşıyor (Tepeden Alma Engeli).")
             scores["price_score"] = 2.0
         elif gain_24h < -6.0:
             failed_criteria.append(f"24s Düşüş (%{gain_24h:.1f}) aşırı negatif rejim gösteriyor.")
