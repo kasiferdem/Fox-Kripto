@@ -122,13 +122,22 @@ class V2ScalpingEngine:
             retest_zone_high = breakout_level + (0.35 * atr)
             dist_breakout_pct = ((c - breakout_level) / breakout_level * 100.0) if breakout_level > 0 else 0.0
 
-            # 🛑 1. CANLI / İLK PUMP MUMU ENGELİ: Fırlayan muma tepeden alım YASAK
-            if gain_recent_pct > 0.40 or dist_breakout_pct > 0.40:
+            # 🛑 1. CANLI / İLK PUMP MUMU & RETEST KONTROLÜ (DİNAMİK PARAMETRE)
+            first_pump_blocked = bool(self.params.get("first_pump_candle_entry_blocked", True))
+            retest_req = bool(self.params.get("retest_required", True))
+
+            if first_pump_blocked and (gain_recent_pct > 0.40 or dist_breakout_pct > 0.40):
                 state_machine_stage = "WAITING_PULLBACK"
                 failed_criteria.append(f"Canlı mum fırlamasında (+%{gain_recent_pct:.2f}); ilk pump mumundan alım engellendi, retest bekleniyor.")
                 scores["momentum_score"] = 6.0
+            elif not retest_req and (gain_recent_pct > 0.20 or spike_ratio >= self.params.get("min_spike_multiplier", 1.15)):
+                # 🚀 2-3 Eylül Serbest Momentum Modu: İlk fırlayan yeşil mumda ve hacim patlamasında anında alım
+                state_machine_stage = "READY"
+                retest_confirmed = True
+                passed_criteria.append(f"🚀 Serbest Momentum Modu (2-3 Eylül): Hacim sıçraması ({spike_ratio:.1f}x) ve anlık ivme (+%{gain_recent_pct:.2f}) teyit edildi.")
+                scores["momentum_score"] = 9.2
             # 🛡️ 2. RETEST DOĞRULAMA (2. Çıkış Dalgası)
-            elif spike_ratio >= self.params.get("min_spike_multiplier", 1.4) and (retest_zone_low <= c <= retest_zone_high * 1.004):
+            elif spike_ratio >= self.params.get("min_spike_multiplier", 1.15) and (retest_zone_low <= c <= retest_zone_high * 1.004):
                 no_lower_low = (l >= retest_zone_low * 0.995)
                 sell_decay = (float(recent_3[-1][7]) < v_prev * 0.80)
                 tb_rebound = (taker_buy_pct >= 58.0)
