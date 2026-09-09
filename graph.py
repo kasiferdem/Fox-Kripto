@@ -272,37 +272,64 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                     reason_desc = ""
                     sell_fraction = 1.0
                     
-                    if trailing_enabled:
-                        peak_gain_pct = ((highest_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
-                        
-                        from db import get_strategy_config
-                        strat_cfg = get_strategy_config(use_cache=True)
-                        trail_callback = float(strat_cfg.get("trailing_callback_pct") or 0.6)
-                        callback_mult = 1.0 - (trail_callback / 100.0)
-                        
-                        # 🛡️ 3 EYLÜL GERÇEK TRAILING KÂR ALMA MOTORU:
-                        # Fiyat zirveden trail_callback (%0.6) kadar geri çekildiği anda kârı kasaya kilitler:
-                        if peak_gain_pct >= trail_callback and curr_p <= (highest_p * callback_mult):
-                            is_take_profit = True
-                            reason_desc = f"🎯 Trailing Kâr Realizasyonu (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f})"
-                            sell_fraction = 1.0
-                        elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
-                            # Kullanıcının belirlediği ana TP hedefine ulaşıldı:
-                            is_take_profit = True
-                            reason_desc = f"🎯 Hedef Kâr Alma (+%{net_profit_pct:.2f} Net Kâr Kasaya Alındı)"
-                            sell_fraction = 1.0
-                        elif (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
-                            # Sıkı Stop-Loss sınırı:
-                            is_stop_loss = True
-                            reason_desc = f"🛡️ Sıkı Stop-Loss (%{net_profit_pct:.2f} Net Zarar Kesildi)"
-                            sell_fraction = 1.0
-                    else:
-                        if (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
-                            is_stop_loss = True
-                            reason_desc = f"Stop-Loss (%{net_profit_pct:.2f} Net)"
-                        elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
-                            is_take_profit = True
-                            reason_desc = f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
+                    # 🎯 5. KURUMSAL R-TABANLI & ATR DİNAMİK ÇIKIŞ MOTORU (POLİTİKA C & D)
+                    from db import get_strategy_config
+                    strat_cfg = get_strategy_config(use_cache=True) or {}
+                    r_exit_active = bool(strat_cfg.get("r_exit_enabled", False))
+                    
+                    if r_exit_active:
+                        from r_multiple_engine import evaluate_r_exit_policy
+                        from exit_state_machine import ExitReason
+                        atr_v = float(entry_info.get("atr", 0.0) or 0.0)
+                        should_r_exit, r_fraction, r_reason, r_stage, r_desc = evaluate_r_exit_policy(
+                            curr_price=curr_p,
+                            entry_price=recorded_buy_p,
+                            highest_price=highest_p,
+                            quantity=coin_amount,
+                            stop_price=pos_sl_price,
+                            stage=stage,
+                            strat_cfg=strat_cfg,
+                            atr_value=atr_v
+                        )
+                        if should_r_exit:
+                            if r_reason in [ExitReason.TAKE_PROFIT, ExitReason.PARTIAL_TAKE_PROFIT, ExitReason.TRAILING_STOP, ExitReason.BREAK_EVEN_STOP]:
+                                is_take_profit = True
+                            else:
+                                is_stop_loss = True
+                            reason_desc = r_desc
+                            sell_fraction = r_fraction
+                            stage = r_stage
+
+                    if not is_take_profit and not is_stop_loss:
+                        if trailing_enabled:
+                            peak_gain_pct = ((highest_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
+                            
+                            trail_callback = float(strat_cfg.get("trailing_callback_pct") or 0.6)
+                            callback_mult = 1.0 - (trail_callback / 100.0)
+                            
+                            # 🛡️ 3 EYLÜL GERÇEK TRAILING KÂR ALMA MOTORU:
+                            # Fiyat zirveden trail_callback (%0.6) kadar geri çekildiği anda kârı kasaya kilitler:
+                            if peak_gain_pct >= trail_callback and curr_p <= (highest_p * callback_mult):
+                                is_take_profit = True
+                                reason_desc = f"🎯 Trailing Kâr Realizasyonu (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f})"
+                                sell_fraction = 1.0
+                            elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
+                                # Kullanıcının belirlediği ana TP hedefine ulaşıldı:
+                                is_take_profit = True
+                                reason_desc = f"🎯 Hedef Kâr Alma (+%{net_profit_pct:.2f} Net Kâr Kasaya Alındı)"
+                                sell_fraction = 1.0
+                            elif (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
+                                # Sıkı Stop-Loss sınırı:
+                                is_stop_loss = True
+                                reason_desc = f"🛡️ Sıkı Stop-Loss (%{net_profit_pct:.2f} Net Zarar Kesildi)"
+                                sell_fraction = 1.0
+                        else:
+                            if (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
+                                is_stop_loss = True
+                                reason_desc = f"Stop-Loss (%{net_profit_pct:.2f} Net)"
+                            elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
+                                is_take_profit = True
+                                reason_desc = f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
                             
                     # ⚡ AKILLI HİBRİT MİKRO ZARAR KESİCİ (ZAMAN AŞIMI & TAKER SATIŞ BASKISI KALKANI)
                     # 🔒 MUTLAK KURAL: Tüm parametreler strategy_config üzerinden dinamik okunur.
@@ -356,12 +383,24 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             except Exception:
                                 pass
 
+                        from exit_state_machine import classify_exit_reason
+                        formal_exit = classify_exit_reason(
+                            net_pnl_pct=net_profit_pct,
+                            is_stop_loss=is_stop_loss,
+                            is_take_profit=is_take_profit,
+                            is_partial=(sell_fraction < 1.0),
+                            is_time_decay=("Zaman Kuralı" in reason_desc),
+                            is_taker_reversal=("Taker Satıcı" in reason_desc),
+                            is_breakeven=("Başabaş" in reason_desc or "Break-Even" in reason_desc)
+                        )
+
                         sell_proposal = {
                             "should_trade": True,
                             "symbol": target_symbol,
                             "direction": "SELL",
                             "is_stop_loss": is_stop_loss,
                             "reason_type": "stop-loss" if is_stop_loss else "take-profit",
+                            "exit_reason": formal_exit.value,
                             "amount_usd": round(val_fiat * sell_fraction / (live_fx if is_tr_silo else 1.0), 2),
                             "amount_coin": coin_amount * sell_fraction,
                             "remaining_coin": coin_amount * (1.0 - sell_fraction),
@@ -370,7 +409,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             "stage": stage,
                             "sell_fraction": sell_fraction,
                             "net_profit_pct": round(net_profit_pct, 2),
-                            "risk_justification": f"Otomatik Kapatma: {asset_upper} ({reason_desc})"
+                            "risk_justification": f"Otomatik Kapatma: {asset_upper} ({reason_desc} | Kod: {formal_exit.value})"
                         }
                         print(f"   [Risk Engine Kararı]: SATIM ({target_symbol}) - {reason_desc}")
                         return {"trade_proposal": sell_proposal, "policy_check_passed": True, "human_approval": "Approved"}

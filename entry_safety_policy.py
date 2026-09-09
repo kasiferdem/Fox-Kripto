@@ -189,6 +189,23 @@ class EntrySafetyPolicy:
                 if drift > max_allowed_drift:
                     anti_chop_violations.append(f"Fiyat kırılımdan aşırı uzaklaştı (Drift: +${drift:.4f} > 0.6xATR: ${max_allowed_drift:.4f})")
 
+            # C. Girişte Net Avantaj Kapısı (Expected Net R/R >= 1.5)
+            from net_advantage_gate import evaluate_net_advantage_gate
+            from db import get_strategy_config
+            strat_cfg_gate = get_strategy_config(use_cache=True) or {}
+            target_p = intent.take_profit_price or (intent.entry_price * 1.025)
+            stop_p = intent.stop_loss_price or (intent.entry_price * 0.988)
+            gate_pass, gate_ratio, gate_msg = evaluate_net_advantage_gate(
+                entry_price=intent.entry_price,
+                target_price=target_p,
+                stop_price=stop_p,
+                position_usd=intent.amount_usd or 50.0,
+                symbol=intent.symbol,
+                strat_cfg=strat_cfg_gate
+            )
+            if not gate_pass:
+                reasons.append(gate_msg)
+
         # Gölge Modu Kontrolü (Admin Panelinden Yönetilir)
         shadow_mode_active = bool(get_system_setting("anti_chop_shadow_mode", True))
         

@@ -574,6 +574,15 @@ class StrategyConfigRequest(BaseModel):
     micro_cut_time_loss_pct: Optional[float] = 0.25
     micro_cut_taker_sell_ratio: Optional[float] = 65.0
     micro_cut_taker_window_minutes: Optional[int] = 3
+    r_exit_enabled: Optional[bool] = False
+    r_first_tp_at_r: Optional[float] = 1.0
+    r_first_tp_qty_pct: Optional[float] = 40.0
+    r_breakeven_at_r: Optional[float] = 1.0
+    r_trailing_at_r: Optional[float] = 1.5
+    r_final_target_r: Optional[float] = 2.0
+    use_atr_dynamic_r: Optional[bool] = False
+    net_advantage_gate_enabled: Optional[bool] = False
+    minimum_expected_net_rr: Optional[float] = 1.5
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -610,7 +619,16 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "micro_cut_time_limit_minutes": int(req.micro_cut_time_limit_minutes) if req.micro_cut_time_limit_minutes is not None else 5,
         "micro_cut_time_loss_pct": float(req.micro_cut_time_loss_pct) if req.micro_cut_time_loss_pct is not None else 0.25,
         "micro_cut_taker_sell_ratio": float(req.micro_cut_taker_sell_ratio) if req.micro_cut_taker_sell_ratio is not None else 65.0,
-        "micro_cut_taker_window_minutes": int(req.micro_cut_taker_window_minutes) if req.micro_cut_taker_window_minutes is not None else 3
+        "micro_cut_taker_window_minutes": int(req.micro_cut_taker_window_minutes) if req.micro_cut_taker_window_minutes is not None else 3,
+        "r_exit_enabled": bool(req.r_exit_enabled) if req.r_exit_enabled is not None else False,
+        "r_first_tp_at_r": float(req.r_first_tp_at_r) if req.r_first_tp_at_r is not None else 1.0,
+        "r_first_tp_qty_pct": float(req.r_first_tp_qty_pct) if req.r_first_tp_qty_pct is not None else 40.0,
+        "r_breakeven_at_r": float(req.r_breakeven_at_r) if req.r_breakeven_at_r is not None else 1.0,
+        "r_trailing_at_r": float(req.r_trailing_at_r) if req.r_trailing_at_r is not None else 1.5,
+        "r_final_target_r": float(req.r_final_target_r) if req.r_final_target_r is not None else 2.0,
+        "use_atr_dynamic_r": bool(req.use_atr_dynamic_r) if req.use_atr_dynamic_r is not None else False,
+        "net_advantage_gate_enabled": bool(req.net_advantage_gate_enabled) if req.net_advantage_gate_enabled is not None else False,
+        "minimum_expected_net_rr": float(req.minimum_expected_net_rr) if req.minimum_expected_net_rr is not None else 1.5
     }
     ok = save_strategy_config(payload)
     if req.execution_mode:

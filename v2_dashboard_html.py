@@ -69,6 +69,23 @@ def generate_v2_dashboard_html(
     sel_micro_cut_true = "selected" if hybrid_micro_cut_enabled else ""
     sel_micro_cut_false = "selected" if not hybrid_micro_cut_enabled else ""
 
+    # 5. Kurumsal R-Tabanlı & ATR Çıkış ve Net Avantaj Kapısı
+    r_exit_enabled = bool(strategy_config.get("r_exit_enabled", False))
+    r_first_tp_r = float(strategy_config.get("r_first_tp_at_r", 1.0))
+    r_first_tp_qty = float(strategy_config.get("r_first_tp_qty_pct", 40.0))
+    r_trailing_r = float(strategy_config.get("r_trailing_at_r", 1.5))
+    r_final_target_r = float(strategy_config.get("r_final_target_r", 2.0))
+    use_atr_dynamic_r = bool(strategy_config.get("use_atr_dynamic_r", False))
+    net_adv_gate_enabled = bool(strategy_config.get("net_advantage_gate_enabled", False))
+    min_net_rr = float(strategy_config.get("minimum_expected_net_rr", 1.5))
+    
+    sel_rexit_true = "selected" if r_exit_enabled else ""
+    sel_rexit_false = "selected" if not r_exit_enabled else ""
+    sel_atrdyn_true = "selected" if use_atr_dynamic_r else ""
+    sel_atrdyn_false = "selected" if not use_atr_dynamic_r else ""
+    sel_netadv_true = "selected" if net_adv_gate_enabled else ""
+    sel_netadv_false = "selected" if not net_adv_gate_enabled else ""
+
     # Tenants Tablosu SSR HTML (Tıklanabilir Satırlar)
     tenants_ssr_html = ""
     for t in tenants:
@@ -791,6 +808,60 @@ def generate_v2_dashboard_html(
           </div>
         </div>
 
+        <!-- 5. Grup: 🏛️ Kurumsal R/ATR Kademeli Çıkış & Net Avantaj Kapısı (Politika C & D) -->
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: #a855f7; text-transform: uppercase; letter-spacing: 0.03em;">🏛️ 5. Kurumsal R/ATR Kademeli Çıkış & Net Avantaj Kapısı (Politika C & D)</div>
+            <span class="badge" style="font-size: 10px; padding: 2px 6px; background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3);">Hedge-Fund Standart</span>
+          </div>
+          <div class="param-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0; padding: 0; background: transparent; border: none;">
+            <div class="param-box">
+              <label style="color: #a855f7; font-weight: 700;">R-Tabanlı Çıkış (Pol. C)</label>
+              <select id="param_r_exit_enabled" onchange="markCustom()">
+                <option value="false" {sel_rexit_false}>🔴 Kapalı (Klasik Trailing)</option>
+                <option value="true" {sel_rexit_true}>🟢 Açık (Kademeli R Çıkışı)</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label>1. Kâr Eşiği (1R)</label>
+              <input type="number" min="0.5" max="5.0" step="0.1" id="param_r_first_tp_at_r" value="{r_first_tp_r}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label>1. Kâr Satış Oranı (%)</label>
+              <input type="number" min="10" max="100" step="5" id="param_r_first_tp_qty_pct" value="{r_first_tp_qty}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label>Kalan İçin Trailing (R)</label>
+              <input type="number" min="1.0" max="10.0" step="0.1" id="param_r_trailing_at_r" value="{r_trailing_r}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label>Final TP Hedefi (R)</label>
+              <input type="number" min="1.5" max="15.0" step="0.1" id="param_r_final_target_r" value="{r_final_target_r}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label>ATR Dinamik (Pol. D)</label>
+              <select id="param_use_atr_dynamic_r" onchange="markCustom()">
+                <option value="false" {sel_atrdyn_false}>🔴 Sabit R</option>
+                <option value="true" {sel_atrdyn_true}>🟢 ATR Dinamik R</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label style="color: #f59e0b; font-weight: 700;">Net Avantaj Kapısı</label>
+              <select id="param_net_advantage_gate_enabled" onchange="markCustom()">
+                <option value="false" {sel_netadv_false}>🔴 Kapalı (Serbest Giriş)</option>
+                <option value="true" {sel_netadv_true}>🟢 Açık (Net R/R Filtresi)</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label>Min Net R/R Oranı</label>
+              <input type="number" min="1.0" max="5.0" step="0.1" id="param_minimum_expected_net_rr" value="{min_net_rr}" onchange="markCustom()">
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--ink-3); margin-top: 6px;">
+            💡 <em>Politika C: Fiyat +{r_first_tp_r}R kâra ulaştığında pozisyonun %{r_first_tp_qty:.0f}'i satılır ve stop derhal komisyon korumalı başabaşa (Break-Even) çekilir. Kalan kısım ise +{r_trailing_r}R üzerinde trailing ile sürülerek kâr maksimize edilir. Net Avantaj Kapısı açıkken komisyon ve slippage düşüldükten sonra net kazanç/kayıp potansiyeli en az {min_net_rr}x olmayan işlemlere girilmez.</em>
+          </div>
+        </div>
+
       </div>
 
       <!-- 4 Temel Eylem Butonu (Sadeleştirilmiş & Eksiksiz) -->
@@ -1381,7 +1452,15 @@ def generate_v2_dashboard_html(
           micro_cut_time_limit_minutes: parseInt(getVal('param_micro_cut_time_limit_minutes', 'p_mtime', 5)),
           micro_cut_time_loss_pct: parseFloat(getVal('param_micro_cut_time_loss_pct', 'p_mloss', 0.25)),
           micro_cut_taker_sell_ratio: parseFloat(getVal('param_micro_cut_taker_sell_ratio', 'p_mtaker', 65.0)),
-          micro_cut_taker_window_minutes: parseInt(getVal('param_micro_cut_taker_window_minutes', 'p_mwin', 3))
+          micro_cut_taker_window_minutes: parseInt(getVal('param_micro_cut_taker_window_minutes', 'p_mwin', 3)),
+          r_exit_enabled: (document.getElementById('param_r_exit_enabled')?.value === 'true'),
+          r_first_tp_at_r: parseFloat(getVal('param_r_first_tp_at_r', '', 1.0)),
+          r_first_tp_qty_pct: parseFloat(getVal('param_r_first_tp_qty_pct', '', 40.0)),
+          r_trailing_at_r: parseFloat(getVal('param_r_trailing_at_r', '', 1.5)),
+          r_final_target_r: parseFloat(getVal('param_r_final_target_r', '', 2.0)),
+          use_atr_dynamic_r: (document.getElementById('param_use_atr_dynamic_r')?.value === 'true'),
+          net_advantage_gate_enabled: (document.getElementById('param_net_advantage_gate_enabled')?.value === 'true'),
+          minimum_expected_net_rr: parseFloat(getVal('param_minimum_expected_net_rr', '', 1.5))
         }};
 
         const res = await fetch('/api/strategy-config', {{

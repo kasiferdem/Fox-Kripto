@@ -23,5 +23,14 @@
   "micro_cut_time_loss_pct": 0.25,
   "micro_cut_taker_sell_ratio": 65.0,
   "micro_cut_taker_window_minutes": 3,
-  "updated_at": "2026-09-09T08:03:57Z"
+  "r_exit_enabled": false,
+  "r_first_tp_at_r": 1.0,
+  "r_first_tp_qty_pct": 40.0,
+  "r_breakeven_at_r": 1.0,
+  "r_trailing_at_r": 1.5,
+  "r_final_target_r": 2.0,
+  "use_atr_dynamic_r": false,
+  "net_advantage_gate_enabled": false,
+  "minimum_expected_net_rr": 1.5,
+  "updated_at": "2026-09-09T09:00:30Z"
 }
