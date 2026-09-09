@@ -326,6 +326,9 @@ class OpenRouterGateway:
                 else:
                     last_err = f"HTTP {res.status_code}: {res.text}"
                     print(f"⚠️ [OpenRouterGateway Failover]: {model_name} HTTP {res.status_code} verdi, sıradaki yedeğe geçiliyor...")
+                    if res.status_code == 402:
+                        print("⚠️ [OpenRouterGateway]: OpenRouter hesap kredisi tükendi (HTTP 402). Gecikmeyi önlemek için yedek zincir sonlandırıldı.")
+                        break
 
             except Exception as call_err:
                 last_err = str(call_err)
