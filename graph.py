@@ -305,11 +305,12 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             peak_gain_pct = ((highest_p - recorded_buy_p) / recorded_buy_p * 100) if recorded_buy_p > 0 else 0.0
                             
                             trail_callback = float(strat_cfg.get("trailing_callback_pct") or 0.6)
+                            trail_activation = float(strat_cfg.get("trailing_activation_pct") or user_tp or 2.0)
                             callback_mult = 1.0 - (trail_callback / 100.0)
                             
                             # 🛡️ 3 EYLÜL GERÇEK TRAILING KÂR ALMA MOTORU:
-                            # Fiyat zirveden trail_callback (%0.6) kadar geri çekildiği anda kârı kasaya kilitler:
-                            if peak_gain_pct >= trail_callback and curr_p <= (highest_p * callback_mult):
+                            # SADECE fiyat ana hedefe (+%2.0+) ulaştıktan sonra ve zirveden callback kadar çekilirse KÂRLA kilitler:
+                            if peak_gain_pct >= trail_activation and curr_p <= (highest_p * callback_mult) and net_profit_pct > 0.30:
                                 is_take_profit = True
                                 reason_desc = f"🎯 Trailing Kâr Realizasyonu (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f})"
                                 sell_fraction = 1.0
