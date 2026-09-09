@@ -122,6 +122,7 @@ class EntrySafetyPolicy:
         if str(intent.source_engine).upper() not in valid_engines:
             reasons.append(f"Geçersiz kaynak motor: {intent.source_engine}")
 
+        from db import get_strategy_config
         strat_cfg = get_strategy_config(use_cache=True) or {}
         retest_req = bool(strat_cfg.get("retest_required", False))
         first_pump_blocked = bool(strat_cfg.get("first_pump_candle_entry_blocked", False))

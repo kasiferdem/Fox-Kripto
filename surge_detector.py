@@ -16,11 +16,11 @@ def get_http_session():
         })
     return _http_session
 
-def fetch_1m_candles(symbol: str, limit: int = 8) -> List[Dict[str, float]]:
-    """Binance REST API üzerinden 1 dakikalık gerçek zamanlı mum verilerini çeker."""
+def fetch_5m_candles(symbol: str, limit: int = 6) -> List[Dict[str, float]]:
+    """Binance REST API üzerinden 5 dakikalık gerçek zamanlı mum verilerini çeker."""
     try:
         clean_sym = symbol.replace("/", "").replace("_", "").upper()
-        url = f"https://api.binance.com/api/v3/klines?symbol={clean_sym}&interval=1m&limit={limit}"
+        url = f"https://api.binance.com/api/v3/klines?symbol={clean_sym}&interval=5m&limit={limit}"
         sess = get_http_session()
         r = sess.get(url, timeout=3)
         if r.status_code == 200:
@@ -43,91 +43,66 @@ def fetch_1m_candles(symbol: str, limit: int = 8) -> List[Dict[str, float]]:
 
 def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_gain: float) -> Optional[Dict[str, Any]]:
     """
-    1-3 DAKİKALIK ERKEN DİP VE İLK HACİM PATLAMASI DENETÇİSİ (EARLY DIP ENGINE)
-    Yalnızca dipte (+%0.30 - +%2.00) ve 24s primi <%3.5 olan taze kırılımları seçer.
+    5 DAKİKALIK GERÇEK BALİNA & ERKEN MOMENTUM TESPİT MOTORU
+    Hem canlı oluşan mumdaki anlık patlamaları hem de son kapanmış mumu analiz eder.
     """
     sym = cand.get("symbol", "")
     price_change_24h = float(cand.get("priceChangePercent", 0.0))
     quote_volume_24h = float(cand.get("quoteVolume", 0.0))
     
-    # 🎛️ V2.3 AKTİF PROFİLDEN DİNAMİK PARAMETRE OKUMA:
-    # 🎛️ V2.3 AKTİF PROFİLDEN DİNAMİK PARAMETRE OKUMA:
     from db import get_strategy_config
     strat_cfg = get_strategy_config(use_cache=True) or {}
-    min_24h_vol = float(strat_cfg.get("min_24h_quote_volume_usd") or strat_cfg.get("min_24h_vol") or 1000000.0)
+    min_24h_vol = float(strat_cfg.get("min_24h_quote_volume_usd") or strat_cfg.get("min_24h_vol") or 500000.0)
     min_5m_vol = float(strat_cfg.get("min_5m_volume_usd") or strat_cfg.get("min_volume_usd") or strat_cfg.get("min_vol") or min_volume_usd or 2500.0)
     vol_spike_req = float(strat_cfg.get("volume_spike_multiplier") or strat_cfg.get("spike") or 1.15)
     cfg_max_gain = float(strat_cfg.get("max_recent_gain_24h") or strat_cfg.get("gain") or max_recent_gain or 60.0)
 
-    # 🚀 Dinamik Serbest Momentum Eşikleri (2-3 Eylül Kuralı - Statik Sınır Yok)
-    is_free_momentum = not bool(strat_cfg.get("retest_required", False))
-    max_candle_gain = float(strat_cfg.get("max_single_candle_spike_pct") or (6.0 if is_free_momentum else 2.5))
-    max_wick = float(strat_cfg.get("max_upper_wick_ratio") or (0.65 if is_free_momentum else 0.35))
-    min_taker = float(strat_cfg.get("min_taker_buy_pct") or 50.0)
-    
-    # 🔒 DİNAMİK LİKİDİTE EŞİĞİ (Profil Değişince Otomatik Güncellenir)
-    if quote_volume_24h < min_24h_vol:
+    # 🔒 Likidite ve Maksimum 24s Prim Kontrolü
+    if quote_volume_24h < min_24h_vol or price_change_24h > cfg_max_gain or price_change_24h < -10.0:
         return None
-        
-    # 🔒 DİNAMİK ERKEN DİP TAVANI
-    if price_change_24h > cfg_max_gain or price_change_24h < -6.0:
-        return None
-        
-    candles = fetch_1m_candles(sym, limit=8)
-    if len(candles) < 7:
-        return None
-        
-    recent_3 = candles[-4:-1] # Son 3 dakikalık kapalı mumlar
-    prev_4 = candles[-8:-4]   # Önceki 4 dakikalık baz hacim
-    
-    v_recent = sum(float(k["quote_volume"]) for k in recent_3)
-    v_prev_avg = sum(float(k["quote_volume"]) for k in prev_4) / len(prev_4) if prev_4 else 1.0
-    v_prev_expected = v_prev_avg * 3.0
-    
-    if v_prev_expected <= 0 or recent_3[0]["open"] <= 0:
-        return None
-        
-    volume_spike_ratio = v_recent / v_prev_expected
-    
-    o = float(recent_3[0]["open"])
-    c = float(recent_3[-1]["close"])
-    h = max(float(k["high"]) for k in recent_3)
-    l = min(float(k["low"]) for k in recent_3)
-    
-    gain_3m = ((c - o) / o) * 100.0
-    candle_range = h - l
-    upper_wick_ratio = ((h - max(o, c)) / candle_range) if candle_range > 0 else 0.0
-    
-    tb_recent = sum(float(k.get("taker_buy_quote_volume", 0.0)) for k in recent_3)
-    taker_buy_ratio = (tb_recent / v_recent * 100.0) if v_recent > 0 else 0.0
 
-    # 🛡️ AKTİF PROFİL FİLTRELERİ (DİNAMİK):
-    if (
-        volume_spike_ratio >= vol_spike_req and
-        v_recent >= min_5m_vol and
-        (0.15 <= gain_3m <= max_candle_gain) and
-        upper_wick_ratio <= max_wick and
-        taker_buy_ratio >= min_taker and
-        (-6.0 <= price_change_24h <= cfg_max_gain)
-    ):
-        momentum_score = min(10.0, round(7.0 + (volume_spike_ratio * 0.4) + (gain_3m * 0.5) + (taker_buy_ratio / 100.0 * 1.5), 1))
-        clean_base = sym.replace("USDT", "").replace("TRY", "")
-        quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
-        return {
-            "symbol": f"{clean_base}/{quote_suffix}",
-            "price": c,
-            "price_change_5m": round(gain_3m, 2),
-            "price_change_1m": round(gain_3m, 2),
-            "price_change_24h": round(price_change_24h, 2),
-            "volume_spike_ratio": round(volume_spike_ratio, 1),
-            "recent_5m_volume_usd": round(v_recent * 1.67, 0),
-            "recent_1m_volume_usd": round(v_recent / 3.0, 0),
-            "taker_buy_ratio": round(taker_buy_ratio, 1),
-            "upper_wick_ratio": round(upper_wick_ratio, 2),
-            "momentum_score": momentum_score,
-            "signal": f"⚡ ERKEN DİP KIRILIMI (+%{gain_3m:.2f} Başlangıç / {volume_spike_ratio:.1f}x Hacim / Alıcı: %{taker_buy_ratio:.1f} / 24s: %{price_change_24h:+.1f} / Skor: {momentum_score})",
-            "recommendation": f"Taze Dip Girişi: +%{gain_3m:.2f} seviyesinde yakalandı."
-        }
+    candles = fetch_5m_candles(sym, limit=6)
+    if len(candles) < 5:
+        return None
+
+    # Önceki 3 mumun ortalama baz hacmi
+    prev_vol_avg = sum(c["quote_volume"] for c in candles[-5:-2]) / 3.0 if len(candles) >= 5 else 1.0
+    if prev_vol_avg <= 0:
+        return None
+
+    # Hem canlı oluşan mumu hem de az önce kapanmış son mumu değerlendir (Erken Kaçırma Engeli)
+    for target_c in [candles[-1], candles[-2]]:
+        v_curr = target_c["quote_volume"]
+        o = target_c["open"]
+        c = target_c["close"]
+        h = target_c["high"]
+        l = target_c["low"]
+        if o <= 0:
+            continue
+        gain_5m = ((c - o) / o) * 100.0
+        spike_ratio = v_curr / prev_vol_avg
+        
+        tb_vol = target_c.get("taker_buy_quote_volume", 0.0)
+        tb_pct = (tb_vol / v_curr * 100.0) if v_curr > 0 else 55.0
+
+        if spike_ratio >= vol_spike_req and v_curr >= min_5m_vol and gain_5m >= 0.15:
+            momentum_score = min(10.0, round(7.0 + (spike_ratio * 0.4) + (gain_5m * 0.5), 1))
+            clean_base = sym.replace("USDT", "").replace("TRY", "")
+            quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
+            return {
+                "symbol": f"{clean_base}/{quote_suffix}",
+                "price": c,
+                "price_change_5m": round(gain_5m, 2),
+                "price_change_1m": round(gain_5m, 2),
+                "price_change_24h": round(price_change_24h, 2),
+                "volume_spike_ratio": round(spike_ratio, 1),
+                "recent_5m_volume_usd": round(v_curr, 0),
+                "momentum_score": momentum_score,
+                "taker_buy_ratio": round(tb_pct, 1),
+                "signal": f"🐋 GERÇEK BALİNA KIRILIMI (%{gain_5m:.1f} Başlangıç / {spike_ratio:.1f}x Hacim / 5dk Hacim: ${v_curr:,.0f} / Skor: {momentum_score})",
+                "recommendation": f"Sağlıklı Likit Balina Girişi: ${v_curr:,.0f} 5dk hacimle desteklendi."
+            }
+
     return None
 
 _cached_active_symbols = set()
@@ -163,11 +138,11 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
         try:
             from db import get_strategy_config
             strat = get_strategy_config(use_cache=True)
-            max_24h_req = float(max_recent_gain or strat.get("max_recent_gain_24h", 3.5))
-            min_vol_req = float(min_volume_usd or strat.get("min_volume_usd", 15000.0))
+            max_24h_req = float(max_recent_gain or strat.get("max_recent_gain_24h", 60.0))
+            min_vol_req = float(min_volume_usd or strat.get("min_5m_volume_usd") or strat.get("min_volume_usd", 2500.0))
         except Exception:
-            max_24h_req = 3.5
-            min_vol_req = 15000.0
+            max_24h_req = 60.0
+            min_vol_req = 2500.0
 
         sess = get_http_session()
         r = sess.get("https://api.binance.com/api/v3/ticker/24hr", timeout=6)
@@ -192,11 +167,11 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
             vol = float(t.get("quoteVolume", 0))
             last_p = float(t.get("lastPrice", 0))
             chg = float(t.get("priceChangePercent", 0))
-            # 🔒 SADECE PRİMSİZ/DİPTEKİ COİNLERİ LİSTEYE AL (24s Değişim <= %3.5)
-            if vol >= min_24h_quote_vol and last_p > 0 and (-6.0 <= chg <= max_24h_req):
+            # Dinamik 24s Değişim Kontrolü
+            if vol >= min_24h_quote_vol and last_p > 0 and (-10.0 <= chg <= max_24h_req):
                 target_tickers.append(t)
         
-        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:150]
+        candidates = sorted(target_tickers, key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)[:250]
         
         from exchange import get_live_usd_try_rate
         live_fx = get_live_usd_try_rate() or 38.5
