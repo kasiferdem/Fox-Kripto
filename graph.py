@@ -304,6 +304,50 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             is_take_profit = True
                             reason_desc = f"Kâr Alma (+%{net_profit_pct:.2f} Net)"
                             
+                    # ⚡ AKILLI HİBRİT MİKRO ZARAR KESİCİ (ZAMAN AŞIMI & TAKER SATIŞ BASKISI KALKANI)
+                    # 🔒 MUTLAK KURAL: Tüm parametreler strategy_config üzerinden dinamik okunur.
+                    # Kodda hiçbir statik sayı yer almaz. Switch kapalıysa mevcut sistem hiçbir değişiklik olmadan çalışır.
+                    from db import get_strategy_config
+                    strat_cfg_micro = get_strategy_config(use_cache=True) or {}
+                    hybrid_micro_enabled = bool(strat_cfg_micro.get("hybrid_micro_cut_enabled", False))
+
+                    if hybrid_micro_enabled and not is_take_profit and not is_stop_loss:
+                        time_limit_min = float(strat_cfg_micro.get("micro_cut_time_limit_minutes") or 5)
+                        time_loss_thresh = float(strat_cfg_micro.get("micro_cut_time_loss_pct") or 0.25)
+                        taker_sell_thresh = float(strat_cfg_micro.get("micro_cut_taker_sell_ratio") or 65.0)
+                        taker_window_min = float(strat_cfg_micro.get("micro_cut_taker_window_minutes") or 3)
+
+                        pos_open_time = float(entry_info.get("time") or 0.0)
+                        if pos_open_time > 0:
+                            pos_age_min = (time.time() - pos_open_time) / 60.0
+
+                            # OPSİYON 1: Zaman Bazlı Çıkış (Dead Momentum / Time-Decay Exit)
+                            # Belirlenen süre dolmasına rağmen kâra geçilememiş ve hafif ekside (-%0.25) sürünüyorsa:
+                            if pos_age_min >= time_limit_min and net_profit_pct <= -abs(time_loss_thresh):
+                                is_stop_loss = True
+                                reason_desc = f"⏱️ Mikro Zarar Kesimi [Zaman Kuralı: {pos_age_min:.1f}dk >= {time_limit_min:.0f}dk | PnL: %{net_profit_pct:.2f}]"
+                                sell_fraction = 1.0
+
+                            # OPSİYON 2: Hacim ve Alıcı Bozulması Kalkanı (Order Flow Reversal Cut)
+                            # İlk N dakika içinde piyasa satıcı baskısı eşiği aşmış ve pozisyon eksideyse:
+                            elif pos_age_min <= taker_window_min and net_profit_pct < 0.0:
+                                try:
+                                    from surge_detector import fetch_1m_candles
+                                    clean_s = target_symbol.replace("/", "").replace("_", "").upper()
+                                    c_1m = fetch_1m_candles(clean_s, limit=2)
+                                    if c_1m and len(c_1m) > 0:
+                                        last_c = c_1m[-1]
+                                        q_vol = float(last_c.get("quote_volume", 0.0))
+                                        tb_vol = float(last_c.get("taker_buy_quote_volume", 0.0))
+                                        if q_vol > 0:
+                                            taker_sell_pct = ((q_vol - tb_vol) / q_vol) * 100.0
+                                            if taker_sell_pct >= taker_sell_thresh:
+                                                is_stop_loss = True
+                                                reason_desc = f"📉 Mikro Zarar Kesimi [Taker Satıcı Baskısı: %{taker_sell_pct:.1f} >= %{taker_sell_thresh:.0f} | PnL: %{net_profit_pct:.2f}]"
+                                                sell_fraction = 1.0
+                                except Exception:
+                                    pass
+                            
                     if is_stop_loss or is_take_profit:
                         if is_stop_loss:
                             try:

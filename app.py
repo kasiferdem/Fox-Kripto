@@ -569,6 +569,11 @@ class StrategyConfigRequest(BaseModel):
     btc_min_rsi: Optional[float] = 35.0
     btc_ema_tolerance_pct: Optional[float] = 10.0
     btc_trend_filter_enabled: Optional[bool] = False
+    hybrid_micro_cut_enabled: Optional[bool] = True
+    micro_cut_time_limit_minutes: Optional[int] = 5
+    micro_cut_time_loss_pct: Optional[float] = 0.25
+    micro_cut_taker_sell_ratio: Optional[float] = 65.0
+    micro_cut_taker_window_minutes: Optional[int] = 3
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -600,7 +605,12 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "require_futures_oi": req.require_futures_oi,
         "btc_min_rsi": float(req.btc_min_rsi) if req.btc_min_rsi is not None else 35.0,
         "btc_ema_tolerance_pct": float(req.btc_ema_tolerance_pct) if req.btc_ema_tolerance_pct is not None else 10.0,
-        "btc_trend_filter_enabled": bool(req.btc_trend_filter_enabled) if req.btc_trend_filter_enabled is not None else False
+        "btc_trend_filter_enabled": bool(req.btc_trend_filter_enabled) if req.btc_trend_filter_enabled is not None else False,
+        "hybrid_micro_cut_enabled": bool(req.hybrid_micro_cut_enabled) if req.hybrid_micro_cut_enabled is not None else True,
+        "micro_cut_time_limit_minutes": int(req.micro_cut_time_limit_minutes) if req.micro_cut_time_limit_minutes is not None else 5,
+        "micro_cut_time_loss_pct": float(req.micro_cut_time_loss_pct) if req.micro_cut_time_loss_pct is not None else 0.25,
+        "micro_cut_taker_sell_ratio": float(req.micro_cut_taker_sell_ratio) if req.micro_cut_taker_sell_ratio is not None else 65.0,
+        "micro_cut_taker_window_minutes": int(req.micro_cut_taker_window_minutes) if req.micro_cut_taker_window_minutes is not None else 3
     }
     ok = save_strategy_config(payload)
     if req.execution_mode:

@@ -60,6 +60,15 @@ def generate_v2_dashboard_html(
     sel_btctrend_true = "selected" if btc_trend_filter_enabled else ""
     sel_btctrend_false = "selected" if not btc_trend_filter_enabled else ""
 
+    # Hibrit Mikro Zarar Kesici (Opsiyon 1 + Opsiyon 2)
+    hybrid_micro_cut_enabled = bool(strategy_config.get("hybrid_micro_cut_enabled", True))
+    micro_cut_time_limit = int(strategy_config.get("micro_cut_time_limit_minutes", 5))
+    micro_cut_time_loss = float(strategy_config.get("micro_cut_time_loss_pct", 0.25))
+    micro_cut_taker_ratio = float(strategy_config.get("micro_cut_taker_sell_ratio", 65.0))
+    micro_cut_taker_window = int(strategy_config.get("micro_cut_taker_window_minutes", 3))
+    sel_micro_cut_true = "selected" if hybrid_micro_cut_enabled else ""
+    sel_micro_cut_false = "selected" if not hybrid_micro_cut_enabled else ""
+
     # Tenants Tablosu SSR HTML (Tıklanabilir Satırlar)
     tenants_ssr_html = ""
     for t in tenants:
@@ -746,6 +755,42 @@ def generate_v2_dashboard_html(
           </div>
         </div>
 
+        <!-- 4. Grup: ⚡ Akıllı Hibrit Mikro Zarar Kesici (Opsiyon 1 + Opsiyon 2) -->
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.03em;">⚡ 4. Akıllı Hibrit Mikro Zarar Kesici (Zaman & Taker Kalkanı)</div>
+            <span class="badge badge-info" style="font-size: 10px; padding: 2px 6px;">Claude & Codex Hibrit</span>
+          </div>
+          <div class="param-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0; padding: 0; background: transparent; border: none;">
+            <div class="param-box">
+              <label style="color: #38bdf8; font-weight: 700;">Hibrit Mikro Kesici</label>
+              <select id="param_hybrid_micro_cut_enabled" onchange="markCustom()">
+                <option value="false" {sel_micro_cut_false}>🔴 Kapalı (Mevcut Sistem)</option>
+                <option value="true" {sel_micro_cut_true}>🟢 Açık (Hibrit Aktif)</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label>1. Süre Sınırı (Dk)</label>
+              <input type="number" min="1" max="60" step="1" id="param_micro_cut_time_limit_minutes" value="{micro_cut_time_limit}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label>1. Zaman Zarar Eşiği (%)</label>
+              <input type="number" min="0.05" max="2.0" step="0.05" id="param_micro_cut_time_loss_pct" value="{micro_cut_time_loss}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label>2. Taker Satıcı Sınırı (%)</label>
+              <input type="number" min="50" max="95" step="1" id="param_micro_cut_taker_sell_ratio" value="{micro_cut_taker_ratio}" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label>2. Taker Penceresi (Dk)</label>
+              <input type="number" min="1" max="15" step="1" id="param_micro_cut_taker_window_minutes" value="{micro_cut_taker_window}" onchange="markCustom()">
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--ink-3); margin-top: 6px;">
+            💡 <em>Açık olduğunda: İlk {micro_cut_taker_window} dk içinde satıcı baskısı %{micro_cut_taker_ratio}'i aşarsa veya {micro_cut_time_limit} dk sonunda kâra geçemeyip -%{micro_cut_time_loss}'in altına inerse -%1.2 beklemeksizin acil mikro çıkış yapar. İstenildiğinde kapatılarak mevcut sisteme dönülebilir.</em>
+          </div>
+        </div>
+
       </div>
 
       <!-- 4 Temel Eylem Butonu (Sadeleştirilmiş & Eksiksiz) -->
@@ -1331,7 +1376,12 @@ def generate_v2_dashboard_html(
           btc_trend_filter_enabled: (document.getElementById('param_btc_trend_filter_enabled')?.value === 'true'),
           first_pump_candle_entry_blocked: (document.getElementById('param_first_pump_blocked')?.value !== 'false'),
           retest_required: (document.getElementById('param_retest_required')?.value !== 'false'),
-          require_futures_oi: false
+          require_futures_oi: false,
+          hybrid_micro_cut_enabled: (document.getElementById('param_hybrid_micro_cut_enabled')?.value === 'true'),
+          micro_cut_time_limit_minutes: parseInt(getVal('param_micro_cut_time_limit_minutes', 'p_mtime', 5)),
+          micro_cut_time_loss_pct: parseFloat(getVal('param_micro_cut_time_loss_pct', 'p_mloss', 0.25)),
+          micro_cut_taker_sell_ratio: parseFloat(getVal('param_micro_cut_taker_sell_ratio', 'p_mtaker', 65.0)),
+          micro_cut_taker_window_minutes: parseInt(getVal('param_micro_cut_taker_window_minutes', 'p_mwin', 3))
         }};
 
         const res = await fetch('/api/strategy-config', {{
