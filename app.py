@@ -328,6 +328,9 @@ def run_autonomous_trading_loop():
                                     if exit_try < 0.0001:
                                         entry_str = f"₺{entry_try:.8f}"
                                         exit_str = f"₺{exit_try:.8f}"
+                                    elif exit_try < 0.01:
+                                        entry_str = f"₺{entry_try:.6f}"
+                                        exit_str = f"₺{exit_try:.6f}"
                                     elif exit_try < 1.0:
                                         entry_str = f"₺{entry_try:.4f}"
                                         exit_str = f"₺{exit_try:.4f}"
@@ -373,6 +376,9 @@ def run_autonomous_trading_loop():
                                     if exit_usd < 0.0001:
                                         entry_str = f"${entry_usd:.8f}"
                                         exit_str = f"${exit_usd:.8f}"
+                                    elif exit_usd < 0.01:
+                                        entry_str = f"${entry_usd:.6f}"
+                                        exit_str = f"${exit_usd:.6f}"
                                     elif exit_usd < 1.0:
                                         entry_str = f"${entry_usd:.4f}"
                                         exit_str = f"${exit_usd:.4f}"
