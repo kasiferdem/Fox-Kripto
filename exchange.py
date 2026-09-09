@@ -652,7 +652,7 @@ class BinanceGlobalRESTClient:
     def create_stop_order(self, symbol: str, quantity: float, stop_price: float, limit_price: Optional[float] = None) -> dict:
         """Binance Global üzerinde fiziksel STOP_LOSS_LIMIT emri kurar."""
         clean_symbol = symbol.replace("/", "").replace("_", "").upper()
-        l_price = limit_price if limit_price else round(stop_price * 0.995, 6 if stop_price < 1 else 2)
+        l_price = limit_price if limit_price else round(stop_price * 0.998, 6 if stop_price < 1 else 2)
         qty_str = format_quantity_by_step(quantity, clean_symbol)
         p_dec = 4 if l_price < 1 else 2
         params = {

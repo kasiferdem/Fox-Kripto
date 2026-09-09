@@ -166,8 +166,8 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     tenant_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id") or "default_tenant")
     from db import get_strategy_config
     strat_cfg_risk = get_strategy_config(use_cache=True) or {}
-    user_tp = float(strat_cfg_risk.get("take_profit_percent") or tenant_config.get("take_profit_percent") or 2.5)
-    user_sl = float(strat_cfg_risk.get("stop_loss_percent") or tenant_config.get("stop_loss_percent") or 2.0)
+    user_tp = float(strat_cfg_risk.get("take_profit_pct") or strat_cfg_risk.get("take_profit_percent") or tenant_config.get("take_profit_percent") or 2.5)
+    user_sl = float(strat_cfg_risk.get("stop_loss_pct") or strat_cfg_risk.get("stop_loss_percent") or tenant_config.get("stop_loss_percent") or 1.7)
     exch_id = str(tenant_config.get("exchange_id", "")).lower()
     is_tr_user = bool(exch_id in ["binancetr", "binance.tr", "trbinance"])
     live_fx = get_live_usd_try_rate()
