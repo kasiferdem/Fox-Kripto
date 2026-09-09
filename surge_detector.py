@@ -51,12 +51,19 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     quote_volume_24h = float(cand.get("quoteVolume", 0.0))
     
     # 🎛️ V2.3 AKTİF PROFİLDEN DİNAMİK PARAMETRE OKUMA:
+    # 🎛️ V2.3 AKTİF PROFİLDEN DİNAMİK PARAMETRE OKUMA:
     from db import get_strategy_config
     strat_cfg = get_strategy_config(use_cache=True) or {}
     min_24h_vol = float(strat_cfg.get("min_24h_quote_volume_usd") or strat_cfg.get("min_24h_vol") or 1000000.0)
     min_5m_vol = float(strat_cfg.get("min_5m_volume_usd") or strat_cfg.get("min_volume_usd") or strat_cfg.get("min_vol") or min_volume_usd or 2500.0)
     vol_spike_req = float(strat_cfg.get("volume_spike_multiplier") or strat_cfg.get("spike") or 1.15)
     cfg_max_gain = float(strat_cfg.get("max_recent_gain_24h") or strat_cfg.get("gain") or max_recent_gain or 60.0)
+
+    # 🚀 Dinamik Serbest Momentum Eşikleri (2-3 Eylül Kuralı - Statik Sınır Yok)
+    is_free_momentum = not bool(strat_cfg.get("retest_required", False))
+    max_candle_gain = float(strat_cfg.get("max_single_candle_spike_pct") or (6.0 if is_free_momentum else 2.5))
+    max_wick = float(strat_cfg.get("max_upper_wick_ratio") or (0.65 if is_free_momentum else 0.35))
+    min_taker = float(strat_cfg.get("min_taker_buy_pct") or 50.0)
     
     # 🔒 DİNAMİK LİKİDİTE EŞİĞİ (Profil Değişince Otomatik Güncellenir)
     if quote_volume_24h < min_24h_vol:
@@ -94,13 +101,13 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     tb_recent = sum(float(k.get("taker_buy_quote_volume", 0.0)) for k in recent_3)
     taker_buy_ratio = (tb_recent / v_recent * 100.0) if v_recent > 0 else 0.0
 
-    # 🛡️ AKTİF PROFİL FİLTRELERİ:
+    # 🛡️ AKTİF PROFİL FİLTRELERİ (DİNAMİK):
     if (
         volume_spike_ratio >= vol_spike_req and
         v_recent >= min_5m_vol and
-        (0.20 <= gain_3m <= 1.80) and
-        upper_wick_ratio <= 0.30 and
-        taker_buy_ratio >= 58.0 and
+        (0.15 <= gain_3m <= max_candle_gain) and
+        upper_wick_ratio <= max_wick and
+        taker_buy_ratio >= min_taker and
         (-6.0 <= price_change_24h <= cfg_max_gain)
     ):
         momentum_score = min(10.0, round(7.0 + (volume_spike_ratio * 0.4) + (gain_3m * 0.5) + (taker_buy_ratio / 100.0 * 1.5), 1))
