@@ -465,7 +465,13 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     c_sym = cand["symbol"]
     c_base = c_sym.split("/")[0].upper()
     
-    # 🚨 ZIRHLI KURAL: Cüzdanda zaten bu coin varsa ASLA tekrar alım yapma!
+    # 🚨 ZIRHLI KURAL 1: Son işlem sonrası soğuma sürecindeyse ASLA tekrar alım yapma!
+    active_cooldowns = get_active_cooldowns_from_db(tenant_id=tenant_id)
+    if c_base in active_cooldowns:
+        print(f"   🛑 [Soğuma Kilidi]: {c_base} yakın zamanda işlem gördü ve dinlenmede (Cooldown). Tekrar alım engellendi.")
+        return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
+
+    # 🚨 ZIRHLI KURAL 2: Cüzdanda zaten bu coin varsa ASLA tekrar alım yapma!
     existing_holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
     if isinstance(existing_holdings, dict) and c_base in existing_holdings:
         coin_info = existing_holdings[c_base]
@@ -647,8 +653,15 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
                     print(f"🎯 [Kademeli Kâr]: {base_sym} %50 satıldı. Kalan Breakeven + İz Süren Moda alındı!")
                 else:
                     remove_position_from_db(tenant_id=tenant_id, exchange_id=exch_name, symbol=proposal["symbol"])
-                    # Soğuma Süresi (Cooldown) Ekle
-                    set_cooldown_in_db(tenant_id=tenant_id, coin=base_sym, duration_seconds=1800)
+                    # Soğuma Süresi (Cooldown) Ekle: Stop-loss ise 60 dk, Kâr alma ise 30 dk
+                    cd_secs = 3600 if r_type == "stop-loss" else 1800
+                    set_cooldown_in_db(
+                        tenant_id=tenant_id,
+                        symbol=proposal["symbol"],
+                        base_asset=base_sym,
+                        duration_seconds=cd_secs,
+                        reason="STOP_LOSS" if r_type == "stop-loss" else "TAKE_PROFIT"
+                    )
     except Exception as pe:
         print(f"⚠️ [DB Ledger Güncelleme Uyarısı]: {pe}")
         

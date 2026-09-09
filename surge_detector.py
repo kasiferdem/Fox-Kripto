@@ -140,9 +140,11 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
             strat = get_strategy_config(use_cache=True)
             max_24h_req = float(max_recent_gain or strat.get("max_recent_gain_24h", 60.0))
             min_vol_req = float(min_volume_usd or strat.get("min_5m_volume_usd") or strat.get("min_volume_usd", 2500.0))
+            min_24h_req = float(strat.get("min_24h_quote_volume_usd") or strat.get("min_24h_vol") or 1500000.0)
         except Exception:
             max_24h_req = 60.0
             min_vol_req = 2500.0
+            min_24h_req = 1500000.0
 
         sess = get_http_session()
         r = sess.get("https://api.binance.com/api/v3/ticker/24hr", timeout=6)
@@ -151,7 +153,7 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
             
         tickers = r.json()
         target_tickers = []
-        min_24h_quote_vol = 300000.0 if quote_upper == "USDT" else 10000000.0
+        min_24h_quote_vol = min_24h_req if quote_upper == "USDT" else (min_24h_req * 38.0)
         
         for t in tickers:
             sym = t.get("symbol", "")

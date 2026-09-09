@@ -462,18 +462,21 @@ def remove_position_from_db(tenant_id: str, exchange_id: str, symbol: str) -> bo
         print(f"⚠️ [Supabase DB Pozisyon Silme Uyarısı]: {e}")
         return False
 
-def set_cooldown_in_db(tenant_id: str, symbol: str, base_asset: str, duration_seconds: int = 3600, reason: str = "TRADE_EXIT") -> bool:
+def set_cooldown_in_db(tenant_id: str, symbol: str = None, base_asset: str = None, duration_seconds: int = 3600, reason: str = "TRADE_EXIT", coin: str = None) -> bool:
     """Satılan coin için Supabase üzerinde atomik soğuma süresi başlatır."""
     client = get_supabase()
     if not client: return False
     session_id = f"cooldowns_{str(tenant_id)}"
-    base_upper = str(base_asset).upper()
+    base = base_asset or coin or (symbol.split("/")[0].split("_")[0] if symbol else "")
+    if not base: return False
+    base_upper = str(base).upper()
+    sym_str = str(symbol or f"{base_upper}/USDT").upper()
     until_ts = time.time() + duration_seconds
     try:
         res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
         current_data = (res.data[0]["state_data"] if res.data and len(res.data) > 0 else {}) or {}
         current_data[base_upper] = {
-            "symbol": str(symbol).upper(),
+            "symbol": sym_str,
             "until_ts": until_ts,
             "reason": str(reason)
         }
