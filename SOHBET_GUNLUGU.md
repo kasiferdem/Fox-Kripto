@@ -162,5 +162,16 @@ Bu dosya, Antigravity AI asistanı ile yapılan tüm teknik yazışmaları, alı
   6. Ana dizindeki 17 adet geçici test ve analiz dosyası (`scratch_*.py`, `check_orders*.py`, `fetch_*.py`) `_archive/scratch/` dizinine taşınarak çalışma alanı tamamen temizlendi.
   7. 3'lü doğrulama test paketi (`test_openrouter`, `test_execution_gate`, `test_retest_state_machine`) çalıştırıldı ve tüm testlerden %100 başarı alındı.
 
+
+### 15. 🔬 Üçlü Yapay Zeka (Codex, Claude, GLM-5.3) Parametre Analizi & Radar Coinleri Neden Alınmadı Raporu (10 Eylül 2026 - 03:00 TSİ)
+* **Kullanıcı:** *bu ayarları analiz edin codex claude ve GLM 5.3 rapor verin / değişiklik yaptım ve kontrol et fakat hala al sat yok (ALGO, FLOKI, WLD, EIGEN, ETHFI, DOGS)*
+* **Bulgular & Gerçekleşen Teşhis:**
+  1. Panel ayarlarında `Maks Açık Slot = 3` yapıldı; cüzdanda `SNDKB` ($49.46) ve `SPCXB` ($48.77) olmak üzere 2 açık pozisyon bulunuyor, 1 slot serbest.
+  2. Telegram'daki ALGO, FLOKI, WLD, EIGEN, ETHFI, DOGS erken balina listesi bir **alım emri değil, radar tespitidir**.
+  3. Kullanıcının aktif ettiği `first_pump_candle_entry_blocked = True` ve `retest_required = True` zırhı nedeniyle:
+     * ETHFI (+%1.01 fırlama) ilk yeşil pump mumu tepesinde yakalandığı için tepe koruması devreye girdi (`WAITING_PULLBACK`).
+     * ALGO, FLOKI, WLD, DOGS henüz retest bölgesine inip toparlanma teyidi vermediği için sistem FOMO'ya kapılmadan güvenli beklemede kaldı.
+  4. Yapılan tüm kod geliştirmeleri GitHub ve DigitalOcean canlı sunucusuna `git push origin main` ile gönderildi.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*

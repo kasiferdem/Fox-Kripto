@@ -61,7 +61,7 @@ python app.py
 - [x] **Kusursuz Risk Profili Devrede:** `first_pump_blocked: True`, `retest_required: True`, `cooldown: 30 dk`, `stop_loss: %2.2` hem veritabanına hem UI'a dinamik bağlandı.
 - [x] **Çöp Dosyaların Temizlenmesi:** Tüm `scratch_*.py`, `check_orders*.py`, `fetch_*.py` dosyaları `_archive/scratch/` dizinine taşındı.
 - [x] **3'lü Test Paketi Onayı:** Tüm testler (`test_openrouter`, `test_execution_gate`, `test_retest_state_machine`) 0 hata ile %100 geçti.
-- [ ] **DigitalOcean Canlı Dağıtım Senkronizasyonu:** Güncel stabil ve güvenli sürümün canlı sunucuya push edilerek 7/24 kesintisiz çalışmasının teyidi.
+- [x] **DigitalOcean Canlı Dağıtım Senkronizasyonu:** Güncel stabil ve güvenli sürüm (`main`) GitHub ve DigitalOcean'a push edildi, canlı sunucu güncellendi.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-10*
+*Son Güncelleme Tarihi: 2026-09-10 (03:00 TSİ)*
