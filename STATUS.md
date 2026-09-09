@@ -20,18 +20,29 @@
 
 ## 🛠️ Tamamlanan Özellikler (Yapılanlar)
 
-1. **Güvenlik ve Kimlik Doğrulama (P0 Düzeltmeleri Tamamlandı):**
-   - Kaynak koddan tüm sızıntı/hardcoded anahtarlar temizlendi (`prompts.py`).
-   - Tüm güvensiz admin execution rotaları silindi; yönetim uç noktaları `HTTPBasic` (`ADMIN_USERNAME` / `ADMIN_PASSWORD`) ile kilitlendi.
+1. **Güvenlik ve Kimlik Doğrulama (P0 Düzeltmeleri):**
+   - Kaynak koddan tüm sızıntı/hardcoded anahtarlar temizlendi (`prompts.py`, `telegram_poller.py`).
+   - Tüm admin execution rotaları `HTTPBasic` (`ADMIN_USERNAME` / `ADMIN_PASSWORD`) ile kilitlendi.
    - Telegram poller `from.id` ve allowlist bazlı sıkı yetkilendirmeye geçirildi.
 
-2. **LangGraph & Borsa İnfazı (`graph.py`, `exchange.py`, `atr_calculator.py`):**
-   - Çift borsa (Binance TR + Binance Global) ve Sanal Paper Trading istemcisi.
-   - Gerçek VWAP ve borsa stop emirleri.
-   - Pozisyon çıkışlarında dinamik ATR seviyesi ve Supabase DB ledger senkronizasyonu.
+2. **OpenRouter AI Mimarisi & Güvenli İnfaz Ayrımı (Eylül 2026):**
+   - `openrouter_gateway.py`: Pydantic şema doğrulamalı, failover zincirli ve deduplication önbellekli merkezi AI gateway.
+   - `binance_execution_service.py`: Tek yetkili borsa emir servisi.
+   - `entry_safety_policy.py`: 10 Kademeli ExecutionGate; AI modellerinin yetkisi `NONE` ve `BLOCK_ONLY` olarak sınırlandı.
+   - Deterministik Python infazı: RSI, ATR, VWAP, Lot, SL/TP hesaplamaları tamamen koda devredildi.
 
-3. **Veritabanı ve Ledger (`db.py`):**
-   - Supabase PostgreSQL: `user_tenants`, `crypto_agent_states` (pozisyonlar, soğuma, trading modu, sanal bakiye), `crypto_trade_logs` (işlem geçmişi ve coin karnesi).
+3. **Dinamik Yönetim Paneli & Sıfır Hardcode (V2 Dashboard):**
+   - `/v2/dashboard` parametre ızgarası üzerinden BTC Taban RSI, Retest Onayı, İlk Pump Engeli, TP, SL, Trailing Callback gibi tüm kritik ayarlar canlı dinamik kontrol altına alındı.
+   - 2-3 Eylül kazandıran çevik strateji parametreleri kataloglandı (`KAZANDIRAN_STRATEJI_AYARLARI.md`).
+
+4. **Retest Durum Makinesi ve Risk Koruma:**
+   - 12 durumlu retest state machine ve ilk pump mumu tepe alım engeli (`first_pump_candle_entry_blocked = True`).
+   - Retest zorunluluğu (`retest_required = True`), dinamik Stop-Loss (%2.2) ve 30 dakikalık katı işlem soğuması (`cooldown_minutes = 30`).
+   - ATR(14) dinamik stop-loss, fiziksel borsa stop limit emirleri ve çoklu devre kesiciler.
+
+5. **Veritabanı ve Ledger (`db.py`):**
+   - Supabase PostgreSQL: `user_tenants`, `crypto_agent_states`, `crypto_trade_logs` ve 7 adet AI denetim/maliyet tablosu (`supabase_ai_schema.sql`).
+   - Tüm geçici test ve scratch dosyaları `_archive/scratch/` altına temizlendi ve izole edildi.
 
 ---
 
@@ -41,11 +52,16 @@
 # Web Paneli + Otonom Botu Çalıştırma
 python app.py
 ```
-*Web Arayüzü:* `http://localhost:8000/dashboard` (Ortam değişkeninde tanımlı `ADMIN_USERNAME` ve `ADMIN_PASSWORD` ile giriş yapılır).
-
-- [ ] **Canlı / Paper Trading Testi:** Borsa API bağlantısı ile küçük tutarlı gerçek test işlemi yapılması.
-- [ ] **DigitalOcean Deployment:** Projenin canlı sunucuya push edilerek 7/24 kesintisiz sunucuda çalıştırılması.
-- [ ] **İndikatör Çeşitlendirme:** RSI, MACD ve Bollinger bandı haricinde ek teknik göstergelerin `prompts.py` ajanına beslenmesi.
+*Web Arayüzü:* `http://localhost:8000/v2/dashboard` (veya `/dashboard`)
 
 ---
-*Son Güncelleme Tarihi: 2026-08-14*
+
+## 📋 Mevcut Yapılacaklar Listesi
+
+- [x] **Kusursuz Risk Profili Devrede:** `first_pump_blocked: True`, `retest_required: True`, `cooldown: 30 dk`, `stop_loss: %2.2` hem veritabanına hem UI'a dinamik bağlandı.
+- [x] **Çöp Dosyaların Temizlenmesi:** Tüm `scratch_*.py`, `check_orders*.py`, `fetch_*.py` dosyaları `_archive/scratch/` dizinine taşındı.
+- [x] **3'lü Test Paketi Onayı:** Tüm testler (`test_openrouter`, `test_execution_gate`, `test_retest_state_machine`) 0 hata ile %100 geçti.
+- [ ] **DigitalOcean Canlı Dağıtım Senkronizasyonu:** Güncel stabil ve güvenli sürümün canlı sunucuya push edilerek 7/24 kesintisiz çalışmasının teyidi.
+
+---
+*Son Güncelleme Tarihi: 2026-09-10*

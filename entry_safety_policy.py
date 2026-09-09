@@ -124,8 +124,8 @@ class EntrySafetyPolicy:
 
         from db import get_strategy_config
         strat_cfg = get_strategy_config(use_cache=True) or {}
-        retest_req = bool(strat_cfg.get("retest_required", False))
-        first_pump_blocked = bool(strat_cfg.get("first_pump_candle_entry_blocked", False))
+        retest_req = bool(strat_cfg.get("retest_required", True))
+        first_pump_blocked = bool(strat_cfg.get("first_pump_candle_entry_blocked", True))
 
         # 2. Retest Teyidi Doğrulaması (Dinamik Ayara Bağlı)
         if retest_req and intent.direction.upper() == "BUY" and intent.signal_state != "RETEST_CONFIRMED":

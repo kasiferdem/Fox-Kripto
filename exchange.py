@@ -285,6 +285,26 @@ class BinanceTRClient:
         except Exception as e:
             return {"status": "failed", "error": str(e)}
 
+    def get_last_sell_trade_time(self, symbol: str) -> Optional[float]:
+        """Binance TR üzerinde gerçekleşmiş en son SATIŞ işleminin epoch saniyesini döndürür."""
+        clean_symbol = symbol.replace("/", "_").upper()
+        try:
+            params = {"symbol": clean_symbol, "limit": 10}
+            query_str = self._sign(params)
+            url = f"{self.base_url}/open/v1/orders?{query_str}"
+            headers = {"X-MBX-APIKEY": self.apiKey}
+            res = requests.get(url, headers=headers, timeout=4)
+            if res.status_code == 200:
+                data = res.json()
+                orders = data.get("data", {}).get("list", []) if isinstance(data.get("data"), dict) else []
+                for o in orders:
+                    if o.get("side") == 1 and (o.get("status") in [2, "FILLED"] or float(o.get("executedQty", 0)) > 0):
+                        t_ms = o.get("updateTime") or o.get("createTime") or 0
+                        return t_ms / 1000.0
+        except Exception:
+            pass
+        return None
+
 _lot_size_cache = {}
 
 def get_lot_size_step(symbol: str) -> float:
@@ -677,6 +697,28 @@ class BinanceGlobalRESTClient:
                 return {"status": "failed", "error": data.get("msg")}
         except Exception as e:
             return {"status": "failed", "error": str(e)}
+
+    def get_last_sell_trade_time(self, symbol: str) -> Optional[float]:
+        """Binance Global üzerinde paritede gerçekleşmiş en son SATIŞ işleminin epoch saniyesini döndürür."""
+        clean_symbol = symbol.replace("/", "").replace("_", "").replace("-", "").upper()
+        for base in self.endpoints:
+            try:
+                params = {"symbol": clean_symbol, "limit": 10}
+                query_str = self._sign(params)
+                url = f"{base}/api/v3/myTrades?{query_str}"
+                headers = {"X-MBX-APIKEY": self.apiKey}
+                res = requests.get(url, headers=headers, timeout=4)
+                if res.status_code == 200:
+                    trades = res.json()
+                    if isinstance(trades, list):
+                        for tr in reversed(trades):
+                            if not tr.get("isBuyer", True):
+                                trade_time_ms = tr.get("time") or 0
+                                return trade_time_ms / 1000.0
+                        return None
+            except Exception:
+                continue
+        return None
 
     def convert_dust_to_bnb(self, assets: Optional[list] = None) -> dict:
         """

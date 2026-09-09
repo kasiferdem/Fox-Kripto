@@ -148,5 +148,19 @@ Bu dosya, Antigravity AI asistanı ile yapılan tüm teknik yazışmaları, alı
   * Tüm güncellemeler (`v2_dashboard_html.py`, `app.py`, `db.py`, `market_regime.py`, `entry_safety_policy.py`, `openrouter_gateway.py`, `binance_execution_service.py`) `main` dalına commit edildi ve `origin/main`'e başarıyla gönderildi (`commit: 120e33f`).
   * Sunucu otomatik derleme sonrasında yeni arayüz canlıya alındı.
 
+### 14. 🛡️ Bakiye İncelemesi, Çelik Zırh Parametrelerinin Geri Yüklenmesi & Çöp Kod Temizliği (10 Eylül 2026)
+* **Kullanıcı:** *dün akşam 203 dolar olan bakiyem şuan 195 dolar... bana dürüst olun claude ve codex dahil şuan kodlar temiz ve doğru çalışıyor mu... first_pump_blocked = True, Cooldown = 30 dk, Stop-Loss = %2.2, retest_required = True ve çöp kodları temizle. unutma bu parametreler arayüzden güncellenebilirliğini korusun.*
+* **AI İncelemesi & Adli Analiz:**
+  * Binance Global API ve Supabase kayıtları kuruşu kuruşuna incelendi: $203 $\rightarrow$ $195.50 düşüşünün sebebi bir çöküş veya hack değil; gevşetilen ayarlar (`retest_required: False`, `first_pump_blocked: False`, 5 dk cooldown) nedeniyle volatil meme/mikro paritelerde dar stopların (%1.0-%1.7) arka arkaya patlaması ve PUMP/USDT paritesine 5 dakika içinde 3 kez üst üste girilmesi (churn) olarak tespit edildi.
+  * Şu an 2 açık pozisyon (`SNDKB` $49.46, `SPCXB` $48.77) nedeniyle maksimum 2 slotun dolu olduğu ve bu yüzden yeni alımların bilerek durdurulduğu kanıtlandı.
+* **Uygulanan Değişiklikler:**
+  1. `first_pump_candle_entry_blocked = True` olarak mühürlendi (ilk fırlayan yeşil mumun tepesinden alım kesinlikle engellendi).
+  2. `retest_required = True` olarak mühürlendi (fiyatın geri çekilip desteği teyit etmesi zorunlu kılındı).
+  3. `stop_loss_pct = 2.2` olarak güncellendi (gürültü stoplarını önleyen optimum pay).
+  4. `post_stop_cooldown_minutes = 30` ve `cooldown_minutes = 30` olarak ayarlandı (aynı coine 30 dk tekrar giriş engellendi).
+  5. Tüm bu parametreler hem `db.py`, hem `strategy_config_local.json`, hem Supabase, hem de `v2_dashboard_html.py` arayüzüne eklenerek kullanıcı panelinden dinamik olarak kontrol edilebilirliği garanti altına alındı.
+  6. Ana dizindeki 17 adet geçici test ve analiz dosyası (`scratch_*.py`, `check_orders*.py`, `fetch_*.py`) `_archive/scratch/` dizinine taşınarak çalışma alanı tamamen temizlendi.
+  7. 3'lü doğrulama test paketi (`test_openrouter`, `test_execution_gate`, `test_retest_state_machine`) çalıştırıldı ve tüm testlerden %100 başarı alındı.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*

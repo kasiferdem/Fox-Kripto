@@ -32,7 +32,9 @@ class V2WhaleHuntingEngine:
             "min_net_rr": float(db_cfg.get("min_net_rr") or 1.20),
             "min_strategy_score": float(db_cfg.get("min_ai_score") or db_cfg.get("min_score") or db_cfg.get("score") or db_cfg.get("min_strategy_score") or 4.5),
             "target_take_profit_pct": float(db_cfg.get("take_profit_pct") or db_cfg.get("take_profit_percent") or db_cfg.get("tp") or db_cfg.get("target_take_profit_pct") or 2.5),
-            "target_stop_loss_pct": float(db_cfg.get("stop_loss_pct") or db_cfg.get("stop_loss_percent") or db_cfg.get("sl") or db_cfg.get("target_stop_loss_pct") or 1.2)
+            "target_stop_loss_pct": float(db_cfg.get("stop_loss_pct") or db_cfg.get("stop_loss_percent") or db_cfg.get("sl") or db_cfg.get("target_stop_loss_pct") or 2.2),
+            "first_pump_candle_entry_blocked": bool(db_cfg.get("first_pump_candle_entry_blocked", True)),
+            "retest_required": bool(db_cfg.get("retest_required", True))
         }
         if custom_params:
             self.params.update(custom_params)

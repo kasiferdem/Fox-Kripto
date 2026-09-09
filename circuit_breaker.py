@@ -15,7 +15,7 @@ def check_tenant_circuit_breakers(
     exchange_id: str = "binance",
     daily_loss_limit_pct: float = 10.0,
     max_consecutive_losses: int = 5,
-    post_stop_cooldown_minutes: int = 5,
+    post_stop_cooldown_minutes: int = 30,
     max_daily_trades: int = 300,
     max_concurrent_positions: int = 3,
     current_active_positions_count: int = 0
@@ -37,8 +37,8 @@ def check_tenant_circuit_breakers(
                 max_daily_trades = int(strat_cfg.get("max_daily_trades") or strat_cfg.get("daily") or max_daily_trades)
             if "max_consecutive_losses" in strat_cfg:
                 max_consecutive_losses = int(strat_cfg.get("max_consecutive_losses") or max_consecutive_losses)
-            if "post_stop_cooldown_minutes" in strat_cfg:
-                post_stop_cooldown_minutes = int(strat_cfg.get("post_stop_cooldown_minutes") or post_stop_cooldown_minutes)
+            if "post_stop_cooldown_minutes" in strat_cfg or "cooldown_minutes" in strat_cfg:
+                post_stop_cooldown_minutes = int(strat_cfg.get("post_stop_cooldown_minutes") or strat_cfg.get("cooldown_minutes") or post_stop_cooldown_minutes)
             if "daily_loss_limit_pct" in strat_cfg or "cb" in strat_cfg:
                 daily_loss_limit_pct = float(strat_cfg.get("daily_loss_limit_pct") or strat_cfg.get("cb") or daily_loss_limit_pct)
             

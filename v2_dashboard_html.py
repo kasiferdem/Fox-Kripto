@@ -51,8 +51,9 @@ def generate_v2_dashboard_html(
     btc_min_rsi = float(strategy_config.get("btc_min_rsi", 35.0))
     btc_ema_tol_pct = float(strategy_config.get("btc_ema_tolerance_pct", 10.0))
     btc_trend_filter_enabled = bool(strategy_config.get("btc_trend_filter_enabled", False))
-    retest_req = bool(strategy_config.get("retest_required", False))
-    first_pump_blocked = bool(strategy_config.get("first_pump_candle_entry_blocked", False))
+    retest_req = bool(strategy_config.get("retest_required", True))
+    first_pump_blocked = bool(strategy_config.get("first_pump_candle_entry_blocked", True))
+    cooldown_min = int(strategy_config.get("cooldown_minutes", strategy_config.get("post_stop_cooldown_minutes", 30)))
     sel_retest_true = "selected" if retest_req else ""
     sel_retest_false = "selected" if not retest_req else ""
     sel_firstpump_true = "selected" if first_pump_blocked else ""
@@ -772,6 +773,10 @@ def generate_v2_dashboard_html(
                 <option value="false" {sel_firstpump_false}>İzin Ver (Fırlamaları Yakala)</option>
               </select>
             </div>
+            <div class="param-box">
+              <label data-i18n="p_cooldown" style="color: #38bdf8; font-weight: 700;">Soğuma Süresi (Dk)</label>
+              <input type="number" step="5" id="param_cooldown_minutes" value="{cooldown_min}" style="border-color: #38bdf8; font-weight: 800;" onchange="markCustom()">
+            </div>
           </div>
         </div>
 
@@ -1281,6 +1286,7 @@ def generate_v2_dashboard_html(
         if (document.getElementById('param_btc_trend_filter_enabled')) document.getElementById('param_btc_trend_filter_enabled').value = String(p.trend_filter === true);
         if (document.getElementById('param_retest_required')) document.getElementById('param_retest_required').value = String(p.retest !== false);
         if (document.getElementById('param_first_pump_blocked')) document.getElementById('param_first_pump_blocked').value = String(p.firstpump !== false);
+        if (document.getElementById('param_cooldown_minutes')) document.getElementById('param_cooldown_minutes').value = p.cooldown || 30;
       }}
     }}
 
@@ -1476,6 +1482,8 @@ def generate_v2_dashboard_html(
           btc_trend_filter_enabled: (document.getElementById('param_btc_trend_filter_enabled')?.value === 'true'),
           first_pump_candle_entry_blocked: (document.getElementById('param_first_pump_blocked')?.value !== 'false'),
           retest_required: (document.getElementById('param_retest_required')?.value !== 'false'),
+          cooldown_minutes: parseInt(getVal('param_cooldown_minutes', 'p_cd', 30)),
+          post_stop_cooldown_minutes: parseInt(getVal('param_cooldown_minutes', 'p_cd', 30)),
           require_futures_oi: false,
           hybrid_micro_cut_enabled: (document.getElementById('param_hybrid_micro_cut_enabled')?.value === 'true'),
           micro_cut_time_limit_minutes: parseInt(getVal('param_micro_cut_time_limit_minutes', 'p_mtime', 5)),

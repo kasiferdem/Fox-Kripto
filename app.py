@@ -589,6 +589,8 @@ class StrategyConfigRequest(BaseModel):
     use_atr_dynamic_r: Optional[bool] = False
     net_advantage_gate_enabled: Optional[bool] = False
     minimum_expected_net_rr: Optional[float] = 1.5
+    post_stop_cooldown_minutes: Optional[int] = 30
+    cooldown_minutes: Optional[int] = 30
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -613,10 +615,12 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "max_concurrent_positions": req.max_concurrent_positions or 3,
         "trailing_callback_pct": req.trailing_callback_pct,
         "take_profit_pct": req.take_profit_pct if req.take_profit_pct is not None else 2.5,
-        "stop_loss_pct": req.stop_loss_pct if req.stop_loss_pct is not None else 1.2,
+        "stop_loss_pct": req.stop_loss_pct if req.stop_loss_pct is not None else 2.2,
         "min_5m_volume_usd": req.min_5m_volume_usd or req.min_volume_usd,
-        "first_pump_candle_entry_blocked": req.first_pump_candle_entry_blocked if req.first_pump_candle_entry_blocked is not None else False,
-        "retest_required": req.retest_required if req.retest_required is not None else False,
+        "first_pump_candle_entry_blocked": req.first_pump_candle_entry_blocked if req.first_pump_candle_entry_blocked is not None else True,
+        "retest_required": req.retest_required if req.retest_required is not None else True,
+        "post_stop_cooldown_minutes": req.post_stop_cooldown_minutes or req.cooldown_minutes or 30,
+        "cooldown_minutes": req.cooldown_minutes or req.post_stop_cooldown_minutes or 30,
         "require_futures_oi": req.require_futures_oi,
         "btc_min_rsi": float(req.btc_min_rsi) if req.btc_min_rsi is not None else 35.0,
         "btc_ema_tolerance_pct": float(req.btc_ema_tolerance_pct) if req.btc_ema_tolerance_pct is not None else 10.0,

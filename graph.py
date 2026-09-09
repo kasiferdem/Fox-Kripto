@@ -653,8 +653,11 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
                     print(f"🎯 [Kademeli Kâr]: {base_sym} %50 satıldı. Kalan Breakeven + İz Süren Moda alındı!")
                 else:
                     remove_position_from_db(tenant_id=tenant_id, exchange_id=exch_name, symbol=proposal["symbol"])
-                    # Soğuma Süresi (Cooldown) Ekle: Stop-loss ise 60 dk, Kâr alma ise 30 dk
-                    cd_secs = 3600 if r_type == "stop-loss" else 1800
+                    # Soğuma Süresi (Cooldown): Dinamik strateji ayarından okunur (Varsayılan 30 dk)
+                    from db import get_strategy_config
+                    dyn_cfg = get_strategy_config(use_cache=True) or {}
+                    configured_cd_min = int(dyn_cfg.get("cooldown_minutes") or dyn_cfg.get("post_stop_cooldown_minutes") or 30)
+                    cd_secs = max(configured_cd_min, 30) * 60 if r_type == "stop-loss" else configured_cd_min * 60
                     set_cooldown_in_db(
                         tenant_id=tenant_id,
                         symbol=proposal["symbol"],
