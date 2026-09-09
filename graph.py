@@ -161,12 +161,13 @@ def node_technical_second_opinion(state: CryptoAgentState) -> Dict[str, Any]:
 
 def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     """[F & H] Deterministik RiskPolicyEngine: Kurallar, Bütçe Limiti, 3 Kademeli DCA ve Pozisyon Denetimi"""
-    print("\n--- [F. NODE: DETERMINISTIK RISK POLICY ENGINE (v2.1)] ---")
     portfolio_state = state.get("portfolio_state") or {}
     tenant_config = state.get("tenant_config") or {}
     tenant_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id") or "default_tenant")
-    user_tp = float(tenant_config.get("take_profit_percent") or 1.5)
-    user_sl = float(tenant_config.get("stop_loss_percent") or 1.5)
+    from db import get_strategy_config
+    strat_cfg_risk = get_strategy_config(use_cache=True) or {}
+    user_tp = float(strat_cfg_risk.get("take_profit_percent") or tenant_config.get("take_profit_percent") or 2.5)
+    user_sl = float(strat_cfg_risk.get("stop_loss_percent") or tenant_config.get("stop_loss_percent") or 2.0)
     exch_id = str(tenant_config.get("exchange_id", "")).lower()
     is_tr_user = bool(exch_id in ["binancetr", "binance.tr", "trbinance"])
     live_fx = get_live_usd_try_rate()
