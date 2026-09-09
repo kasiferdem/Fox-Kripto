@@ -13,11 +13,11 @@ from datetime import datetime, timezone, timedelta
 def check_tenant_circuit_breakers(
     tenant_id: str,
     exchange_id: str = "binance",
-    daily_loss_limit_pct: float = 0.75,
-    max_consecutive_losses: int = 2,
-    post_stop_cooldown_minutes: int = 90,
-    max_daily_trades: int = 2,
-    max_concurrent_positions: int = 1,
+    daily_loss_limit_pct: float = 10.0,
+    max_consecutive_losses: int = 5,
+    post_stop_cooldown_minutes: int = 5,
+    max_daily_trades: int = 300,
+    max_concurrent_positions: int = 3,
     current_active_positions_count: int = 0
 ) -> Dict[str, Any]:
     """
