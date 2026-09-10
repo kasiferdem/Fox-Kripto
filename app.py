@@ -1221,8 +1221,41 @@ def place_stock_order_endpoint(req: StockOrderRequest):
 @app_api.post("/api/stock/positions/{symbol}/close", dependencies=[Depends(authenticate_admin)])
 def close_stock_position_endpoint(symbol: str):
     from alpaca_client import AlpacaClient
+    from stock_telegram_bot import notify_stock_trade
     alpaca = AlpacaClient()
+    
+    # Pozisyon bilgilerini al
+    positions = alpaca.get_positions()
+    target_pos = next((p for p in positions if p.get("symbol", "").upper() == symbol.upper()), None)
+    
     res = alpaca.close_position(symbol)
+    if res.get("status") == "success":
+        qty = float(target_pos.get("qty", 0.0)) if target_pos else 0.0
+        price = float(target_pos.get("current_price", 0.0)) if target_pos else 0.0
+        val = float(target_pos.get("market_value", 0.0)) if target_pos else 0.0
+        plpc = float(target_pos.get("unrealized_plpc", 0.0)) if target_pos else 0.0
+        pl = float(target_pos.get("unrealized_pl", 0.0)) if target_pos else 0.0
+        
+        # Dinamik Telegram Chat ID
+        chat_id = 8739367825
+        try:
+            stock_tenants = get_system_setting("stock_tenants", default=[])
+            if stock_tenants and stock_tenants[0].get("telegram_chat_id"):
+                chat_id = int(stock_tenants[0]["telegram_chat_id"])
+        except Exception:
+            pass
+
+        notify_stock_trade(
+            chat_id=chat_id,
+            action="SELL",
+            symbol=symbol.upper(),
+            qty=qty,
+            price=price,
+            amount_usd=val,
+            pnl_pct=plpc,
+            pnl_usd=pl,
+            order_id=f"MANUAL_CLOSE_{symbol.upper()}_{int(time.time())}"
+        )
     return res
 
 @app_api.get("/v1/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])

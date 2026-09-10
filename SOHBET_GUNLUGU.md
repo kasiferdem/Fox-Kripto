@@ -196,5 +196,19 @@ Bu dosya, Antigravity AI asistanı ile yapılan tüm teknik yazışmaları, alı
   3. Kod tabanında 0 (sıfır) gizli anahtar prensibi korundu, GitGuardian tetiklenmesi önlendi.
   4. Canlı `getMe` testi ile @FoxBorsaBot bağlantısı doğrulandı (`ok: True`) ve değişiklikler GitHub/DigitalOcean'a push edildi.
 
+
+### 18. 🏛️ Fox-Borsa Alpaca Dashboard Anomalileri, GTC Emirleri & Otonom SL/TP Zırhı (10 Eylül 2026 - 13:55 TSİ)
+* **Kullanıcı:** *https://fox-kripto-m7n46.ondigitalocean.app/borsa/dashboard / aktif değil / burda dikkatini çeken ne ? / uygula*
+* **Tespit Edilen Kök Nedenler & Anomaliler:**
+  1. **Stop-Loss Patlamaması:** Dashboard'da GOOGL (-%2.06) ve TSLA (-%1.91) pozisyonları, kullanıcının belirlediği -%1.50 Stop-Loss eşiğini aşmasına rağmen açık kalmıştı. Kök neden: Alpaca'ya gönderilen bracket emirler `"time_in_force": "day"` olarak iletildiği için ABD seansı 23:00'da kapandığında borsa bekleyen emirleri otomatik iptal etmişti.
+  2. **Bütçe Uyuşmazlığı:** $100,000 hesapta tenant bütçesi %25 ($25,000) seçilmesine rağmen pozisyonlar sabit $1,000 üzerinden $500-$732 gibi küçük açılmıştı.
+  3. **Dashboard "🔴 Kapat" Butonu:** Arayüzün çağırdığı `/api/stock/positions/{symbol}/close` endpoint'i `app.py` üzerinde tanımlı değildi.
+* **Uygulanan Çözümler:**
+  1. `alpaca_client.py`: Bracket emirler `"time_in_force": "gtc"` (Good 'Til Cancelled) olarak mühürlendi; böylece stop ve kâr alma emirleri seanslar arası borsa defterinde kalıcı hale getirildi.
+  2. `stock_autonomous_worker.py`: Açık pozisyonları her 30 saniyede bir denetleyen yazılımsal Stop-Loss/Take-Profit emniyet sübabı eklendi (`unrealized_plpc <= -sl_pct` veya `unrealized_plpc >= tp_pct` durumunda otomatik piyasa satış emri verir ve Telegram'a bildirim gönderir).
+  3. `stock_autonomous_worker.py`: Pozisyon büyüklüğü portföyün `max_budget_percent` (%25) oranına göre dinamik hesaplanacak şekilde güncellendi.
+  4. `app.py`: `/api/stock/positions/{symbol}/close` endpoint'i yazıldı ve manuel kapatmalarda Telegram bildirim desteği eklendi.
+  5. `stock_telegram_bot.py`: PnL bildirimlerinde `NoneType` format hatası koruması sağlandı.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*

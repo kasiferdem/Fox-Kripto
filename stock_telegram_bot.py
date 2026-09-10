@@ -93,6 +93,8 @@ def notify_stock_trade(
     order_id: Optional[str] = None
 ) -> bool:
     """ABD Hisse Senedi Alım/Satım bildirimini şık formatta Telegram'a gönderir."""
+    safe_pnl_pct = pnl_pct if pnl_pct is not None else 0.0
+    safe_pnl_usd = pnl_usd if pnl_usd is not None else 0.0
     if action.upper() in ["BUY", "ALIM"]:
         title = "🛒 FOX-BORSA: CANLI HİSSE ALIMI (BUY)"
         icon = "🟢"
@@ -100,15 +102,15 @@ def notify_stock_trade(
     elif action.upper() in ["TP", "TAKE_PROFIT", "KAR"]:
         title = "🎯 FOX-BORSA: KÂR ALMA (TAKE-PROFIT)"
         icon = "🎉"
-        extra = f"📈 *Net Kâr:* +%{pnl_pct:.2f} (+${pnl_usd:.2f} USD)"
+        extra = f"📈 *Net Kâr:* +%{safe_pnl_pct:.2f} (+${safe_pnl_usd:.2f} USD)"
     elif action.upper() in ["SL", "STOP_LOSS", "ZARAR"]:
         title = "🛡️ FOX-BORSA: STOP-LOSS (SERMAYE KORUMA)"
         icon = "🛑"
-        extra = f"📉 *Net Değişim:* %{pnl_pct:.2f} (-${abs(pnl_usd or 0):.2f} USD)"
+        extra = f"📉 *Net Değişim:* %{safe_pnl_pct:.2f} (-${abs(safe_pnl_usd):.2f} USD)"
     else:
         title = "📄 FOX-BORSA: İŞLEM BİLDİRİMİ"
         icon = "⚡"
-        extra = ""
+        extra = f"📊 *PnL:* %{safe_pnl_pct:.2f} (${safe_pnl_usd:.2f} USD)" if (pnl_pct is not None or pnl_usd is not None) else ""
 
     msg = (
         f"{icon} *{title}*\n\n"

@@ -64,6 +64,12 @@ python app.py
 - [x] **DigitalOcean Canlı Dağıtım Senkronizasyonu:** Güncel stabil ve güvenli sürüm (`main`) GitHub ve DigitalOcean'a push edildi, canlı sunucu güncellendi.
 - [x] **GitGuardian Gizli Anahtar Temizliği:** `.do/app.yaml`, `stock_telegram_bot.py`, `dev_agent_bridge.py`, `get_chat_id.py` ve denetim raporundaki tüm açıkta kalan Telegram token'ları tamamen temizlendi/redacte edildi ve `type: SECRET` formatına geçirildi.
 - [x] **Fox-Borsa (@FoxBorsaBot) Dinamik Token Onarımı:** Bot token'ı kod tabanına asla sızmayacak şekilde Supabase (`global_system_settings`) üzerinden dinamik bağlandı, `getMe` doğrulaması yapıldı ve bot 7/24 aktif edildi.
+- [x] **Fox-Borsa Wall Street Otomasyon & Risk Zırhı:**
+  - `alpaca_client.py`: Bracket emirler `"day"` yerine `"gtc"` (Good 'Til Cancelled) yapıldı; seans kapanışında stop-loss emirlerinin borsada iptal olması engellendi.
+  - `stock_autonomous_worker.py`: Açık pozisyonlar için aktif yazılımsal Stop-Loss (-%1.5) ve Take-Profit (+%3.0) takip ve tasfiye döngüsü eklendi; Telegram bildirimleri entegre edildi.
+  - `stock_autonomous_worker.py`: Sabit $1,000 bütçe yerine tenant ayarındaki `max_budget_percent` (%25) üzerinden dinamik pozisyon büyüklüğü ($25,000) hesaplaması getirildi.
+  - `app.py`: Dashboard üzerindeki "🔴 Kapat" butonlarının çalıştığı `/api/stock/positions/{symbol}/close` endpoint'i ve canlı bildirim mekanizması tamamlandı.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-10 (12:05 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-10 (13:55 TSİ)*
+

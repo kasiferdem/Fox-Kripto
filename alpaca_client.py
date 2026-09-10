@@ -197,7 +197,7 @@ class AlpacaClient:
                 "qty": str(qty),
                 "side": side.lower(),
                 "type": "market",
-                "time_in_force": "day",
+                "time_in_force": "gtc",
                 "order_class": "bracket",
                 "take_profit": {
                     "limit_price": str(round(take_profit_price, 2))
