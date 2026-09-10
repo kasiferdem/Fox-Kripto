@@ -14,7 +14,7 @@ ui-ux-designer prensiplerine uygun olarak tasarlanmıştır:
 """
 
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 def generate_stock_dashboard_html(
     account_info: Dict[str, Any],
