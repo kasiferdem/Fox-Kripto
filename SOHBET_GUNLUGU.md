@@ -210,5 +210,23 @@ Bu dosya, Antigravity AI asistanı ile yapılan tüm teknik yazışmaları, alı
   4. `app.py`: `/api/stock/positions/{symbol}/close` endpoint'i yazıldı ve manuel kapatmalarda Telegram bildirim desteği eklendi.
   5. `stock_telegram_bot.py`: PnL bildirimlerinde `NoneType` format hatası koruması sağlandı.
 
+
+### 19. 🛑 SPCXB Satışı ve Bildirim Eksikliği İncelemesi (10 Eylül 2026 - 16:45 TSİ)
+* **Kullanıcı:** *SPCXB satılmış neden haberim yok (Ekran görüntüsü: 16:13'te açık, 16:37'de serbest bakiye $49.19 -> $97.21 olmuş ve SPCXB kaybolmuş)*
+* **Binance Global API İncelemesi & Adli Analiz:**
+  1. Binance Global emir defteri (`allOrders`) kuruşu kuruşuna sorgulandı:
+     * Emir No: `#130073493`
+     * Tür: `STOP_LOSS_LIMIT`
+     * Fiyat / Tetik: Stop Fiyatı $144.80 | Limit Fiyatı $144.08
+     * Dolum Zamanı: **10 Eylül 2026 - 16:15:03 TSİ**
+     * İnfaz: 0.3320 adet SPCXB tam olarak $48.0736 USD karşılığı satılarak nakde çevrildi ve serbest USDT bakiyesi $49.19'dan $97.21'e yükseldi.
+  2. **Neden Telegram Bildirimi Düşmedi? (Kök Neden):**
+     * Bu işlem bir Python piyasa satış emri değil, pozisyon açıldığında borsa tahtasına kurulan **fiziksel stop-loss limit emrinin (`STOP_LOSS_LIMIT`)** Binance eşleşme motoru tarafından doğrudan borsa sunucusunda infaz edilmesidir.
+     * Borsa tahtasında gerçekleşen fiziksel stopları algılayıp Telegram'a bildiren `reconciliation.py` modülünde eksik bir `except` bloğu nedeniyle `SyntaxError` oluştuğu ve bu yüzden `reconcile_active_positions_with_exchange` fonksiyonunun sessizce takıldığı tespit edildi.
+* **Uygulanan Çözüm:**
+  1. `reconciliation.py` dosyasındaki `SyntaxError` giderildi, kod derlendi ve doğrulandı.
+  2. Borsa API hatalarında pozisyonların yanlışlıkla silinmesini engelleyen `api_error` kalkanı eklendi.
+  3. Manuel test çalıştırıldı; `SPCXB` mutabakatı tamamlandı ve kullanıcıya anlık Telegram bildirim mesajı iletildi (`Chat ID: 8739367825`).
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*

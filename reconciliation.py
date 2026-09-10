@@ -89,6 +89,10 @@ def reconcile_active_positions_with_exchange(tenant_config: Dict[str, Any]) -> L
         
         # 1. Borsa anlık cüzdan varlıkları
         port = fetch_portfolio_balance(tenant_config)
+        if port.get("api_error"):
+            print(f"⚠️ [Mutabakat Atlandı]: {tenant_id} için borsa API hatası ({port.get('api_error')})")
+            return []
+            
         holdings = port.get("holdings_details") or {}
         active_coins = {k.upper(): v for k, v in holdings.items() if float(v.get("val_usd", 0.0)) >= 1.0}
         
@@ -134,4 +138,7 @@ def reconcile_active_positions_with_exchange(tenant_config: Dict[str, Any]) -> L
                         send_message(chat_id, msg)
                     except Exception as e_tg:
                         print(f"⚠️ Mutabakat Telegram bildirim uyarısı: {e_tg}")
+    except Exception as e:
+        print(f"⚠️ [Mutabakat Hatası]: {e}")
     return cleaned_symbols
+
