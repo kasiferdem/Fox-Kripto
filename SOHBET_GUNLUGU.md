@@ -228,5 +228,14 @@ Bu dosya, Antigravity AI asistanı ile yapılan tüm teknik yazışmaları, alı
   2. Borsa API hatalarında pozisyonların yanlışlıkla silinmesini engelleyen `api_error` kalkanı eklendi.
   3. Manuel test çalıştırıldı; `SPCXB` mutabakatı tamamlandı ve kullanıcıya anlık Telegram bildirim mesajı iletildi (`Chat ID: 8739367825`).
 
+
+### 20. 🧠 Google Resmi Agent Skills Paketinin Kurulumu (10 Eylül 2026 - 22:45 TSİ)
+* **Kullanıcı:** *https://github.com/google/skills.git bu skilleri kur*
+* **İnceleme & Kurulum:**
+  1. `https://github.com/google/skills.git` deposu klonlandı; toplam 136 yetenek paketi ve `google-cloud-developer` eklentisi incelendi.
+  2. Antigravity'nin global yetenek dizini olan `C:\Users\PC\.gemini\config\skills/` konumuna 133 yeni skill kuruldu, 3 mevcut skill güncellendi.
+  3. Toplam doğrulanmış global beceri sayısı **164**'e yükseltildi.
+  4. Kazanılan Beceriler: Google Cloud Altyapısı, GKE, BigQuery, Vertex AI / Agent Platform, Gemini API & Live API, Cloud Storage, IAM Security, Observability ve Developer Knowledge araçları.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*

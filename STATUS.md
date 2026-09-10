@@ -75,6 +75,12 @@ python app.py
   - API ve bakiye okuma hatalarında (`port.get("api_error")`) veritabanındaki pozisyonların yanlışlıkla silinmesini engelleyen kalkan eklendi.
   - Binance Global emir tahtasında fiziksel stop-loss limit emri eşleştiğinde (`STOP_LOSS_LIMIT` dolduğunda), sistemin bunu tespit edip veritabanını temizlemesi ve Telegram'a anlık bildirim (`🛑 FİZİKSEL STOP-LOSS TETİKLENDİ`) göndermesi sağlandı.
 
+- [x] **Google Agent Skills Paketi Kurulumu (`google/skills`):**
+  - `https://github.com/google/skills.git` deposundan 133 yeni skill ve `google-cloud-developer` eklentisi indirildi.
+  - Tüm beceriler global konfigürasyona (`~/.gemini/config/skills/`) entegre edildi.
+  - Toplam aktif ve doğrulanmış skill sayısı **164**'e çıkarıldı; Cloud, AI/ML, Agent Platform, GKE, BigQuery, Gemini API ve Developer araçları Antigravity'ye kazandırıldı.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-10 (16:45 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-10 (22:45 TSİ)*
+
 
