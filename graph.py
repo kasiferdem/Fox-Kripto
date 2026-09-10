@@ -88,15 +88,35 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
             r_k = sess.get(f"https://api.binance.com/api/v3/klines?symbol={clean_s}&interval=5m&limit=6", timeout=3)
             klines_5m_data = r_k.json() if r_k.status_code == 200 else None
 
+            first_pump_blocked_cfg = bool(strat_cfg.get("first_pump_candle_entry_blocked", True))
+            retest_required_cfg = bool(strat_cfg.get("retest_required", True))
             min_score_req = float(strat_cfg.get("min_ai_score") or 4.5)
+
             if is_scalp:
                 eval_res = scalp_engine.evaluate_candidate(ticker_dict, klines_1m=klines_5m_data)
                 c["v2_score"] = float(eval_res.get("strategy_score") or 8.0)
-                is_candidate_ok = (eval_res.get("is_ready") or (eval_res.get("state_machine_stage") == "READY") or (c["v2_score"] >= min_score_req))
+                stage_str = str(eval_res.get("state_machine_stage") or "")
+                pump_blocked = first_pump_blocked_cfg and (bool(eval_res.get("is_first_pump_blocked")) or stage_str == "WAITING_PULLBACK")
+                
+                if pump_blocked:
+                    is_candidate_ok = False
+                elif retest_required_cfg:
+                    is_candidate_ok = bool(eval_res.get("is_ready")) and (stage_str == "READY") and (c["v2_score"] >= min_score_req)
+                else:
+                    is_candidate_ok = (stage_str == "READY") and (c["v2_score"] >= min_score_req)
             else:
                 eval_res = whale_engine.evaluate_whale_evidence(ticker_dict, klines_5m=klines_5m_data)
                 c["v2_score"] = float(eval_res.get("total_evidence_score") or 8.0)
-                is_candidate_ok = (eval_res.get("is_whale_confirmed") or not strat_cfg.get("retest_required", False)) and (c["v2_score"] >= min_score_req)
+                stage_str = str(eval_res.get("action_state") or "")
+                tech_ev = eval_res.get("evidence_groups", {}).get("TechnicalStructureEvidence", {})
+                pump_blocked = first_pump_blocked_cfg and (bool(eval_res.get("is_first_pump_blocked")) or bool(tech_ev.get("first_pump_blocked")) or stage_str == "WAITING_PULLBACK")
+                
+                if pump_blocked:
+                    is_candidate_ok = False
+                elif retest_required_cfg:
+                    is_candidate_ok = bool(eval_res.get("is_whale_confirmed")) and (c["v2_score"] >= min_score_req)
+                else:
+                    is_candidate_ok = (stage_str == "BUY_READY" or eval_res.get("is_whale_confirmed")) and (c["v2_score"] >= min_score_req)
             
             c["v2_evaluation"] = eval_res
             if is_candidate_ok:
@@ -544,6 +564,15 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     # Kullanıcının tablodaki net Bütçe % oranı doğrudan işleme alınır
     exec_amount_usd = safe_budget_usd
     
+    v2_eval = cand.get("v2_evaluation") or {}
+    first_pump_detected = bool(
+        v2_eval.get("is_first_pump_blocked") or
+        v2_eval.get("state_machine_stage") == "WAITING_PULLBACK" or
+        v2_eval.get("action_state") == "WAITING_PULLBACK" or
+        v2_eval.get("evidence_groups", {}).get("TechnicalStructureEvidence", {}).get("first_pump_blocked")
+    )
+    sig_state = "WAITING_PULLBACK" if first_pump_detected else ("RETEST_CONFIRMED" if strat_cfg.get("retest_required", True) else "MOMENTUM_BREAKOUT")
+
     proposal = {
         "should_trade": True,
         "symbol": fresh_coin,
@@ -556,6 +585,9 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         "take_profit_percent": dynamic_tp_pct,
         "stop_loss_percent": dynamic_sl_pct,
         "stage": "INITIAL",
+        "signal_state": sig_state,
+        "first_pump_entry": first_pump_detected,
+        "source_engine": "SCALPING" if is_scalp_mode else "WHALE_HUNTING",
         "risk_justification": f"V2.3 Deterministik Retest Onaylı Alım: Bütçe %{user_max_pct:.0f} (${exec_amount_usd:.2f}) | ATR TP: +%{dynamic_tp_pct:.1f} | ATR SL: -%{dynamic_sl_pct:.1f}"
     }
     print(f"   ✅ [Risk Engine Onayı]: ALIM ({fresh_coin}) - Fiyat: ${real_entry_price} | Bütçe: ${proposal['amount_usd']}")
@@ -589,8 +621,8 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
         direction=proposal["direction"],
         amount_usd=proposal["amount_usd"],
         source_engine=str(proposal.get("source_engine", "WHALE_HUNTING")),
-        signal_state="RETEST_CONFIRMED" if proposal.get("direction") == "BUY" else "EXIT_SIGNAL",
-        first_pump_entry=False,
+        signal_state=str(proposal.get("signal_state") or ("RETEST_CONFIRMED" if proposal.get("direction") == "BUY" else "EXIT_SIGNAL")),
+        first_pump_entry=bool(proposal.get("first_pump_entry", False)),
         risk_decision="APPROVED",
         config_hash=runtime_hash,
         is_expired=False,

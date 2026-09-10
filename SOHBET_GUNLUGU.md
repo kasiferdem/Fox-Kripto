@@ -238,4 +238,112 @@ Bu dosya, Antigravity AI asistanı ile yapılan tüm teknik yazışmaları, alı
   4. Kazanılan Beceriler: Google Cloud Altyapısı, GKE, BigQuery, Vertex AI / Agent Platform, Gemini API & Live API, Cloud Storage, IAM Security, Observability ve Developer Knowledge araçları.
 
 ---
+
+### 21. 🛡️ Tepe Alım ve İlk Pump Engeli Açığının Kapatılması (MITO Hadisesi) (11 Eylül 2026 - 01:45 TSİ)
+* **Kullanıcı:** *bu gerçekten bi balina avı olamaz. yani MITO alıyorsun daha dk içinde zarar. hani 2. mumda binecekti trene. / aktif değil mi zaten (İlk Pump Engeli: Engelle ekran görüntüsü)*
+* **Tespit Edilen Kök Nedenler & Adli İnceleme:**
+  1. **Gizli Eşik:** `v2_whale_engine.py` ve `v2_scalping_engine.py` içinde pump mumu tespiti için `curr_candle_gain > 0.40` şartı gömülü (hardcoded) idi. Panelde ise bu eşik gösterilmiyordu; sadece "Engelle / Serbest" seçeneği vardı. MITO'nun patlama mumu (01:04) +%0.31 yükseldiği için (%0.40 altında kaldığından) sistem 76 katlık hacim sıçramasına rağmen mumu pump saymamıştı.
+  2. **`graph.py` Bypass Mantık Hatası:** Aday filtreleme satırında `is_candidate_ok = (eval_res.get('is_ready') or (c['v2_score'] >= min_score_req))` yazılıydı. MITO'nun genel puanı (7.5) barajdan (4.5) yüksek olduğu için motor pump engelini ve retest kontrolünü tamamen baypas etmişti.
+  3. **Ölü Likidite Tuzağı:** 01:05 mumunda hacim 1 milyondan 14 bine (%98.6) çöktüğü ve mum kırmızı kapandığı halde retest formülü bunu "sağlıklı hacim düşüşü" sanmıştı.
+  4. **Emir İnfazı:** `OrderIntent` içine `first_pump_entry=False` sabit yazıldığı için güvenlik kapısı tetiklenememişti.
+* **Uygulanan Kesin Çözümler:**
+  1. `v2_whale_engine.py` & `v2_scalping_engine.py`: Pump mumu eşiği %0.20'ye çekildi; hacim sıçraması (>=1.5x) varken mum yeşilse kesinlikle PUMP sayılması ve `WAITING_PULLBACK` aşamasına alınması sağlandı.
+  2. `v2_whale_engine.py`: Retest teyidinde hacmin %85'ten fazla kuruması (ölü likidite) ve kırmızı düşüş mumu kapanışları kesinlikle geçersiz kılındı (`not_dumping_candle`, `has_living_liquidity`).
+  3. `graph.py`: Bypass mantık hatası kaldırıldı; `pump_blocked` veya `WAITING_PULLBACK` durumundaki hiçbir coin puanı ne olursa olsun alıma gönderilmeyecek şekilde mühürlendi.
+  4. `graph.py`: `proposal` ve `OrderIntent` içine adayın gerçek `first_pump_entry` ve `signal_state` değerleri bağlandı; `EntrySafetyPolicy` kapısı tam yetkili kılındı.
+  5. Testler (`V2WhaleHuntingEngine`, `V2ScalpingEngine`) ile doğrulandı; MITO verisiyle yapılan simülasyonda alım %100 engellendi (`Whale confirmed: False`, `Action state: CONFIRMING`).
+
+---
+
+
+## 🧭 CLAUDE CODE & CODEX CLI OTURUM GEÇMİŞİ (12 Ağustos – 11 Eylül 2026)
+
+> Bu bölüm, Antigravity dışında **Claude Code** (Anthropic) ve **Codex CLI** (OpenAI) ile yapılan oturumların özetidir. Kaynak: `.specstory/history/` (SpecStory otomatik kayıtları) ve `~/.claude/projects/C--Projects-Fox-Kripto/*.jsonl` (Claude Code ham transkriptleri). `.specstory/` git dışında tutulduğu için bu özetler GitHub'dan okunabilen tek kalıcı kayıttır.
+
+### CC-1. 📚 Kod Tabanının Baştan Sona Okunması (12 Ağustos 2026 - 21:11 TSİ)
+* **Araç / Model:** Claude Code · `claude-sonnet-5` · `/claude-mem:learn-codebase`
+* **Kullanıcı:** Tüm kaynak dosyaları eksiksiz oku, kod tabanını öğren.
+* **Asistan:** 21 dosyalık envanter çıkarıp `app.py`, `graph.py`, `db.py`, `exchange.py`, `prompts.py`, `telegram_poller.py`, `state.py`, `schema.sql` ve deploy dosyalarını tam okudu. Hiçbir dosya değiştirilmedi.
+* **O günkü mimari (V1):**
+  * LangGraph 5 düğüm: `fetch_data → analyze_news → formulate_strategy → human_approval → execute_trade`; 9 sabit sembol (BTC, ETH, SOL, AVAX, BNB, DOGE, PEPE, RENDER, XRP).
+  * `node_human_approval` koşulsuz "Approved" döndürüyordu; HITL sadece isimde kalmıştı, sistem fiilen tam otonomdu.
+  * LLM: OpenRouter üzerinden `openai/gpt-4o`; bütçe likiditenin ≤%10'u (min $10), SL %3–5.
+  * `app.py` startup'ta poller + 900 sn periyotlu otonom döngüyü daemon thread olarak başlatıyordu.
+* **Tespit edilen sorunlar:**
+  * Kaynağa gömülü sırlar: `prompts.py:13` base64 OpenRouter key, `telegram_poller.py:15` ve `get_chat_id.py:4` sabit bot token, `app.py:29` varsayılan admin şifresi, `app.py:145` sabit chat ID.
+  * `db.py` ile `.do/app.yaml` farklı Supabase URL'leri gösteriyordu.
+  * `app.py` exec sonucunu `"success"` ile karşılaştırıyor, `exchange.py` ise `"EXECUTED"` döndürüyordu; Telegram bildirimi hiç tetiklenmiyordu.
+  * Bakiye hatasında $1000 sahte paper bakiye, fiyat hatasında sabit 64280 fallback (fail-open).
+* **Sonuç:** Karar alınmadı; asistan sırların rotasyonunu teklif etti, oturum cevapsız kapandı. (Bu bulguların tamamı 20 Ağustos `fix(audit-2): resolve P0-P3 items` ve `fix(security & core)` commit'leriyle giderildi.)
+
+### CC-2. 🔍 Codex Derin Denetim: 6 Dosya, P0/P1 Bulgu Listesi (20 Ağustos 2026 - 18:41 TSİ)
+* **Araç / Model:** Codex CLI · `gpt-5.6-sol` (ilk deneme 18:40'ta Windows sandbox hatasıyla düştü, 18:41'de tekrar başlatıldı)
+* **Kullanıcı:** `graph.py`, `exchange.py`, `app.py`, `surge_detector.py`, `telegram_poller.py`, `db.py` için derin denetim: re-entry whipsaw, sermaye erimesi, Binance LOT_SIZE/precision, LangGraph state, SL/TP ve çoklu borsa risk yönetimi.
+* **Asistan:** Salt-okunur statik inceleme (~4.000 satır), `rg` çağrı haritası, `pyflakes`; 18:47'de önceliklendirilmiş rapor.
+* **P0 bulgular:**
+  1. SL/TP borsaya OCO/STOP emri olarak konmuyor, koruma 5 sn polling'e bağlı (`graph.py:118`, `exchange.py:811`).
+  2. `max_budget_percent` hiç uygulanmıyor; %20–40 sabit tahsis (`graph.py:258`); drawdown/kill-switch yok.
+  3. `trade_cooldowns.json` okunuyor ama hiçbir yerde yazılmıyor; whipsaw koruması fiilen yok (`graph.py:178`).
+  4. Pozisyon dosyaları tenant bazlı değil (`active_positions_tr/global.json`).
+  5. Bakiye hatası fail-open: `is_paper_trading=True, free_usdt=1000` (`exchange.py:724`).
+  6. Miktarlı satış tüm bakiyeyi satıyor (`exchange.py:855`).
+  7. Human approval düğümü sahte; `interrupt` ve checkpointer yok (`graph.py:305`).
+  8. Telegram approval state yoksa varsayılan `$10 BTC BUY` üretiyor (`telegram_poller.py:74`).
+  9. Her FastAPI process trading thread açıyor; çift emir riski (`app.py:398`).
+  10. Canlı alım/satım/tasfiye endpoint'leri auth'suz GET; tenant listesi ham API key sızdırıyor; RLS `USING(true)`.
+* **P1 bulgular (seçme):** `math` yalnız satış dalında import edildiğinden alışta `UnboundLocalError`; stepSize yerine ondalık sayısı sayılıyor, minQty/MIN_NOTIONAL yok; Binance TR kuralları Global exchangeInfo'dan okunuyor; `requests` import edilmemiş, orderbook oranı hep 1.0; surge sinyali kapanmamış mumdan; sabit `session_langgraph_hitl` ile tenant state'leri birbirini eziyor; USD/TRY 34.80 vs 47.80 tutarsız.
+* **Önerilen sıra:** (1) canlı otonom alımı kapat, paper mod; (2) endpoint auth + token rotate; (3) DB ledger; (4) idempotent execution gateway; (5) exchange-native OCO; (6) Decimal precision; (7) fail-closed bakiye/fiyat; (8) bütçe/drawdown/kill-switch; (9) kalıcı cooldown; (10) leader election.
+* **Sonuç:** "P0'lar giderilmeden 7/24 canlı çalıştırma yüksek riskli." Aynı gün `feat: complete Codex architectural overhaul - Supabase DB ledger, fail-closed error handling, live FX, and precision engine` (`3a0567f`) commit'i bu raporun uygulamasıdır.
+
+### CC-3. ⚖️ Hakem Değerlendirmesi: 3 Altın Kural + Supabase Ledger Geçişi (20 Ağustos 2026 - 19:00 TSİ)
+Aynı istek eş zamanlı olarak hem Claude Code'a hem Codex'e verildi.
+* **Kullanıcının beyan ettiği değişiklikler:**
+  1. Disk `.json` pozisyon/cooldown dosyaları kaldırılıp Supabase `crypto_agent_states`'e atomik taşındı.
+  2. **3 Altın Kural:** (a) 24s primi %+8.5 üstü coinlere FOMO giriş engeli; (b) satış baskısı alışın 1.3 katını aşarsa (tahta doyumu) alım iptali; (c) son 60 dk'da satılan coin için statik kilit yerine Heyet Konsensüsü (Skor ≥ 8.5, Hacim ≥ 3x, Alıcı Baskısı ≥ 1.4) ile dinamik 2. giriş.
+  3. Fail-closed borsa modeli (sahte sanal bakiye kaldırıldı).
+  4. Precision: modül seviyesi `math`/`Decimal`, LOT_SIZE tam sayı yuvarlama, bütçe iletimi.
+  5. Sabit 34.80/47.80 yerine canlı USDT/TRY kuru.
+* **Claude Code oturumu** (`claude-sonnet-5`): `code-review` skill'i 3 kez sessizce başarısız oldu; manuel incelemeye geçti, `FOX_KRIPTO_DENETIM_RAPORU.md` (26 bulgu) ve `3a0567f / 6674bb6 / a2281b1` commit'lerini okudu. Kayıt nihai karar üretilmeden kesildi. Araç çıktılarından görünen kanıtlar: `graph.py:1`'de `requests` hâlâ import edilmemiş (2. Kural NameError); `graph.py:141`, `app.py`, `telegram_poller.py:270/926`, `prompts.py:113`'te sabit kur kalıntıları; `exchange.py:171/403` fonksiyon içi `import math`; `Decimal` import edilmiş ama kullanılmıyor; `db.py:228-319` JSONB read-modify-write (atomik değil); `schema.sql`'deki `tenant_positions`/`tenant_cooldowns` tabloları kodda kullanılmıyor.
+* **Codex oturumu** (`gpt-5.6-sol`): `py_compile` 5 dosyada geçti; iki izole monkeypatch testi çalıştırdı. **Nihai karar: REVİZYON GEREKLİ.**
+  1. **Kritik: 3 Altın Kural fiilen çalışmıyor.** `graph.py:164,196` metadata kaybı (skor 7.0 / 24s %0 varsayılan); 1. Kural ek `5dk > %6` şartı arıyor; `requests` yok, 2. Kural fail-open; eşik `<0.75` yerine `<1/1.3≈0.769` olmalı; 3. Kural pratikte statik 60 dk kilit. Test: %+25/24s, 4x hacim, 9.5 skorlu coin engellenmedi.
+  2. **Kritik: Sermaye limiti yok.** `max_budget_percent` (%10) hiç okunmuyor; test: 100 USD'den 29.40 USD tek işlem.
+  3. **Kritik: TR kur hatası bakiyenin %95'ini harcatıyor.** Kur 0 dönünce `calc_try<10` dalı serbest TL'nin %95'ini `quoteOrderQty` yapıyor (10 USD niyet, 950 TL emir).
+  4. **Kritik: DB atomik değil.** Lost-update, silme+cooldown tek transaction değil, DB okuma hatası `{}` dönüp korumaları kapatıyor, idempotency anahtarı yok.
+  5. **Yüksek:** JSON dosyaları hâlâ git'te ve `telegram_poller.py:250`, `app.py:599` hâlâ okuyor (çift gerçeklik). Kur fallback 47.80; kimlik yoksa `EXECUTED_SIMULATED`.
+  6. **Orta:** Decimal kullanılmıyor, stepSize yerine ondalık sayısı, TR için Global filtre varsayımı, TRY alımında kur çarpanı eksik.
+* **Sonuç / uygulama:** Aynı akşam ve ertesi gün `fix(security & core)`, `fix(audit-2)`, `feat(surge): 3 golden rules integration`, `feat(phase 1): physical exchange stop loss`, `feat(strategy & safety): ATR(14), circuit breaker, market regime`, `fix(cooldown): 30-60m rest period`, `feat(trailing-stop)` commit'leri bu hakem bulgularını kapattı.
+
+### CC-4. 🛠️ Küçük Oturumlar (20 Ağustos – 5 Eylül 2026)
+* **20 Ağustos 19:00:** Claude Code varsayılan modeli `Fable 5` olarak ayarlandı (`/model`).
+* **25–26 Ağustos:** Üç Codex CLI oturumu yalnızca `STATUS.md` okuyup kapandı (bir tanesi "code-mode host closed its stdout" hatasıyla).
+* **31 Ağustos:** Boş Claude Code oturumu.
+* **4–5 Eylül:** Claude Code `/login` yenilendi.
+* **5 Eylül 22:50, Codex "Astral 6 geçiş":** Kullanıcı GPT-6 Astra modeline geçmek istedi, `/model` listesinde çıkmadı. Teşhis: çalışan `codex.exe` npm sürümü değil, **Antigravity içindeki eski OpenAI uzantısından** (`.antigravity-ide\extensions\openai.chatgpt-26.721...`) geliyordu; sürüm 0.149.1, Astra için en az 0.153.0 gerekiyor. Çözüm: `npm.cmd install -g @openai/codex@latest`, bağımsız CLI için `& "$env:APPDATA\npm\codex.cmd"`, Antigravity uzantısını ayrıca güncelle ve IDE'yi tamamen yeniden başlat.
+
+### CC-5. 🧠 Antigravity İçinden Claude Code: Codex, claude-mem ve Fox MRO Hafıza Doldurma (6 Eylül 2026 - 22:21–23:04 TSİ)
+* **Araç / Model:** Claude Code · `claude-fable-5-1` (ikinci kayıt aynı oturumun resume kopyası, yeni bilgi yok)
+* **Sorular ve cevaplar:**
+  1. *Gemini Flash 3.7 ve Codex erişimin var mı?* Codex CLI 0.149.1 kurulu ve ChatGPT girişi doğrulanmış. Gemini'ye doğrudan erişim yok; ancak `openrouter_gateway.py`'de `google/gemini-3.7-flash` birincil/yedek model olarak tanımlı, projenin kendi AI hattından kullanılabilir.
+  2. *Claude Cowork projelerine erişim?* Yok. Devam için `.specstory` geçmişi, git farkı ve claude-mem gözlemleri önerildi.
+  3. *`fox-mro-github` projesini tanıdın mı, claude-mem aktif mi?* Tanındı (çok kiracılı havacılık MRO/CAMO, TS monorepo, son commit Tur 197, ADR-0217). claude-mem 50 gözlem döndürdü.
+  4. *claude-mem aktif mi?* Evet: port 37778, v13.13.1, Haiku 4.5, mcpReady.
+  5. *Fox MRO hafızaya alınmış mı?* Kısmen; gözlemler 8–10 Ağustos'ta bitiyor, git 202 commit ilerlemiş.
+  6. *Aldırabilir misin?* 202 commit (690K karakter, 240 ADR) 4 parçaya bölündü, **4 paralel subagent** Türkçe dönem digest'i üretti. Oluşturulan dosyalar (`~/.claude/projects/c--Projects-fox-mro-github/memory/`): `fox-mro-tur-015-048.md`, `fox-mro-tur-049-099.md`, `fox-mro-tur-100-148.md`, `fox-mro-tur-149-197.md`, `fox-mro-guncel-durum.md`, `MEMORY.md` indeksi. Not: özetler koddan değil commit mesajlarından üretildi. Ek tespit: fox-mro'da Tur 198–199 commit edilmemiş.
+  7. *Fox Kripto'ya hâkim misin?* "Genel resme hâkimim, koda satır satır değil."
+* **Fox-Kripto için o günkü tespitler:**
+  * 49 Python dosyası, ~15.457 satır; en büyükler `app.py` 2781, `telegram_poller.py` 1679, `v2_dashboard_html.py` 1476, `exchange.py` 1394.
+  * 453 commit (Ağustos 420, Eylül 33); son commit `7e36397` (gpt-6-astral Codex birincil model).
+  * `STATUS.md` 14 Ağustos'ta kalmış, hâlâ GPT-4o anlatıyor (23 günlük boşluk). `CLAUDE.md` boş.
+  * Commit edilmemiş fark: `graph.py`, `prompts.py`, `entry_safety_policy.py`, `db.py` (280+/226−).
+  * ~15 takipsiz betik: `scratch_*`, `check_orders*`, `fetch_*trades`, `nightly_forensic_auditor.py`, `binance_execution_service.py`, `openrouter_gateway.py` (kalıcı modül mü deney mi belirsiz).
+  * Claude hafıza klasörü (`c--Projects-Fox-Kripto/memory/`) boş.
+* **Açık kalan:** Fox-Kripto için aynı hafıza doldurma işi teklif edildi, cevapsız kaldı. (Sonraki günlerde STATUS.md 10 Eylül'e güncellendi, takipsiz betikler `_archive/scratch/`'e taşındı ve `openrouter_gateway.py` / `binance_execution_service.py` / `nightly_forensic_auditor.py` kalıcı modül olarak commit edildi; bkz. yukarıdaki 1 ve 14 numaralı Antigravity kayıtları.)
+
+### CC-6. 📓 Claude Code Sohbetlerinin Proje Günlüğüne Çekilmesi (11 Eylül 2026 - 00:10 TSİ)
+* **Araç / Model:** Claude Code · `claude-fable-5-1`
+* **Kullanıcı:** `/schedule` ve `/claude-mem:learn-codebase` başlatıldı, ikisi de yarıda kesildi. Asıl istek: *"Claude Code sohbetlerini buraya çekebilir miyiz? Proje geçmiş."*
+* **Asistan:** 8 Claude Code transkripti (`~/.claude/projects/C--Projects-Fox-Kripto/`) ve 22 SpecStory kaydı (`.specstory/history/`) tarandı. `.specstory/` `.gitignore`'da olduğu için GitHub'dan görünmüyordu. Büyük dört kayıt (toplam ~1.3 MB) 4 paralel subagent ile Türkçe özetlendi ve bu bölüm (CC-1 … CC-6) `SOHBET_GUNLUGU.md`'ye eklendi.
+* **Bundan sonrası:** SpecStory her Claude Code / Codex oturumunu `.specstory/history/` altına otomatik yazmaya devam ediyor; kalıcı proje geçmişi için bu bölümün yeni oturumlardan sonra elle güncellenmesi gerekir.
+
+---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*

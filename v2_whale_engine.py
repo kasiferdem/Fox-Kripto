@@ -196,14 +196,16 @@ class V2WhaleHuntingEngine:
             })
             
             # B. CANLI PUMP KONTROLÜ: first_pump_candle_entry_blocked ayarına göre dinamik denetlenir
-            first_pump_blocked_cfg = bool(self.params.get("first_pump_candle_entry_blocked", False))
-            retest_required_cfg = bool(self.params.get("retest_required", False))
+            first_pump_blocked_cfg = bool(self.params.get("first_pump_candle_entry_blocked", True))
+            retest_required_cfg = bool(self.params.get("retest_required", True))
+            first_pump_thresh = float(self.params.get("first_pump_candle_threshold_pct", 0.20))
+            is_volume_pump = (spot_volume_spike >= 1.5 and curr_candle_gain > 0.05)
             
-            if first_pump_blocked_cfg and (curr_candle_gain > 0.40 or dist_breakout_pct > 0.40):
+            if first_pump_blocked_cfg and (curr_candle_gain > first_pump_thresh or dist_breakout_pct > first_pump_thresh or is_volume_pump):
                 is_first_pump_blocked = True
                 retest_confirmed = False
                 action_state = "WAITING_PULLBACK"
-                retest_note = f"Canlı fırlama mumu (+%{curr_candle_gain:.2f}) tepesinde; ilk pump mumundan alım engellendi, retest bekleniyor."
+                retest_note = f"Canlı fırlama mumu (+%{curr_candle_gain:.2f} | Hacim: {spot_volume_spike:.1f}x) tepesinde; ilk pump mumundan alım engellendi, retest bekleniyor."
             elif not retest_required_cfg:
                 # 🚀 SERBEST MOMENTUM GİRİŞİ (2-3 Eylül Atik Mod)
                 is_first_pump_blocked = False
@@ -215,18 +217,22 @@ class V2WhaleHuntingEngine:
                 is_in_retest_zone = (retest_zone_low <= c_last <= retest_zone_high * 1.005) or (retest_zone_low <= l_last <= retest_zone_high)
                 no_lower_low = (l_last >= retest_zone_low * 0.995)
                 v_breakout = float(klines_5m[-2][7])
-                sell_vol_decay = (v_last < v_breakout * 0.70) if v_breakout > 0 else True
-                tb_rebound = (spot_taker_pct >= 50.0)
+                # Hacim tamamen buharlaşmamalı (en az %15 canlı likidite) ve aşırı satış mumu olmamalı (< %70)
+                has_living_liquidity = (v_last >= v_breakout * 0.15) if v_breakout > 0 else True
+                sell_vol_decay = (v_last < v_breakout * 0.70) and has_living_liquidity
+                # Kırmızı çöküş mumu tepesinden/ortasından aşağı basılıyorsa retest teyit EDİLMEZ:
+                not_dumping_candle = (c_last >= (h_last + l_last) / 2.0) or (c_last >= o_last)
+                tb_rebound = (spot_taker_pct >= 55.0)
                 chase_valid = (dist_breakout_pct <= 0.60)
                 
-                if is_in_retest_zone and no_lower_low and sell_vol_decay and tb_rebound and chase_valid:
+                if is_in_retest_zone and no_lower_low and sell_vol_decay and tb_rebound and chase_valid and not_dumping_candle:
                     retest_confirmed = True
                     action_state = "BUY_READY"
                     retest_note = f"Retest Bölgesi (${retest_zone_low:.4f} - ${retest_zone_high:.4f}) teyit edildi."
                 else:
                     retest_confirmed = False
                     action_state = "CONFIRMING"
-                    retest_note = "Retest bölgesi veya toparlanma şartları henüz eksiksiz sağlanmadı (Beklemede)."
+                    retest_note = "Retest bölgesi, likidite sürekliliği veya toparlanma şartları henüz eksiksiz sağlanmadı (Beklemede)."
 
         max_g_limit = float(self.params.get("max_recent_gain_24h") or 60.0)
         tech_passed = (-6.0 <= gain_24h <= max_g_limit) and retest_confirmed and not is_first_pump_blocked
@@ -281,6 +287,7 @@ class V2WhaleHuntingEngine:
             "symbol": symbol,
             "price": last_p,
             "is_whale_confirmed": is_whale_confirmed,
+            "is_first_pump_blocked": is_first_pump_blocked,
             "action_state": action_state,
             "live_metrics": live_metrics,
             "passed_evidence_groups_count": passed_evidence_count,

@@ -140,10 +140,13 @@ class V2ScalpingEngine:
             first_pump_blocked = bool(self.params.get("first_pump_candle_entry_blocked", True))
             retest_req = bool(self.params.get("retest_required", True))
 
-            if first_pump_blocked and (gain_recent_pct > 0.40 or dist_breakout_pct > 0.40):
+            first_pump_thresh = float(self.params.get("first_pump_candle_threshold_pct", 0.20))
+            is_volume_pump = (spike_ratio >= 1.5 and gain_recent_pct > 0.05)
+
+            if first_pump_blocked and (gain_recent_pct > first_pump_thresh or dist_breakout_pct > first_pump_thresh or is_volume_pump):
                 state_machine_stage = "WAITING_PULLBACK"
-                failed_criteria.append(f"Canlı mum fırlamasında (+%{gain_recent_pct:.2f}); ilk pump mumundan alım engellendi, retest bekleniyor.")
-                scores["momentum_score"] = 6.0
+                failed_criteria.append(f"Canlı mum fırlamasında (+%{gain_recent_pct:.2f} | Hacim: {spike_ratio:.1f}x); ilk pump mumundan alım engellendi, retest bekleniyor.")
+                scores["momentum_score"] = 4.0
             elif not retest_req and (gain_recent_pct > 0.20 or spike_ratio >= self.params.get("min_spike_multiplier", 1.15)):
                 # 🚀 2-3 Eylül Serbest Momentum Modu: İlk fırlayan yeşil mumda ve hacim patlamasında anında alım
                 state_machine_stage = "READY"
@@ -226,6 +229,7 @@ class V2ScalpingEngine:
             "price": last_p,
             "state_machine_stage": state_machine_stage,
             "is_ready": is_ready,
+            "is_first_pump_blocked": (state_machine_stage == "WAITING_PULLBACK"),
             "strategy_score": final_score,
             "passed_criteria": passed_criteria,
             "failed_criteria": failed_criteria,

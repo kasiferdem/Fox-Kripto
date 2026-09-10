@@ -80,7 +80,18 @@ python app.py
   - Tüm beceriler global konfigürasyona (`~/.gemini/config/skills/`) entegre edildi.
   - Toplam aktif ve doğrulanmış skill sayısı **164**'e çıkarıldı; Cloud, AI/ML, Agent Platform, GKE, BigQuery, Gemini API ve Developer araçları Antigravity'ye kazandırıldı.
 
+- [x] **Claude Code & Codex Oturum Geçmişinin Günlüğe Çekilmesi (`SOHBET_GUNLUGU.md`):**
+  - 12 Ağustos – 11 Eylül arasındaki 8 Claude Code transkripti ve 22 SpecStory kaydı (`.specstory/history/`, git dışı) tarandı.
+  - 6 oturum (kod okuma, Codex P0/P1 denetimi, 3 Altın Kural hakem değerlendirmesi, Astra 6 geçişi, Fox MRO hafıza doldurma, günlük aktarımı) `CC-1 … CC-6` başlıklarıyla Türkçe özetlenip günlüğe eklendi.
+
+- [x] **Tepe Alım ve İlk Pump Engeli Açığının Kapatılması (`v2_whale_engine.py`, `v2_scalping_engine.py`, `graph.py`):**
+  - Panelde "İlk Pump Engeli: Engelle" seçili olmasına rağmen MITO gibi coinlerin içeri sızmasına yol açan 3 kritik açık giderildi:
+  - 1. **Gizli Eşik & Hacim Patlaması Filtresi:** Sabit %0.40 gövde şartı %0.20'ye çekildi; hacim sıçraması (>=1.5x) varken mum yeşilse mum boyutu küçük de olsa kesinlikle PUMP sayıldı.
+  - 2. **`graph.py` Bypass Mantık Hatası:** `is_candidate_ok` içindeki `or (c["v2_score"] >= min_score_req)` şartı kaldırıldı; `WAITING_PULLBACK` durumundaki veya pump engelindeki coinlerin yapay zeka puanı ne kadar yüksek olursa olsun alımı kesin olarak engellendi.
+  - 3. **Sahte Retest & Likidite Çöküş Engeli:** Retest teyidinde hacmin %85'ten fazla buharlaşması (ölü likidite) ve kırmızı düşüş mumu kapanışları geçersiz kılındı.
+  - 4. **OrderIntent Doğrulaması:** Borsaya emir gönderilirken `first_pump_entry` ve `signal_state` değerleri adayın gerçek durumuna bağlandı.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-10 (22:45 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-11 (01:45 TSİ)*
 
 
