@@ -63,6 +63,7 @@ python app.py
 - [x] **3'lü Test Paketi Onayı:** Tüm testler (`test_openrouter`, `test_execution_gate`, `test_retest_state_machine`) 0 hata ile %100 geçti.
 - [x] **DigitalOcean Canlı Dağıtım Senkronizasyonu:** Güncel stabil ve güvenli sürüm (`main`) GitHub ve DigitalOcean'a push edildi, canlı sunucu güncellendi.
 - [x] **GitGuardian Gizli Anahtar Temizliği:** `.do/app.yaml`, `stock_telegram_bot.py`, `dev_agent_bridge.py`, `get_chat_id.py` ve denetim raporundaki tüm açıkta kalan Telegram token'ları tamamen temizlendi/redacte edildi ve `type: SECRET` formatına geçirildi.
+- [x] **Fox-Borsa (@FoxBorsaBot) Dinamik Token Onarımı:** Bot token'ı kod tabanına asla sızmayacak şekilde Supabase (`global_system_settings`) üzerinden dinamik bağlandı, `getMe` doğrulaması yapıldı ve bot 7/24 aktif edildi.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-10 (11:25 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-10 (12:05 TSİ)*

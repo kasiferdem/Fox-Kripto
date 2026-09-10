@@ -18,7 +18,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEV_BOT_TOKEN = os.environ.get("DEV_TELEGRAM_BOT_TOKEN", "")
+DEV_BOT_TOKEN = os.environ.get("DEV_TELEGRAM_BOT_TOKEN", "").strip()
+if not DEV_BOT_TOKEN:
+    try:
+        from db import get_system_setting
+        DEV_BOT_TOKEN = str(get_system_setting("dev_telegram_bot_token") or "").strip()
+    except Exception:
+        DEV_BOT_TOKEN = ""
 AUTHORIZED_CHAT_ID = int(os.environ.get("AUTHORIZED_DEV_CHAT_ID", "8739367825"))
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
 

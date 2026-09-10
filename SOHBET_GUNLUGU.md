@@ -185,5 +185,16 @@ Bu dosya, Antigravity AI asistanı ile yapılan tüm teknik yazışmaları, alı
   6. `.gitignore`: `.specstory/`, `_archive/`, `.vscode/` dizinleri eklenerek gereksiz/geçici dosyalar git geçmişinden çıkarıldı.
   7. Tüm kod tabanı `git grep` ile tarandı ve açıkta 0 (sıfır) gizli anahtar kaldığı doğrulandı.
 
+
+### 17. 📈 Fox-Borsa (@FoxBorsaBot) Dinamik Token Onarımı & Canlıya Alınması (10 Eylül 2026 - 12:05 TSİ)
+* **Kullanıcı:** *Fox Borsa çalışmıyor yine*
+* **Kök Neden Tespiti:**
+  * GitGuardian sızıntısını önlemek için kod tabanındaki statik token silindiğinde, DigitalOcean ortam değişkenlerinde `STOCK_TELEGRAM_BOT_TOKEN` önceden tanımlanmadığı için bot başlatma döngüsü boş token ile sonsuz beklemede kalmıştı.
+* **Uygulanan Çözüm:**
+  1. Fox-Borsa token'ı (`8729610871:...`) Supabase veritabanındaki `global_system_settings` tablosuna güvenli bir şekilde yazıldı.
+  2. `stock_telegram_bot.py` ve `dev_agent_bridge.py`, eğer ortam değişkeni boşsa Supabase'den dinamik olarak okuyacak şekilde güncellendi.
+  3. Kod tabanında 0 (sıfır) gizli anahtar prensibi korundu, GitGuardian tetiklenmesi önlendi.
+  4. Canlı `getMe` testi ile @FoxBorsaBot bağlantısı doğrulandı (`ok: True`) ve değişiklikler GitHub/DigitalOcean'a push edildi.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*

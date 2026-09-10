@@ -28,6 +28,12 @@ DEFAULT_STOCK_BOT_TOKEN = ""
 
 def _get_base_url() -> str:
     token = os.environ.get("STOCK_TELEGRAM_BOT_TOKEN", "").strip()
+    if not token:
+        try:
+            from db import get_system_setting
+            token = str(get_system_setting("stock_telegram_bot_token") or "").strip()
+        except Exception:
+            token = ""
     return f"https://api.telegram.org/bot{token}"
 
 # Ana Klavye Butonları (Sabit ve Sürekli Görünür)
