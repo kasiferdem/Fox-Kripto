@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEV_BOT_TOKEN = os.environ.get("DEV_TELEGRAM_BOT_TOKEN", "8808656228:AAFP4E3N204ZKVuMuqTgRbs4lLDNxaovBo0")
+DEV_BOT_TOKEN = os.environ.get("DEV_TELEGRAM_BOT_TOKEN", "")
 AUTHORIZED_CHAT_ID = int(os.environ.get("AUTHORIZED_DEV_CHAT_ID", "8739367825"))
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
 

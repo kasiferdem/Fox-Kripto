@@ -86,7 +86,7 @@ GET olması ayrıca şu demek: bir arama motoru botu, bir link önizlemesi veya 
 `telegram_poller.py:15`
 
 ```python
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8938326996:AAFLmy3S4uAb_GbF8TotsdL0CgWq4jGCFik")
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8938326996:AAFLmy3S4uAb_GbF8Tot***REDACTED***")
 ```
 
 Bu token git geçmişinde. Bu token'a sahip olan kişi botunuzun **tüm mesaj akışını okuyabilir.**

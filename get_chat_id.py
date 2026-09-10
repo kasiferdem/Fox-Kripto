@@ -1,7 +1,7 @@
 import os, sys, requests, time
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
 
-TOKEN = "8938326996:AAFLmy3S4uAb_GbF8TotsdL0CgWq4jGCFik"
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
 
 print("🔍 Telegram @FoxKriptoBot Dinleniyor...")

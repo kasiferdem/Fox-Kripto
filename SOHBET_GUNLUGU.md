@@ -173,5 +173,17 @@ Bu dosya, Antigravity AI asistanı ile yapılan tüm teknik yazışmaları, alı
      * ALGO, FLOKI, WLD, DOGS henüz retest bölgesine inip toparlanma teyidi vermediği için sistem FOMO'ya kapılmadan güvenli beklemede kaldı.
   4. Yapılan tüm kod geliştirmeleri GitHub ve DigitalOcean canlı sunucusuna `git push origin main` ile gönderildi.
 
+
+### 16. 🔒 GitGuardian Telegram Bot Token Sızıntısı Temizliği & Güvenlik Mühürlemesi (10 Eylül 2026 - 11:25 TSİ)
+* **Kullanıcı:** *(GitGuardian Secret Leak ekran görüntüsü paylaşarak uyardı)*
+* **İnceleme & Alınan Önlemler:**
+  1. `.do/app.yaml`: Açık metin halindeki `STOCK_TELEGRAM_BOT_TOKEN` kaldırıldı, `type: SECRET` olarak tanımlandı.
+  2. `stock_telegram_bot.py`: Sabit token kaldırıldı, yalnızca `STOCK_TELEGRAM_BOT_TOKEN` ortam değişkeninden okunacak şekilde mühürlendi.
+  3. `dev_agent_bridge.py`: Sabit token kaldırıldı, yalnızca `DEV_TELEGRAM_BOT_TOKEN` ortam değişkeninden okunacak şekilde mühürlendi.
+  4. `get_chat_id.py`: Sabit token kaldırıldı, ortam değişkenine bağlandı.
+  5. `FOX_KRIPTO_DENETIM_RAPORU.md`: Rapor örneğinde yer alan eski token `REDACTED` ile sansürlendi.
+  6. `.gitignore`: `.specstory/`, `_archive/`, `.vscode/` dizinleri eklenerek gereksiz/geçici dosyalar git geçmişinden çıkarıldı.
+  7. Tüm kod tabanı `git grep` ile tarandı ve açıkta 0 (sıfır) gizli anahtar kaldığı doğrulandı.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*

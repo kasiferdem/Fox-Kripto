@@ -28,7 +28,7 @@ services:
     type: SECRET
   - key: STOCK_TELEGRAM_BOT_TOKEN
     scope: RUN_AND_BUILD
-    value: "8729610871:AAEEKpCQJSwG4ojgKwmuKsqNGgUtXnMdzHk"
+    type: SECRET
   - key: EXCHANGE_ID
     scope: RUN_AND_BUILD
     value: binance
