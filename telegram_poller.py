@@ -909,6 +909,12 @@ def handle_update(update: dict):
                 )
                 return
 
+            try:
+                from reconciliation import reconcile_active_positions_with_exchange
+                reconcile_active_positions_with_exchange(tenant)
+            except Exception:
+                pass
+
             balance = fetch_portfolio_balance(tenant)
             t_id = str(tenant.get("id") or tenant.get("telegram_chat_id") or "default_tenant")
             saved_pos_tr = get_active_positions_from_db(tenant_id=t_id, exchange_id="binancetr")

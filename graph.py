@@ -174,6 +174,13 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     trailing_enabled = bool(get_system_setting("trailing_stop_enabled", True))
     shield_active = bool(get_system_setting("v21_security_shield_enabled", True))
     
+    # Borsa mutabakatı yap (fiziksel stop veya harici kapanan pozisyonları temizle)
+    try:
+        from reconciliation import reconcile_active_positions_with_exchange
+        reconcile_active_positions_with_exchange(tenant_config)
+    except Exception:
+        pass
+    
     # -------------------------------------------------------------
     # 1. AÇIK POZİSYONLARIN TP / SL VE 3 KADEMELİ DCA DENETİMİ
     # -------------------------------------------------------------

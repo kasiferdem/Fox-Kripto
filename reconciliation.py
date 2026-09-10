@@ -96,13 +96,42 @@ def reconcile_active_positions_with_exchange(tenant_config: Dict[str, Any]) -> L
         db_pos = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exchange_id, is_simulated=False) or {}
         
         # 3. Mutabakat: DB'de var ama borsada yoksa temizle
+        from db import set_cooldown_in_db, get_strategy_config
+        strat_cfg = get_strategy_config(use_cache=True) or {}
+        cd_min = int(strat_cfg.get("cooldown_minutes") or strat_cfg.get("post_stop_cooldown_minutes") or 30)
+
         for base_coin in list(db_pos.keys()):
             clean_c = base_coin.replace("/USDT", "").replace("_USDT", "").replace("/TRY", "").replace("_TRY", "").upper()
             if clean_c not in active_coins:
+                pos_data = db_pos.get(base_coin) or {}
+                buy_p = float(pos_data.get("buy_price") or 0.0)
+                sl_p = float(pos_data.get("stop_loss_price") or 0.0)
                 remove_position_from_db(tenant_id=tenant_id, exchange_id=exchange_id, symbol=clean_c)
+                set_cooldown_in_db(
+                    tenant_id=tenant_id,
+                    symbol=f"{clean_c}/USDT",
+                    base_asset=clean_c,
+                    duration_seconds=cd_min * 60,
+                    reason="PHYSICAL_STOP"
+                )
                 cleaned_symbols.append(clean_c)
-                print(f"🧹 [Otomatik Mutabakat]: Borsada bulunmayan hayalet pozisyon ({clean_c}) veritabanından temizlendi.")
+                print(f"🧹 [Otomatik Mutabakat]: Borsada bulunmayan pozisyon ({clean_c}) veritabanından temizlendi ve {cd_min}dk soğumaya alındı.")
                 
-    except Exception as e:
-        print(f"⚠️ [Reconciliation Hatası]: {e}")
+                # Telegram Bildirimi Gönder (Fiziksel Stop Teyidi)
+                chat_id = tenant_config.get("telegram_chat_id")
+                if chat_id:
+                    try:
+                        from telegram_poller import send_message
+                        stop_info = f" (${sl_p})" if sl_p > 0 else ""
+                        msg = (
+                            f"🛑 *FİZİKSEL STOP-LOSS TETİKLENDİ (BİNANCE)*\n\n"
+                            f"👤 Kullanıcı: *{tenant_config.get('tenant_name', 'S')}*\n"
+                            f"🪙 Sembol: *{clean_c}/USDT*\n"
+                            f"🛡️ Durum: Borsa emir defterindeki stop emri{stop_info} piyasa iğnesiyle eşleşti ve pozisyon nakde çevrildi.\n"
+                            f"💵 Bakiye USDT cüzdanına iade edildi.\n"
+                            f"⏳ Güvenlik Soğuması: *{cd_min} Dakika* devrede."
+                        )
+                        send_message(chat_id, msg)
+                    except Exception as e_tg:
+                        print(f"⚠️ Mutabakat Telegram bildirim uyarısı: {e_tg}")
     return cleaned_symbols
