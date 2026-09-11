@@ -49,7 +49,20 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     sym = cand.get("symbol", "")
     price_change_24h = float(cand.get("priceChangePercent", 0.0))
     quote_volume_24h = float(cand.get("quoteVolume", 0.0))
+    high_24h = float(cand.get("highPrice", 0.0))
+    low_24h = float(cand.get("lowPrice", 0.0))
+    daily_range_pct = ((high_24h - low_24h) / low_24h * 100.0) if low_24h > 0 else 0.0
     
+    # 🚫 Hantal ve düşük oynaklıklı (Low-Beta) ağır vasıta dinozor coinleri baştan filtrele:
+    clean_sym_upper = sym.replace("USDT", "").replace("TRY", "").upper()
+    SLOW_SLEEPERS = {"XLM", "ADA", "XRP", "TRX", "EOS", "BCH", "LTC", "ETC", "HOT", "HOLO"}
+    if clean_sym_upper in SLOW_SLEEPERS:
+        return None
+
+    # 🚀 Yüksek Beta (High-Beta) Şartı: 24 saatlik fiyat oynaklığı en az %3.8 olmalı:
+    if daily_range_pct < 3.8:
+        return None
+
     from db import get_strategy_config
     strat_cfg = get_strategy_config(use_cache=True) or {}
     min_24h_vol = float(strat_cfg.get("min_24h_quote_volume_usd") or strat_cfg.get("min_24h_vol") or 500000.0)
@@ -85,8 +98,9 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
         tb_vol = target_c.get("taker_buy_quote_volume", 0.0)
         tb_pct = (tb_vol / v_curr * 100.0) if v_curr > 0 else 55.0
 
-        if spike_ratio >= vol_spike_req and v_curr >= min_5m_vol and gain_5m >= 0.15:
-            momentum_score = min(10.0, round(7.0 + (spike_ratio * 0.4) + (gain_5m * 0.5), 1))
+        if spike_ratio >= vol_spike_req and v_curr >= min_5m_vol and gain_5m >= 0.25:
+            beta_bonus = min(1.5, daily_range_pct / 8.0)
+            momentum_score = min(10.0, round(7.0 + (spike_ratio * 0.35) + (gain_5m * 0.4) + (beta_bonus * 0.5), 1))
             clean_base = sym.replace("USDT", "").replace("TRY", "")
             quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
             return {
@@ -95,12 +109,13 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
                 "price_change_5m": round(gain_5m, 2),
                 "price_change_1m": round(gain_5m, 2),
                 "price_change_24h": round(price_change_24h, 2),
+                "daily_volatility": round(daily_range_pct, 2),
                 "volume_spike_ratio": round(spike_ratio, 1),
                 "recent_5m_volume_usd": round(v_curr, 0),
                 "momentum_score": momentum_score,
                 "taker_buy_ratio": round(tb_pct, 1),
-                "signal": f"🐋 GERÇEK BALİNA KIRILIMI (%{gain_5m:.1f} Başlangıç / {spike_ratio:.1f}x Hacim / 5dk Hacim: ${v_curr:,.0f} / Skor: {momentum_score})",
-                "recommendation": f"Sağlıklı Likit Balina Girişi: ${v_curr:,.0f} 5dk hacimle desteklendi."
+                "signal": f"⚡ YÜKSEK BETA KIRILIMI (Oynaklık: %{daily_range_pct:.1f} / 5dk: +%{gain_5m:.1f} / {spike_ratio:.1f}x Hacim / Skor: {momentum_score})",
+                "recommendation": f"Dinamik Yüksek Beta Girişi: ${v_curr:,.0f} hacim ve %{daily_range_pct:.1f} oynaklıkla teyit edildi."
             }
 
     return None
@@ -188,5 +203,10 @@ def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", 
     except Exception as e:
         print(f"⚠️ Erken Dip Dedektörü Uyarısı: {e}")
         
-    breakouts = sorted(breakouts, key=lambda x: x["volume_spike_ratio"], reverse=True)
+    # En yüksek beta, en güçlü ivme ve hacim sıçramasını zirveye al:
+    breakouts = sorted(
+        breakouts,
+        key=lambda x: x["volume_spike_ratio"] * (1.0 + (x["price_change_5m"] / 2.0)) * (x.get("daily_volatility", 5.0) / 5.0),
+        reverse=True
+    )
     return breakouts[:10]
