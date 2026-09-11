@@ -57,7 +57,7 @@ def run_execution_gate_suite():
         stop_can_be_created=True,
         entry_price=140.0
     )
-    passed, status, violations = EntrySafetyPolicy.evaluate_intent(unconfirmed_intent)
+    passed, status, violations = EntrySafetyPolicy.evaluate_intent(unconfirmed_intent, custom_strat_cfg={"retest_required": True})
     assert passed is False and status == "NO_TRADE", "RETEST_CONFIRMED olmayan sinyal reddedilmeliydi!"
     print("  ✓ [Güvenlik 2]: RETEST_CONFIRMED olmayan sinyal (WAITING_PULLBACK) kesin olarak NO_TRADE üretti.")
 
@@ -81,7 +81,7 @@ def run_execution_gate_suite():
         stop_can_be_created=True,
         entry_price=25.0
     )
-    passed, status, violations = EntrySafetyPolicy.evaluate_intent(pump_intent)
+    passed, status, violations = EntrySafetyPolicy.evaluate_intent(pump_intent, custom_strat_cfg={"first_pump_candle_entry_blocked": True})
     assert passed is False and status == "NO_TRADE", "İlk pump mumu alımı reddedilmeliydi!"
     print("  ✓ [Güvenlik 3]: İlk pump mumu alımı (first_pump_entry=True) kesin olarak NO_TRADE üretti.")
 
@@ -123,7 +123,7 @@ def run_execution_gate_suite():
     print("\n" + "-" * 75)
     print("📼 GERÇEK ZEC REPLAY TESTİ: SCALPING MOTORU DENETİMİ (2026-09-02)")
     print("-" * 75)
-    scalp_engine = V2ScalpingEngine(risk_level="BALANCED")
+    scalp_engine = V2ScalpingEngine(risk_level="BALANCED", custom_params={"first_pump_candle_entry_blocked": True, "retest_required": True})
     zec_ticker = {
         "symbol": "ZEC/USDT",
         "price": 820.52,
@@ -155,7 +155,7 @@ def run_execution_gate_suite():
     print("\n" + "-" * 75)
     print("📼 GERÇEK ZEC REPLAY TESTİ: WHALE MOTORU DENETİMİ (2026-09-02)")
     print("-" * 75)
-    whale_engine = V2WhaleHuntingEngine()
+    whale_engine = V2WhaleHuntingEngine(custom_params={"first_pump_candle_entry_blocked": True, "retest_required": True})
     whale_eval = whale_engine.evaluate_whale_evidence(zec_ticker, klines_5m=zec_klines_1m)
     print(f"  • Whale Motoru Durumu: {whale_eval.get('state_machine_stage')}")
     print(f"  • Whale Alım Onayı: {whale_eval.get('is_whale_confirmed')}")

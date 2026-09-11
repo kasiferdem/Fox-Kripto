@@ -21,7 +21,9 @@ def run_test_suite():
     engine = V2WhaleHuntingEngine({
         "min_volume_multiplier": 2.2,
         "min_taker_buy_pct": 58.0,
-        "max_recent_gain_24h": 25.0
+        "max_recent_gain_24h": 25.0,
+        "retest_required": True,
+        "first_pump_candle_entry_blocked": True
     })
     
     # -------------------------------------------------------------

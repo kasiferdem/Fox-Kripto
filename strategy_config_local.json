@@ -18,11 +18,15 @@
   "micro_trailing_callback_pct": 0.2,
   "daily_max_loss_usd": 6.0,
   "daily_loss_limit_pct": 3.0,
+  "retest_required": false,
+  "first_pump_candle_entry_blocked": false,
+  "post_stop_cooldown_minutes": 20,
+  "cooldown_minutes": 20,
+  "btc_min_rsi": 35.0,
+  "btc_trend_filter_enabled": false,
+  "btc_ema_tolerance_pct": 10.0,
   "btc_flash_dump_5m_pct": 0.5,
   "btc_flash_dump_15m_pct": 1.0,
-  "btc_min_rsi": 35.0,
-  "first_pump_candle_entry_blocked": false,
-  "retest_required": false,
   "require_futures_oi": false,
-  "updated_at": "2026-09-12T01:30:00Z"
+  "updated_at": "2026-09-11T22:54:17Z"
 }

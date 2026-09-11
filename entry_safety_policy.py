@@ -114,7 +114,7 @@ class EntrySafetyPolicy:
     10 Çelik Zırh Kuralını ve Testere/Gölge Kalkanını Merkezi Olarak Denetleyen Güvenlik Sınıfı.
     """
     @staticmethod
-    def evaluate_intent(intent: OrderIntent) -> Tuple[bool, str, List[str]]:
+    def evaluate_intent(intent: OrderIntent, custom_strat_cfg: Optional[Dict[str, Any]] = None) -> Tuple[bool, str, List[str]]:
         reasons = []
         
         # 1. Kaynak Motor Doğrulaması (Deterministik Motorlar)
@@ -123,9 +123,9 @@ class EntrySafetyPolicy:
             reasons.append(f"Geçersiz kaynak motor: {intent.source_engine}")
 
         from db import get_strategy_config
-        strat_cfg = get_strategy_config(use_cache=True) or {}
-        retest_req = bool(strat_cfg.get("retest_required", True))
-        first_pump_blocked = bool(strat_cfg.get("first_pump_candle_entry_blocked", True))
+        strat_cfg = custom_strat_cfg if custom_strat_cfg is not None else (get_strategy_config(use_cache=True) or {})
+        retest_req = bool(strat_cfg.get("retest_required", False))
+        first_pump_blocked = bool(strat_cfg.get("first_pump_candle_entry_blocked", False))
 
         # 2. Retest Teyidi Doğrulaması (Dinamik Ayara Bağlı)
         if retest_req and intent.direction.upper() == "BUY" and intent.signal_state != "RETEST_CONFIRMED":

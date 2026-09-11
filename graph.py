@@ -88,8 +88,8 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
             r_k = sess.get(f"https://api.binance.com/api/v3/klines?symbol={clean_s}&interval=5m&limit=6", timeout=3)
             klines_5m_data = r_k.json() if r_k.status_code == 200 else None
 
-            first_pump_blocked_cfg = bool(strat_cfg.get("first_pump_candle_entry_blocked", True))
-            retest_required_cfg = bool(strat_cfg.get("retest_required", True))
+            first_pump_blocked_cfg = bool(strat_cfg.get("first_pump_candle_entry_blocked", False))
+            retest_required_cfg = bool(strat_cfg.get("retest_required", False))
             min_score_req = float(strat_cfg.get("min_ai_score") or 4.5)
 
             if is_scalp:
@@ -116,7 +116,7 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
                 elif retest_required_cfg:
                     is_candidate_ok = bool(eval_res.get("is_whale_confirmed")) and (c["v2_score"] >= min_score_req)
                 else:
-                    is_candidate_ok = (stage_str == "BUY_READY" or eval_res.get("is_whale_confirmed")) and (c["v2_score"] >= min_score_req)
+                    is_candidate_ok = (stage_str in ["BUY_READY", "CONFIRMING", "READY"] or eval_res.get("is_whale_confirmed")) and (c["v2_score"] >= min_score_req)
             
             c["v2_evaluation"] = eval_res
             if is_candidate_ok:
