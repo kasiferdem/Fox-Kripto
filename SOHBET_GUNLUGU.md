@@ -377,5 +377,22 @@ Aynı istek eş zamanlı olarak hem Claude Code'a hem Codex'e verildi.
   * `surge_detector.py` modülüne Yüksek Beta (Daily Volatility $\ge \%3.8$, 5dk $\ge \%0.25$, dinozor coinler kara liste) filtresi entegre edildi.
   * Bot artık tamamen nakitte olup yalnızca patlayıcı hacimli (`SOLV`, `SOPH`, `HEI` vb.) altcoinlere 2-3 Eylül çevik scalping kurallarıyla (%2.5 TP, %0.6 Trailing, %1.2 SL) girmektedir.
 
+### 24. 🔍 "Hiç Al-Sat Yok" Teşhisi, Devre Kesici Onarımı & THETA/USDT Alımı (11 Eylül 2026 - 14:41 TSİ)
+* **Kullanıcı:** *"hiç al sat yok ?,"*
+* **Teşhis & Kök Neden:**
+  * Kod adım adım test edildiğinde `node_deterministic_prefilter` aşamasında şu blokaj tespit edildi:
+    `🛑 [Devre Kesici]: Günlük azami işlem kotası (17/10) doldu.`
+  * **Hatanın Sebebi:** `circuit_breaker.py` dosyasındaki günlük işlem kotası kontrolü (`max_daily_trades`), kullanıcı ayrımı yapmadan veritabanındaki **tüm kullanıcıların** (Moonwalker + S + testler) toplam alımlarını (17 alım) sayıyordu. Kural 10 ile sınırlı olduğu için tüm sistemi otomatik kilitliyordu.
+* **Yapılan Onarımlar:**
+  1. `circuit_breaker.py` içine Multi-Tenant filtreleme eklendi (`execution_details->tenant_id` / `telegram_chat_id`). Artık her kullanıcının kotası ve ardışık stopları yalnızca kendisine aittir.
+  2. Hızlı çevik scalping modunda kotanın gün ortasında dolmasını önlemek için `max_daily_trades` 10'dan **50**'ye çıkarıldı (`strategy_config_local.json` ve Supabase `system_strategy_config`).
+  3. Değişiklikler commit edilip DigitalOcean'a pushlandı (`bad8c56`).
+* **Anlık Sonuç:**
+  * Kilit açılır açılmaz sistem 8 adet Yüksek Beta adayını onayladı ve en yüksek hacimli aday olan **`THETA/USDT`** paritesine alım emri verdi:
+  * **Alış:** 248.60 THETA @ `$0.1929` ($47.95 USD)
+  * **Fiziksel Stop:** Order ID #3213445647 @ `$0.1902` (-%1.2)
+  * **Hedef TP:** `$0.1973` (+%2.5) | **Trailing:** %0.6 Callback
+  * **Pozisyon Durumu:** Pozisyon hemen kâra geçti (~$0.1944 | +%0.58 Net kârda).
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*

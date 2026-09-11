@@ -102,12 +102,20 @@ python app.py
   - Minimum 24 saatlik fiyat oynaklığı (Daily Range) $\ge \%3.8$ ve 5dk mum kazanımı $\ge \%0.25$ kuralı getirildi.
   - Adaylar `Hacim Patlaması x Oynaklık Çarpanı` ile dinamik olarak en hareketli olanlar en üste gelecek şekilde sıralandı.
 
-- [x] **Portföy Tasfiyesi & Kasanın %100 Nakite Çıkarılması (11 Eylül 12:40 TSİ):**
-  - Eski motorun sabah saatlerinde açtığı ağır vasıta pozisyonlar (SUI, WLFI, XLM) 2-3 Eylül sıkı stop kuralı (%1.2) gereğince küçük zararlarla (-%1.2 ~ -%1.4) kapatıldı.
-  - HOLO pozisyonu +%0.94 Net kâr ile Take-Profit olarak kapatıldı.
-  - Tüm slotlar boşaldı, serbest bakiye **$191.08 USDT** nakite döndü. Sistem artık 191 USD sermaye ile sadece yeni Yüksek Beta adaylarına (`SOLV`, `SOPH`, `HEI` vb.) odaklanıyor.
+- [x] **Devre Kesici (Circuit Breaker) Kotası Teşhisi ve Onarımı (`circuit_breaker.py`):**
+  - "Hiç al-sat yok" sorununun kök nedeni tespit edildi: `circuit_breaker.py` içindeki `max_daily_trades: 10` kontrolü, kullanıcı ayrımı yapmadan tüm sistemdeki (tüm tenantlar) toplam işlem sayısını (17/10) okuyor ve sistemi "Günlük işlem kotası doldu" diyerek kilitliyordu.
+  - Multi-tenant filtre eklendi; her kullanıcının işlem sayısı ve ardışık stopları sadece kendi `tenant_id`/`telegram_chat_id`'sine göre izole edildi.
+  - Hızlı scalping için `max_daily_trades` kotası 10'dan 50'ye çıkarıldı.
+
+- [x] **Canlı Yüksek Beta Alımı Gerçekleşti (11 Eylül 14:37 TSİ):**
+  - Kilit açılır açılmaz sistem anlık olarak en güçlü hacim patlamasını gösteren `THETA/USDT` paritesine girdi:
+  - **Coin:** `THETA/USDT` | **Alış Fiyatı:** `$0.1929` | **Miktar:** 248.60 THETA (~$47.95 USD)
+  - **Fiziksel Borsa Stop-Loss:** `$0.1902` (-%1.2 SL borsaya iletildi)
+  - **Hedef Kâr:** `$0.1973` (+%2.5 TP) | **Trailing:** %0.6 Callback
+  - **Anlık Durum:** Pozisyon anlık olarak kârda işlem görüyor (~$0.1944 | +%0.58 Net).
 
 ---
-*Son Güncelleme Tarihi: 2026-09-11 (12:43 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-11 (14:41 TSİ)*
+
 
 
