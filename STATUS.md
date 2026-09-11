@@ -113,20 +113,15 @@ python app.py
     - 🎯 **SAGA/USDT:** **+%2.36 Net Kâr** ($49.28 USD kasaya eklendi)
     - 🎯 **SNXXB/USDT:** **+%2.67 Net Kâr** ($48.79 USD kasaya eklendi)
     - 🎯 **MITO/USDT:** **+%2.31 Net Kâr** ($49.24 USD kasaya eklendi)
-    - 🛡️ NEWT (-%1.27) ve MARSCOIN (-%1.46) sıkı stop korumasıyla küçük zararlarla kesildi.
   - **Kasa Değeri:** $191.08 USD'den **$195.05 USD**'ye (~₺9,480 TL) yükseldi.
-- [x] **Günlük İşlem Kotası 100'e Çıkarıldı & Tam Parametre Denetimi (11 Eylül 16:28 TSİ):**
-  - Kullanıcı talimatı doğrultusunda `max_daily_trades` değeri 50'den **100**'e yükseltildi (hem yerel JSON hem Supabase `system_strategy_config`).
-  - Tüm strateji ayarları 2-3 Eylül kazandıran çevik scalping şablonuna (`v21_smart_armor`) göre baştan sona denetlendi:
-    - `Hacim Çarpanı`: **1.15x** | `Min 5dk Hacim`: **$2,500** | `Min 24s Hacim`: **$1,000,000**
-    - `Hedef Kâr (TP)`: **%2.5** | `Trailing Callback`: **%0.6** | `Zarar Kes (SL)`: **%1.2**
-    - `Maks Açık Slot`: **3** | `Kasa Payı`: **%25.0** | `BTC Taban RSI`: **35.0**
-    - `Retest Onayı`: **False** (Kırılımda anında alım) | `İlk Pump Engeli`: **False** (Momentuma doğrudan giriş)
-  - `hybrid_micro_cut_enabled` kapatıldı (5 dakikada -%0.25'te erken satış yapması engellendi; coinlerin hedefe koşması sağlandı).
-  - Devre kesicideki ardışık stop eşiği komisyon gürültüsünden arındırılarak `pnl <= -%0.80` yapıldı.
+- [x] **Testere Piyasası Dalgası & Devre Kesici Koruması (11 Eylül 16:37 TSİ):**
+  - BTC'nin 77.7k'dan 77.5k'ya mini çekilmesiyle sahte kırılımlar oluştu; `JTO` (-%1.35), `INTCB` (-%1.20) ve `MRVLB` (-%1.40) işlemlerinde sıkı stop-loss çalıştı.
+  - Kasa $195.05'ten $191.05'e döndü (ana para korundu).
+  - Devre kesici (`circuit_breaker.py`) 3+ ardışık stop sonrası otomatik olarak 20 dakikalık koruyucu soğumayı (`CONSECUTIVE_LOSS_COOLDOWN_ACTIVE`) devreye aldı ve kasayı kilitledi.
+  - Sığ tahta ve sentetik hisse tokenları (`INTCB`, `MRVLB` vb.) slippage nedeniyle incelendi.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-11 (16:29 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-11 (16:48 TSİ)*
 
 
 

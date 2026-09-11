@@ -421,5 +421,19 @@ Aynı istek eş zamanlı olarak hem Claude Code'a hem Codex'e verildi.
   4. **Devre Kesici Filtresi:** Ardışık stop eşiği borsa komisyonu gürültüsünden arındırılarak yalnızca gerçek stoplar (`pnl <= -%0.80`) sayılacak şekilde güncellendi.
 * **Sonuç:** Devre kesici kilitleri tamamen açık, sistem 100 işlem kotasıyla 2-3 Eylül çevik scalping modunda tam gaz çalışmaya devam ediyor.
 
+### 27. 📉 Testere Dalgası, 3 Ardışık Stop-Loss & Devre Kesici Soğuma Modu (11 Eylül 2026 - 16:48 TSİ)
+* **Kullanıcı:** *"geldiğimiz yere geri döndük :)"*
+* **Kök Neden & İşlem Analizi:**
+  * Kasa $195.05 USD'ye ulaştıktan sonra saat 16:31 - 16:37 arasında sistem 3 yeni işlem açtı:
+    1. **MRVLB/USDT:** $48 alım -> -%1.40 Stop-Loss ($231.21'de kesildi | -$0.68)
+    2. **INTCB/USDT:** $48 alım -> -%1.20 Stop-Loss ($101.53'te kesildi | -$0.58)
+    3. **JTO/USDT:** $48 alım -> -%1.35 Stop-Loss ($0.422'de kesildi | -$0.65)
+  * **Toplam Kasa Değişimi:** $195.05'ten **$191.05 USD**'ye indi. Başlangıç kasası ($191.08) ile başabaş kapatıldı; ana para sıkı stop (%1.2) sayesinde tamamen korundu.
+  * **Teknik Nedenler:**
+    1. **Sığ Tahta / Sentetik Token Sorunu:** `INTCB` ve `MRVLB` gibi Binance hisse/sentetik tokenlarının tahta derinliği aşırı sığdır ($5-$700 derinlik). $48'lik piyasa emri girdiğinde slippage ve spread yüzünden pozisyon zaten -%0.5 ekside başlamakta ve en ufak dalgalanmada %1.2 stopa yakalanmaktadır.
+    2. **Piyasa Fakeout Dalgası:** BTC 77.7k'dan 77.5k'ya çekilirken momentum kırılımları sahte kalmış, retest şartı kapalı olduğu için ilk mumda girilen pozisyonlar geri çekilmede stop olmuştur.
+    3. **Devre Kesici Güvenlik Zırhı:** `circuit_breaker.py` ardışık 3+ stop tespitiyle anında devreye girmiş ve sistemi 20 dakikalık koruyucu soğumaya (`CONSECUTIVE_LOSS_COOLDOWN_ACTIVE`) alarak daha fazla zararı engellemiştir.
+* **Alınabilecek Önlemler:** `INTCB`, `MRVLB`, `LITEB`, `ORCLB`, `WBETH` gibi sığ tahtaların kara listeye alınması; yalnızca derinliği yüksek gerçek altcoinlerde işlem yapılması.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*
