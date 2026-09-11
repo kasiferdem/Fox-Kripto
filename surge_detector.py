@@ -53,10 +53,20 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     low_24h = float(cand.get("lowPrice", 0.0))
     daily_range_pct = ((high_24h - low_24h) / low_24h * 100.0) if low_24h > 0 else 0.0
     
-    # 🚫 Hantal ve düşük oynaklıklı (Low-Beta) ağır vasıta dinozor coinleri baştan filtrele:
+    # 🚫 Hantal coinler ve sığ tahtalı sentetik/hisse tokenlarını baştan filtrele:
     clean_sym_upper = sym.replace("USDT", "").replace("TRY", "").upper()
-    SLOW_SLEEPERS = {"XLM", "ADA", "XRP", "TRX", "EOS", "BCH", "LTC", "ETC", "HOT", "HOLO"}
-    if clean_sym_upper in SLOW_SLEEPERS:
+    if not clean_sym_upper.isascii():
+        return None
+
+    # Tokenized ABD hisse/ETF senetlerini (INTCB, MRVLB, TSLAB, MSTRB, AAPLB vb.) ele:
+    LEGIT_B_CRYPTO = {"BNB", "TRB", "CKB", "SHIB", "PHB", "VIB", "AMB", "ARB", "BB", "MOB", "DGB"}
+    if clean_sym_upper.endswith("B") and clean_sym_upper not in LEGIT_B_CRYPTO:
+        return None
+
+    BLACKLISTED_SYMBOLS = {
+        "XLM", "ADA", "XRP", "TRX", "EOS", "BCH", "LTC", "ETC", "HOT", "HOLO", "WBETH", "WBTC"
+    }
+    if clean_sym_upper in BLACKLISTED_SYMBOLS:
         return None
 
     # 🚀 Yüksek Beta (High-Beta) Şartı: 24 saatlik fiyat oynaklığı en az %3.8 olmalı:
