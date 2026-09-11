@@ -96,9 +96,18 @@ python app.py
   - `active_preset`: `v21_smart_armor` | `volume_spike_multiplier`: `1.15x` | `min_5m_volume_usd`: `$2,500`
   - `take_profit_pct`: `%2.5` | `trailing_callback_pct`: `%0.6` | `stop_loss_pct`: `%1.2` (Sıkı Stop)
   - `retest_required`: `False` | `first_pump_candle_entry_blocked`: `False` (Erken momentum serbest)
-  - `max_concurrent_positions`: `3` | `btc_min_rsi`: `35.0`
+- [x] **Yüksek Beta (High-Beta) & Hızlı Aksiyon Tarayıcısı Devreye Alındı (`surge_detector.py`):**
+  - Kullanıcının dinozor/ağır vasıta coinlerden (XLM, ADA, XRP vb.) çıkıp 2-3 Eylül'deki gibi hızlı aksiyon alan patlayıcı altcoinlere odaklanma talebi karşılandı.
+  - Hantal coinler kara listeye alındı (`XLM`, `ADA`, `XRP`, `TRX`, `EOS`, `BCH`, `LTC`, `ETC`, `HOT`, `HOLO`).
+  - Minimum 24 saatlik fiyat oynaklığı (Daily Range) $\ge \%3.8$ ve 5dk mum kazanımı $\ge \%0.25$ kuralı getirildi.
+  - Adaylar `Hacim Patlaması x Oynaklık Çarpanı` ile dinamik olarak en hareketli olanlar en üste gelecek şekilde sıralandı.
+
+- [x] **Portföy Tasfiyesi & Kasanın %100 Nakite Çıkarılması (11 Eylül 12:40 TSİ):**
+  - Eski motorun sabah saatlerinde açtığı ağır vasıta pozisyonlar (SUI, WLFI, XLM) 2-3 Eylül sıkı stop kuralı (%1.2) gereğince küçük zararlarla (-%1.2 ~ -%1.4) kapatıldı.
+  - HOLO pozisyonu +%0.94 Net kâr ile Take-Profit olarak kapatıldı.
+  - Tüm slotlar boşaldı, serbest bakiye **$191.08 USDT** nakite döndü. Sistem artık 191 USD sermaye ile sadece yeni Yüksek Beta adaylarına (`SOLV`, `SOPH`, `HEI` vb.) odaklanıyor.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-11 (12:36 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-11 (12:43 TSİ)*
 
 

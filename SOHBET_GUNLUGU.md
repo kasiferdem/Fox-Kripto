@@ -363,5 +363,19 @@ Aynı istek eş zamanlı olarak hem Claude Code'a hem Codex'e verildi.
 * **Asistan:** 8 Claude Code transkripti (`~/.claude/projects/C--Projects-Fox-Kripto/`) ve 22 SpecStory kaydı (`.specstory/history/`) tarandı. `.specstory/` `.gitignore`'da olduğu için GitHub'dan görünmüyordu. Büyük dört kayıt (toplam ~1.3 MB) 4 paralel subagent ile Türkçe özetlendi ve bu bölüm (CC-1 … CC-6) `SOHBET_GUNLUGU.md`'ye eklendi.
 * **Bundan sonrası:** SpecStory her Claude Code / Codex oturumunu `.specstory/history/` altına otomatik yazmaya devam ediyor; kalıcı proje geçmişi için bu bölümün yeni oturumlardan sonra elle güncellenmesi gerekir.
 
+### 23. ⚡ Yüksek Beta (High-Beta) Geçişi & SUI / WLFI / XLM Zarar Analizi (11 Eylül 2026 - 12:43 TSİ)
+* **Kullanıcı:** *"Yüksek Beta hareketli şeyler alalım"*, *"SUI/USDT ve WILFI bundan zarar ettik"*
+* **Borsa & Veritabanı İncelemesi:**
+  * **SUI/USDT:** Sabah 08:16 TSİ'de $48.18 USD ile alındı, 4 saat boyunca yatay/aşağı sürüklendi. 12:36 TSİ'de 2-3 Eylül sıkı stopu (%1.2) gereğince Stop-Loss oldu. Gerçekleşen: $47.54 USD iade, Net Zarar: -%1.44 (-$0.64 USD).
+  * **WLFI/USDT:** Sabah 10:33 TSİ'de $46.10 USD ile alındı, hacimsiz kaldı. 12:36 TSİ'de Stop-Loss oldu. Gerçekleşen: $45.47 USD iade, Net Zarar: -%1.45 (-$0.63 USD).
+  * **XLM/USDT:** Sabah 09:17 TSİ'de $48.24 USD ile alındı. 12:40 TSİ'de Stop-Loss oldu. Gerçekleşen: $47.67 USD iade, Net Zarar: -%1.22 (-$0.57 USD).
+  * **HOLO/USDT:** 12:30 TSİ'de Take-Profit ile satıldı. Gerçekleşen: $48.42 USD iade, Net Kâr: +%0.94 (+0.50 USD).
+  * **Toplam Bilanço:** Kapatılan bu 4 pozisyonun net etkisi sadece -$1.34 USD (~₺65 TL) oldu ve kasa büyük bir çöküşten korunarak kurtarıldı.
+* **Mevcut Durum & Karar:**
+  * Serbest bakiye **$191.08 USDT** nakite çıktı.
+  * Açık pozisyon sayısı: 0.
+  * `surge_detector.py` modülüne Yüksek Beta (Daily Volatility $\ge \%3.8$, 5dk $\ge \%0.25$, dinozor coinler kara liste) filtresi entegre edildi.
+  * Bot artık tamamen nakitte olup yalnızca patlayıcı hacimli (`SOLV`, `SOPH`, `HEI` vb.) altcoinlere 2-3 Eylül çevik scalping kurallarıyla (%2.5 TP, %0.6 Trailing, %1.2 SL) girmektedir.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*
