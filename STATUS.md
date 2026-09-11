@@ -118,10 +118,17 @@ python app.py
   - BTC'nin 77.7k'dan 77.5k'ya mini çekilmesiyle sahte kırılımlar oluştu; `JTO` (-%1.35), `INTCB` (-%1.20) ve `MRVLB` (-%1.40) işlemlerinde sıkı stop-loss çalıştı.
   - Kasa $195.05'ten $191.05'e döndü (ana para korundu).
   - Devre kesici (`circuit_breaker.py`) 3+ ardışık stop sonrası otomatik olarak 20 dakikalık koruyucu soğumayı (`CONSECUTIVE_LOSS_COOLDOWN_ACTIVE`) devreye aldı ve kasayı kilitledi.
-  - Sığ tahta ve sentetik hisse tokenları (`INTCB`, `MRVLB` vb.) slippage nedeniyle incelendi.
+- [x] **MINA/USDT +%5.09 Kâr Realizasyonu (+$2.38 USD Kasaya Eklendi - 17:11 TSİ):**
+  - MINA $0.1002'den alındı, zirveye kadar izlendi ve $0.1052'den satılarak **+%5.09 Net Kâr** ile tam **$2.38 USD** net kâr cebe kilitlendi.
+  - Kasa tekrar **$194.25 USD** seviyesine yükseldi.
+- [x] **Taze Gerçek Kripto Sepeti Açıldı (17:15 TSİ):**
+  - `RAY/USDT` (@1.6655 | Anlık: **+%1.10 Kârda**)
+  - `BLUR/USDT` (@0.01782 | Anlık: **+%1.23 Kârda**)
+  - `DOGS/USDT` (@5.244e-05)
+  - Tüm hisse/sentetik tokenlar filtrelendiği için sadece derinliği olan gerçek altcoinler çalışıyor.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-11 (16:48 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-11 (17:17 TSİ)*
 
 
 
