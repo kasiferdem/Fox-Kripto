@@ -115,10 +115,19 @@ python app.py
     - 🎯 **MITO/USDT:** **+%2.31 Net Kâr** ($49.24 USD kasaya eklendi)
     - 🛡️ NEWT (-%1.27) ve MARSCOIN (-%1.46) sıkı stop korumasıyla küçük zararlarla kesildi.
   - **Kasa Değeri:** $191.08 USD'den **$195.05 USD**'ye (~₺9,480 TL) yükseldi.
-  - **Açık Pozisyonlar:** `ORCLB` ($49.02), `LITEB` ($48.72), `WBETH` ($48.55) | **Serbest Nakit:** $48.40 USDT.
+- [x] **Günlük İşlem Kotası 100'e Çıkarıldı & Tam Parametre Denetimi (11 Eylül 16:28 TSİ):**
+  - Kullanıcı talimatı doğrultusunda `max_daily_trades` değeri 50'den **100**'e yükseltildi (hem yerel JSON hem Supabase `system_strategy_config`).
+  - Tüm strateji ayarları 2-3 Eylül kazandıran çevik scalping şablonuna (`v21_smart_armor`) göre baştan sona denetlendi:
+    - `Hacim Çarpanı`: **1.15x** | `Min 5dk Hacim`: **$2,500** | `Min 24s Hacim`: **$1,000,000**
+    - `Hedef Kâr (TP)`: **%2.5** | `Trailing Callback`: **%0.6** | `Zarar Kes (SL)`: **%1.2**
+    - `Maks Açık Slot`: **3** | `Kasa Payı`: **%25.0** | `BTC Taban RSI`: **35.0**
+    - `Retest Onayı`: **False** (Kırılımda anında alım) | `İlk Pump Engeli`: **False** (Momentuma doğrudan giriş)
+  - `hybrid_micro_cut_enabled` kapatıldı (5 dakikada -%0.25'te erken satış yapması engellendi; coinlerin hedefe koşması sağlandı).
+  - Devre kesicideki ardışık stop eşiği komisyon gürültüsünden arındırılarak `pnl <= -%0.80` yapıldı.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-11 (15:55 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-11 (16:29 TSİ)*
+
 
 
 

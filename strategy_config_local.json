@@ -4,7 +4,7 @@
   "min_volume_usd": 2500.0,
   "min_5m_volume_usd": 2500.0,
   "min_24h_quote_volume_usd": 1000000.0,
-  "max_daily_trades": 50,
+  "max_daily_trades": 100,
   "max_recent_gain_24h": 60.0,
   "min_ai_score": 4.5,
   "max_budget_percent": 25.0,

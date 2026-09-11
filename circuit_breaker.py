@@ -94,12 +94,13 @@ def check_tenant_circuit_breakers(
         for sell in recent_sells:
             det = sell.get("execution_details") or {}
             pnl_pct = float(det.get("realized_pnl_pct", 0.0)) or float(det.get("net_profit_pct", 0.0))
-            if pnl_pct < -0.20:
+            # 🛡️ Komisyon gürültüsü (-%0.20) ve başabaş çıkışları değil, yalnızca gerçek stop-loss kayıplarını (<= -%0.80) say
+            if pnl_pct <= -0.80:
                 consecutive_losses += 1
                 if not last_stop_time:
                     last_stop_time = sell.get("created_at")
-            else:
-                break # Kârlı satış görünce seriyi kır
+            elif pnl_pct > 0.0:
+                break # Kârlı satış seriyi kesin kırar
                 
         if consecutive_losses >= max_consecutive_losses:
             # Cooldown kontrolü

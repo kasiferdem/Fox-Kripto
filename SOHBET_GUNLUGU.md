@@ -407,5 +407,19 @@ Aynı istek eş zamanlı olarak hem Claude Code'a hem Codex'e verildi.
   * **Mevcut Açık Pozisyonlar:** `ORCLB` ($49.02), `LITEB` ($48.72), `WBETH` ($48.55) | Serbest USDT: $48.40 USD.
 * **Sonuç:** 2-3 Eylül'ün orijinal kazandıran çevik scalping stratejisine dönme ve Yüksek Beta patlayıcı coinlere odaklanma kararının doğruluğu kanıtlandı.
 
+### 26. ⚙️ Günlük İşlem Limiti 100'e Çıkarıldı & Tam Parametre Denetimi (11 Eylül 2026 - 16:29 TSİ)
+* **Kullanıcı:** *"ayarları kontrol etsene birde günlük limiti 100 olsun"*
+* **Yapılan Kontroller & Düzenlemeler:**
+  1. **Günlük Limit:** `max_daily_trades` hem yerel `strategy_config_local.json` hem de Supabase `system_strategy_config` üzerinde **100** olarak güncellendi.
+  2. **2-3 Eylül Parametre Doğrulaması:**
+     * `active_preset`: `v21_smart_armor`
+     * `volume_spike_multiplier`: `1.15x` | `min_5m_volume_usd`: `$2,500` | `min_24h_quote_volume_usd`: `$1,000,000`
+     * `take_profit_pct`: `%2.5` | `trailing_callback_pct`: `%0.6` | `stop_loss_pct`: `%1.2`
+     * `max_concurrent_positions`: `3` | `max_budget_percent`: `%25.0` | `btc_min_rsi`: `35.0`
+     * `retest_required`: `False` (Hızlı giriş) | `first_pump_candle_entry_blocked`: `False` (Fırsat kaçırmaz)
+  3. **Mikro Zarar Kesici Kapatıldı:** `hybrid_micro_cut_enabled: False` yapıldı (5 dakikada -%0.25'te erken panik satışı engellendi, coinlere koşma payı verildi).
+  4. **Devre Kesici Filtresi:** Ardışık stop eşiği borsa komisyonu gürültüsünden arındırılarak yalnızca gerçek stoplar (`pnl <= -%0.80`) sayılacak şekilde güncellendi.
+* **Sonuç:** Devre kesici kilitleri tamamen açık, sistem 100 işlem kotasıyla 2-3 Eylül çevik scalping modunda tam gaz çalışmaya devam ediyor.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*
