@@ -163,8 +163,13 @@ python app.py
   - Gece seansının net PnL'i (-$0.71 USD) $6.00 azami sınırın altında olduğu için kilit derhal kalktı (`passed: True`).
   - `python app.py` daemon süreci yeniden başlatıldı ve değişiklikler GitHub/DigitalOcean'a push edildi.
 
+- [x] **Binance Global Alımlarında LOT_SIZE (-1013) Hassasiyet Onarımı & quoteOrderQty Kalkanı (12 Eylül 02:31 TSİ):**
+  - `exchange.py`: Hardcoded `step_map_buy` tablosundaki hatalı basamaklar temizlendi, `format_quantity_by_step` dinamik borsa adım filtresine bağlandı (ACE için 2 basamak yerine borsa kuralı 0.1 / 1 basamak uygulandı).
+  - Alım emirlerinde borsa herhangi bir filtre hatası (-1013) verirse otomatik 2. kademe `quoteOrderQty` ($ USDT tutarı) ile anında infaz zırhı entegre edildi.
+  - Kod derlendi (`py_compile`), arka plan daemon süreci yeniden başlatıldı ve GitHub/DigitalOcean'a push edildi.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-12 (02:28 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-12 (02:31 TSİ)*
 
 
 
