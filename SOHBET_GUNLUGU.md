@@ -255,6 +255,24 @@ Bu dosya, Antigravity AI asistanı ile yapılan tüm teknik yazışmaları, alı
 
 ---
 
+### 22. 🚀 Orijinal 2-3 Eylül Kazandıran Çevik Scalping Moduna Dönüş (11 Eylül 2026 - 12:35 TSİ)
+* **Kullanıcı:** *ekstra bi değişim istemiyorum sadece o 2 3 eylül dönmek istiyorum*
+* **Uygulanan Eylemler:**
+  1. Kullanıcının açık ve net talimatı üzerine hiçbir ekstra filtre/değişiklik uygulanmadan, `KAZANDIRAN_STRATEJI_AYARLARI.md` belgesindeki orijinal 2-3 Eylül parametre seti birebir uygulandı:
+     * `active_preset`: `v21_smart_armor`
+     * `volume_spike_multiplier`: `1.15x`
+     * `min_5m_volume_usd`: `$2,500`
+     * `min_24h_quote_volume_usd`: `$1,000,000`
+     * `take_profit_pct`: `%2.5` | `trailing_callback_pct`: `%0.6` | `stop_loss_pct`: `%1.2`
+     * `retest_required`: `False` (Kırılım anında hızlı alış serbest)
+     * `first_pump_candle_entry_blocked`: `False` (İlk yeşil mumda momentum yakalama serbest)
+     * `max_concurrent_positions`: `3` | `btc_min_rsi`: `35.0`
+  2. `strategy_config_local.json` güncellendi ve `db.save_strategy_config()` aracılığıyla Supabase `crypto_agent_states` tablosuna atomik olarak kaydedildi.
+  3. Canlı doğrulama yapıldı (`use_cache=False` ile okundu) ve ayarların 7/24 döngüye aktif olarak yansıdığı onaylandı.
+
+---
+
+
 
 ## 🧭 CLAUDE CODE & CODEX CLI OTURUM GEÇMİŞİ (12 Ağustos – 11 Eylül 2026)
 

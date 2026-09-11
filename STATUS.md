@@ -91,7 +91,14 @@ python app.py
   - 3. **Sahte Retest & Likidite Çöküş Engeli:** Retest teyidinde hacmin %85'ten fazla buharlaşması (ölü likidite) ve kırmızı düşüş mumu kapanışları geçersiz kılındı.
   - 4. **OrderIntent Doğrulaması:** Borsaya emir gönderilirken `first_pump_entry` ve `signal_state` değerleri adayın gerçek durumuna bağlandı.
 
+- [x] **2-3 Eylül Orijinal Kazandıran Çevik Scalping Moduna Dönüldü (`v21_smart_armor`):**
+  - Kullanıcı talimatı doğrultusunda hiçbir ekstra değişiklik yapılmadan, 2-3 Eylül tarihlerinde ardışık kârlar üreten orijinal parametre seti (`KAZANDIRAN_STRATEJI_AYARLARI.md`) doğrudan Supabase ve yerel konfigürasyona işlendi:
+  - `active_preset`: `v21_smart_armor` | `volume_spike_multiplier`: `1.15x` | `min_5m_volume_usd`: `$2,500`
+  - `take_profit_pct`: `%2.5` | `trailing_callback_pct`: `%0.6` | `stop_loss_pct`: `%1.2` (Sıkı Stop)
+  - `retest_required`: `False` | `first_pump_candle_entry_blocked`: `False` (Erken momentum serbest)
+  - `max_concurrent_positions`: `3` | `btc_min_rsi`: `35.0`
+
 ---
-*Son Güncelleme Tarihi: 2026-09-11 (01:45 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-11 (12:36 TSİ)*
 
 
