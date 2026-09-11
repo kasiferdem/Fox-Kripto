@@ -53,7 +53,21 @@ def check_tenant_circuit_breakers(
             .order("created_at", desc=True)\
             .execute()
             
-        today_trades = trades_res.data or []
+        all_today_trades = trades_res.data or []
+        
+        # 🛡️ MULTI-TENANT İZOLASYON: Başka kullanıcıların işlemlerinin bu kullanıcının kotasını doldurmasını engelle
+        tenant_str = str(tenant_id or "").strip()
+        if tenant_str:
+            today_trades = []
+            for t in all_today_trades:
+                det = t.get("execution_details") or {}
+                t_tid = str(det.get("tenant_id") or "")
+                t_cid = str(det.get("telegram_chat_id") or "")
+                t_name = str(det.get("tenant_name") or "")
+                if tenant_str in [t_tid, t_cid, t_name]:
+                    today_trades.append(t)
+        else:
+            today_trades = all_today_trades
         
         # 2. Günlük Toplam İşlem Sayısı Denetimi
         daily_executed_count = len([t for t in today_trades if t.get("direction") == "BUY"])
