@@ -33,7 +33,7 @@ def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens
     Merkezi OpenRouterGateway üzerinden güvenli çağrı yönlendirir.
     """
     # stealth/ox-alpha isteklerini z-ai/glm-5.3-flash'a dönüştür (Section 2)
-    resolved_role = "ROUTINE_REPORTING"
+    resolved_role = "LEAD_STRATEGIST"
     if "news" in system_prompt.lower() or "haber" in system_prompt.lower() or "critical" in system_prompt.lower():
         resolved_role = "CRITICAL_NEWS_ANALYSIS"
     elif "audit" in system_prompt.lower() or "forensic" in system_prompt.lower():
@@ -48,8 +48,8 @@ def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens
     return res.get("raw_text", "")
 
 def call_gpt4o(system_prompt: str, user_content: str, max_tokens: int = 1500) -> str:
-    """Merkezi gateway üzerinden rutin veya kritik raporlama çağrısı."""
-    return call_llm_model("z-ai/glm-5.3-flash", system_prompt, user_content, max_tokens=max_tokens)
+    """Merkezi gateway üzerinden GPT-6 Baş Stratejist & Karar çağrısı."""
+    return call_llm_model("openai/gpt-6-astra", system_prompt, user_content, max_tokens=max_tokens)
 
 # -----------------------------------------
 # 1. HABER ANALİZ AJANI (NEWS AGENT)

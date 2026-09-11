@@ -28,23 +28,32 @@ load_dotenv()
 # 1. STANDART ROL VE MODEL ROTALARI TANIMI (Section 3)
 # =====================================================================
 ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
+    "LEAD_STRATEGIST": {
+        "primary_model": "openai/gpt-6-astra",
+        "fallback_models": ["openai/gpt-4o", "anthropic/claude-3.7-sonnet"],
+        "execution_authority": "BLOCK_ONLY",
+        "timeout_seconds": 20,
+        "max_output_tokens": 1500,
+        "temperature": 0.2,
+        "description": "1 Numara: Baş Stratejist & Karar Motoru (GPT-6)"
+    },
     "ROUTINE_REPORTING": {
-        "primary_model": "z-ai/glm-5.3-flash",
-        "fallback_models": ["nvidia/nemotron-3.5-lightning", "google/gemini-2.5-flash"],
+        "primary_model": "openai/gpt-6-astra",
+        "fallback_models": ["z-ai/glm-5.3-flash", "google/gemini-3.8-flash", "openai/gpt-4o"],
         "execution_authority": "NONE",
-        "timeout_seconds": 10,
-        "max_output_tokens": 500,
+        "timeout_seconds": 15,
+        "max_output_tokens": 800,
         "temperature": 0.3,
-        "description": "Telegram rutin raporları, durum özetleri, işlem bildirimleri"
+        "description": "Telegram rutin raporları, durum özetleri, işlem bildirimleri (GPT-6)"
     },
     "CRITICAL_NEWS_ANALYSIS": {
-        "primary_model": "google/gemini-3.7-flash",
-        "fallback_models": ["z-ai/glm-5.3", "openai/gpt-4o-mini"],
+        "primary_model": "google/gemini-3.8-flash",
+        "fallback_models": ["google/gemini-3.7-flash", "z-ai/glm-5.3", "openai/gpt-4o-mini"],
         "execution_authority": "BLOCK_ONLY",
         "timeout_seconds": 12,
-        "max_output_tokens": 400,
+        "max_output_tokens": 500,
         "temperature": 0.1,
-        "description": "Kriz, Fed faiz, hack, depeg analizi (Yalnızca engelleyebilir, emir açamaz)"
+        "description": "2 Numara: Makro & Haber Duyarlılık Ajanı (Gemini 3.8 Flash)"
     },
     "TECHNICAL_SECOND_OPINION": {
         "primary_model": "z-ai/glm-5.3",
