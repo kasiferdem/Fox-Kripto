@@ -240,6 +240,73 @@ def formulate_trade_strategy(
         "take_profit_price": tp_price,
         "risk_justification": f"Dinamik Hacim ve Balina Teyidi: Canlı piyasa lideri {chosen_symbol} seçildi."
     }
+# -----------------------------------------
+# 5. PATRON (GPT-6 ASTRA) & BAŞ DENETÇİ (CLAUDE 3.7 SONNET) YÖNETİŞİMİ
+# -----------------------------------------
+def call_patron_market_weather(btc_price: float, btc_rsi: float, regime_info: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    5 Numara Patron (GPT-6 Astra): Piyasa havasını koklar ve rejim önerisi sunar.
+    """
+    system_prompt = (
+        "Sen Fox-Kripto fonunun Patronu ve Baş Stratejistisin (Model: GPT-6 Astra).\n"
+        "Görevin piyasa havasını değerlendirmek (GÜNEŞLİ / PUSLU / FIRTINALI) ve scalping risk dozajını belirlemektir.\n"
+        "Kurallar: Açgözlülük yok, küçük ısırıklar (+%0.8 - +%1.2 TP, -%0.8 - -%1.0 SL). Fırtınada savunma moduna geç."
+    )
+    user_content = f"Piyasa Verileri:\nBTC Fiyat: ${btc_price:,.1f}\nBTC RSI: {btc_rsi:.1f}\nRejim Durumu: {regime_info}"
+    res = OpenRouterGateway.invoke(
+        role="PATRON",
+        system_prompt=system_prompt,
+        user_content=user_content,
+        prompt_version="patron-v2.5"
+    )
+    return {
+        "patron_raw": res.get("raw_text", ""),
+        "model": "openai/gpt-6-astra"
+    }
+
+def call_chief_auditor_review(patron_assessment: str, risk_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    5 Numara Patronu Denetleyen Baş Denetçi (Claude 3.7 Sonnet):
+    Patronun kararlarını adli kuant gözüyle denetler, risk aşımı varsa VETO eder.
+    """
+    system_prompt = (
+        "Sen Fox-Kripto Baş Risk ve Uyum Denetçisisin (Model: Claude 3.7 Sonnet).\n"
+        "Görevin Patronun (GPT-6 Astra) piyasa kararlarını denetlemek, aşırı iyimserlik veya risk ihlallerini tespit etmektir.\n"
+        "Eğer risk görüyorsan VETO (BLOCK) yetkin vardır. Çıktın net, profesyonel ve kısa Türkçe olmalıdır."
+    )
+    user_content = f"Patron Değerlendirmesi:\n{patron_assessment}\n\nCanlı Risk Verileri:\n{risk_data}"
+    res = OpenRouterGateway.invoke(
+        role="CHIEF_AUDITOR",
+        system_prompt=system_prompt,
+        user_content=user_content,
+        prompt_version="auditor-v2.5"
+    )
+    return {
+        "auditor_raw": res.get("raw_text", ""),
+        "model": "anthropic/claude-3.7-sonnet"
+    }
+
+def call_genel_mudur_briefing(market_weather: str, patron_verdict: str, auditor_verdict: str, portfolio_data: Dict[str, Any]) -> str:
+    """
+    8 Numara Genel Müdür: Kullanıcıya Telegram/Panel için net, kurumsal ve dürüst brifing hazırlar.
+    """
+    system_prompt = (
+        "Sen Fox-Kripto Genel Müdürüsün. Kullanıcıya doğrudan hesap veren en üst yöneticisin.\n"
+        "Görevin yalakalık yapmadan, net, dürüst ve profesyonel bir icra raporu sunmaktır.\n"
+        "Format:\n"
+        "🌤️ PİYASA HAVASI: ...\n"
+        "🏛️ PATRON & DENETÇİ KARARI: ...\n"
+        "💼 KASA & MİKRO-TRAILING DURUMU: ...\n"
+        "🎯 GÜNÜN ISIRIKLARI & RİSK: ..."
+    )
+    user_content = f"Hava: {market_weather}\nPatron: {patron_verdict}\nDenetçi: {auditor_verdict}\nPortföy: {portfolio_data}"
+    res = OpenRouterGateway.invoke(
+        role="GENEL_MUDUR",
+        system_prompt=system_prompt,
+        user_content=user_content,
+        prompt_version="gm-v2.5"
+    )
+    return res.get("raw_text", "")
 
 if __name__ == "__main__":
     print("🚀 GPT-4o prompts.py Modülü Test Ediliyor...")

@@ -93,37 +93,62 @@ def check_market_regime(is_scalp: bool = False) -> Dict[str, Any]:
         btc_trend_filter_enabled = bool(strat_cfg.get("btc_trend_filter_enabled", False))
         btc_ema_tol_pct = float(strat_cfg.get("btc_ema_tolerance_pct", 10.0))
         ema_multiplier = max(0.50, 1.0 - (btc_ema_tol_pct / 100.0))
-        is_below_ema200 = btc_trend_filter_enabled and (current_btc_price < (ema200 * ema_multiplier))
+        # 💡 KULLANICI ONAYLI 2. MADDE: Scalp modunda sakin havada %0.40-%0.70 kâr fırsatlarını öldürmemek için kör EMA200 kilidi uygulanmaz;
+        # Ancak büyük balina swing işlemlerinde trend filtresi tam korunur:
+        is_below_ema200 = (not is_scalp) and btc_trend_filter_enabled and (current_btc_price < (ema200 * ema_multiplier))
         
         # 2. Son 4 saatlik BTC sert çöküş kontrolü (Panik Koruması)
         dump_thresh = -float(strat_cfg.get("max_btc_4h_dump_pct", 4.0))
         recent_4h_change = ((close_prices[-1] - close_prices[-5]) / close_prices[-5]) * 100.0 if len(close_prices) >= 5 else 0.0
         is_dumping = recent_4h_change < dump_thresh
 
-        # 3. Kısa Vadeli Fırtına Kalkanı: BTC 15 Dakikalık Ani Mum Çöküş Kontrolü
-        is_15m_dumping = False
+        # 3. 🛡️ AKTİF FIRTINA KALKANI (5dk ve 15dk Ani Dik Çöküş Kontrolü - "Ağa Takılan Balık Çırpınışı Engeli")
+        is_flash_dump = False
+        flash_dump_reason = ""
+        dump_5m_thresh = -float(strat_cfg.get("btc_flash_dump_5m_pct") or 0.50)
+        dump_15m_thresh = -float(strat_cfg.get("btc_flash_dump_15m_pct") or 1.00)
+
+        # 3a. 5 Dakikalık Hızlı Şelale Kontrolü
         try:
-            url_15m = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=15m&limit=10"
-            r_15m = requests.get(url_15m, timeout=3)
-            if r_15m.status_code == 200:
-                d_15m = r_15m.json()
-                if len(d_15m) >= 3:
-                    c15_last = float(d_15m[-1][4])
-                    c15_prev = float(d_15m[-3][1]) # 30 dk önceki açılış
-                    pct_15m = ((c15_last - c15_prev) / c15_prev) * 100.0
-                    if pct_15m < -2.5:
-                        is_15m_dumping = True
+            url_5m = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=4"
+            r_5m = requests.get(url_5m, timeout=3)
+            if r_5m.status_code == 200:
+                d_5m = r_5m.json()
+                if len(d_5m) >= 2:
+                    c5_curr = float(d_5m[-1][4])
+                    c5_open = float(d_5m[-2][1])
+                    pct_5m = ((c5_curr - c5_open) / c5_open) * 100.0
+                    if pct_5m <= dump_5m_thresh:
+                        is_flash_dump = True
+                        flash_dump_reason = f"BTC son 5-10 dakikada ani dik düşüş (-%{abs(pct_5m):.2f}) başlattı (Savunma Modu Aktif)"
         except Exception:
             pass
+
+        # 3b. 15 Dakikalık Dik Çöküş Kontrolü
+        if not is_flash_dump:
+            try:
+                url_15m = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=15m&limit=6"
+                r_15m = requests.get(url_15m, timeout=3)
+                if r_15m.status_code == 200:
+                    d_15m = r_15m.json()
+                    if len(d_15m) >= 3:
+                        c15_last = float(d_15m[-1][4])
+                        c15_prev = float(d_15m[-3][1]) # ~30 dk önceki açılış
+                        pct_15m = ((c15_last - c15_prev) / c15_prev) * 100.0
+                        if pct_15m <= dump_15m_thresh:
+                            is_flash_dump = True
+                            flash_dump_reason = f"BTC son 30 dakikada dik çöküş (-%{abs(pct_15m):.2f}) başlattı (Savunma Modu Aktif)"
+            except Exception:
+                pass
             
         # 4. RSI Zayıflık Filtresi (Panelden Dinamik Okunur)
         custom_rsi = strat_cfg.get("btc_min_rsi") or strat_cfg.get("min_btc_rsi")
         rsi_floor = float(custom_rsi) if custom_rsi is not None else (30.0 if is_scalp else 35.0)
         is_rsi_weak = btc_rsi < rsi_floor
         
-        if is_below_ema200 or is_dumping or is_15m_dumping or is_rsi_weak:
-            if is_15m_dumping:
-                reason = "BTC son 30 dakikada ani fırtına düşüşü (-%2.5+) başlattı (Fırtına Kalkanı Aktif)"
+        if is_flash_dump or is_dumping or is_below_ema200 or is_rsi_weak:
+            if is_flash_dump:
+                reason = flash_dump_reason
             elif is_below_ema200:
                 reason = f"BTC (${current_btc_price:,.0f}) EMA200 (${ema200:,.0f}) altında tolerans sınırını (>%{btc_ema_tol_pct}) aştı"
             elif is_rsi_weak:

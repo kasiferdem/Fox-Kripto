@@ -37,6 +37,33 @@ ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
         "temperature": 0.2,
         "description": "1 Numara: Baş Stratejist & Karar Motoru (GPT-6)"
     },
+    "PATRON": {
+        "primary_model": "openai/gpt-6-astra",
+        "fallback_models": ["openai/gpt-4o", "anthropic/claude-3.7-sonnet"],
+        "execution_authority": "BLOCK_ONLY",
+        "timeout_seconds": 20,
+        "max_output_tokens": 1500,
+        "temperature": 0.2,
+        "description": "5 Numara Patron: Baş Stratejist & Piyasa Rejim Yöneticisi (GPT-6 Astra)"
+    },
+    "CHIEF_AUDITOR": {
+        "primary_model": "anthropic/claude-3.7-sonnet",
+        "fallback_models": ["openai/gpt-4o", "z-ai/glm-5.3"],
+        "execution_authority": "BLOCK_ONLY",
+        "timeout_seconds": 20,
+        "max_output_tokens": 1200,
+        "temperature": 0.1,
+        "description": "5 Numara Patronu Denetleyen Baş Denetçi (Claude 3.7 Sonnet) - Veto Yetkili Adli Kuant Denetçisi"
+    },
+    "GENEL_MUDUR": {
+        "primary_model": "openai/gpt-6-astra",
+        "fallback_models": ["anthropic/claude-3.7-sonnet", "google/gemini-3.8-flash"],
+        "execution_authority": "NONE",
+        "timeout_seconds": 15,
+        "max_output_tokens": 800,
+        "temperature": 0.3,
+        "description": "8 Numara Genel Müdür: Kullanıcıya Profesyonel ve Düzenli İcra Brifingi Sunan Yönetici Ajan"
+    },
     "ROUTINE_REPORTING": {
         "primary_model": "openai/gpt-6-astra",
         "fallback_models": ["z-ai/glm-5.3-flash", "google/gemini-3.8-flash", "openai/gpt-4o"],
@@ -161,7 +188,10 @@ class OpenRouterGateway:
         "CRITICAL_NEWS_ANALYSIS": 180,   # 3 dk
         "TECHNICAL_SECOND_OPINION": 60,  # 1 dk
         "NIGHTLY_FORENSIC_AUDIT": 86400, # 24 saat
-        "CRITICAL_INCIDENT_REVIEW": 3600 # 1 saat
+        "CRITICAL_INCIDENT_REVIEW": 3600,# 1 saat
+        "PATRON": 180,                   # 3 dk
+        "CHIEF_AUDITOR": 180,            # 3 dk
+        "GENEL_MUDUR": 300               # 5 dk
     }
 
     @classmethod

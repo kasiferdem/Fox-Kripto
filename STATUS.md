@@ -127,8 +127,28 @@ python app.py
   - `DOGS/USDT` (@5.244e-05)
   - Tüm hisse/sentetik tokenlar filtrelendiği için sadece derinliği olan gerçek altcoinler çalışıyor.
 
+- [x] **Yeni Nesil Kuant Mimarisi: "Küçük Isırıklar & Akıllı Zırh" Devreye Alındı (12 Eylül 01:30 TSİ):**
+  - **1. Akıllı Oransal Çıkış & Mikro-Trailing (`graph.py`):**
+    - Statik %2.5 hedef yerine: Fiyat $\ge +\%0.60$ gördüğü anda kâr koruma kalkanı aktifleşir.
+    - Zirveden $\ge \%0.20$ çekilme olduğu an (`pullback_pct >= 0.20`), hedefe bakılmaksızın piyasa emriyle anında satış yapılarak kâr kasaya kilitlenir (`🎯 Akıllı Oransal Çıkış`).
+    - MET benzeri kârlı işlemlerin geri çekilip stop olma riski tamamen ortadan kaldırıldı.
+  - **2. Akıllı BTC Fırtına Kalkanı (`market_regime.py`):**
+    - Kör EMA200 kilidi esnetildi: BTC EMA200 altında yatay ve sakin seyrederken altcoinlerdeki +%0.40 - +%0.70 kâr fırsatlarının avlanmasına izin verildi.
+    - Ancak BTC son 5 dakikada $\le -\%0.50$ veya son 15-30 dakikada $\le -\%1.00$ ani dik çöküş (Flash Dump) yapıyorsa "Savunma Modu" derhal devreye girerek yeni alımları kilitler.
+  - **3. Kümülatif Günlük Net Zarar Kalkanı (`circuit_breaker.py`):**
+    - Sadece ardışık stoplar değil; gün içindeki toplam net gerçekleşmiş USD kâr/zarar kümülatif olarak toplanır.
+    - Günlük net kayıp azami limiti (-$6.00 USD veya %3.0) aştığında sistem yeni alımları o gün için tamamen durdurur (`DAILY_LOSS_LIMIT_EXCEEDED`).
+  - **4. Çift-Anahtar Yönetişim Mimarisi (`openrouter_gateway.py` & `prompts.py`):**
+    - **Patron (Lead Strategist & Market Maestro):** `openai/gpt-6-astra` (Piyasa havasını koklar, parametre gevşetme/sıkma kararı alır).
+    - **Patronu Denetleyen Baş Denetçi (Chief Auditor & Sanity Sentinel):** `anthropic/claude-3.7-sonnet` (GPT-6'nın kararlarını denetler, risk aşımı ve küçük ısırık kurallarını gözetir, veto yetkisine sahiptir).
+    - **Genel Müdür (`GENEL_MUDUR`):** Kullanıcıya net, kurumsal ve şeffaf durum brifingi sunar.
+  - **5. Test Paketi Doğrulaması:**
+    - `test_execution_gate_suite.py` (%100 Başarılı)
+    - `test_openrouter_and_execution_suite.py` (%100 Başarılı)
+    - `test_retest_state_machine_suite.py` (%100 Başarılı - 14/14 test)
+
 ---
-*Son Güncelleme Tarihi: 2026-09-11 (17:17 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-12 (01:30 TSİ)*
 
 
 

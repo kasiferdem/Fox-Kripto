@@ -336,11 +336,20 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             trail_activation = float(strat_cfg.get("trailing_activation_pct") or user_tp or 2.0)
                             callback_mult = 1.0 - (trail_callback / 100.0)
                             
-                            # 🛡️ 3 EYLÜL GERÇEK TRAILING KÂR ALMA MOTORU:
-                            # SADECE fiyat ana hedefe (+%2.0+) ulaştıktan sonra ve zirveden callback kadar çekilirse KÂRLA kilitler:
-                            if peak_gain_pct >= trail_activation and curr_p <= (highest_p * callback_mult) and net_profit_pct > 0.30:
+                            # 🎯 KULLANICI ONAYLI 3. & 4. MADDE: AKILLI ORANSAL ÇIKIŞ (MİKRO-TRAILING & SMALL BITES)
+                            # Zirvede en az +%0.60 kâr görmüş bir coin, zirveden %0.20 geri çekilirse HEDEFE BAKILMAKSIZIN anında kârı kilitler!
+                            micro_activation = float(strat_cfg.get("micro_trailing_activation_pct") or 0.60)
+                            micro_callback = float(strat_cfg.get("micro_trailing_callback_pct") or 0.20)
+                            micro_callback_mult = 1.0 - (micro_callback / 100.0)
+                            pullback_pct = peak_gain_pct - gross_change_pct
+
+                            if peak_gain_pct >= micro_activation and (pullback_pct >= (micro_callback - 0.02) or curr_p <= (highest_p * micro_callback_mult)) and net_profit_pct >= 0.25:
                                 is_take_profit = True
-                                reason_desc = f"🎯 Trailing Kâr Realizasyonu (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f})"
+                                reason_desc = f"🎯 Akıllı Oransal Çıkış (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f}, Çekilme: -%{pullback_pct:.2f})"
+                                sell_fraction = 1.0
+                            elif peak_gain_pct >= trail_activation and curr_p <= (highest_p * callback_mult) and net_profit_pct > 0.30:
+                                is_take_profit = True
+                                reason_desc = f"🎯 Trailing Zirve Kâr Realizasyonu (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f})"
                                 sell_fraction = 1.0
                             elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
                                 # Kullanıcının belirlediği ana TP hedefine ulaşıldı:

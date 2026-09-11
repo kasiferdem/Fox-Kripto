@@ -86,8 +86,30 @@ def check_tenant_circuit_breakers(
                 "message": f"🛑 [Devre Kesici]: Eşzamanlı açık pozisyon slotları dolu ({current_active_positions_count}/{max_concurrent_positions})."
             }
             
-        # 4. Son İşlemlerdeki Ardışık Zarar ve Cooldown Denetimi
-        recent_sells = [t for t in today_trades if t.get("direction") == "SELL"]
+        # 4. Günlük Kümülatif Net Zarar Denetimi (Cumulative Daily Realized Loss Shield)
+        # 🔒 Bugün gerçekleşen tüm kâr ve zararların net USD toplamı hesaplanır
+        today_sells = [t for t in today_trades if t.get("direction") == "SELL"]
+        total_realized_pnl_usd = 0.0
+        
+        for s in today_sells:
+            det = s.get("execution_details") or {}
+            pnl_usd = float(det.get("realized_pnl_usd") or det.get("net_profit_usd") or 0.0)
+            pnl_pct = float(det.get("realized_pnl_pct", 0.0)) or float(det.get("net_profit_pct", 0.0))
+            amount_usd = float(s.get("amount_usd") or 47.0)
+            if pnl_usd == 0.0 and pnl_pct != 0.0:
+                pnl_usd = amount_usd * (pnl_pct / 100.0)
+            total_realized_pnl_usd += pnl_usd
+
+        max_loss_usd_limit = float(strat_cfg.get("daily_max_loss_usd") or 6.0)
+        if total_realized_pnl_usd <= -abs(max_loss_usd_limit):
+            return {
+                "passed": False,
+                "circuit_breaker": "DAILY_LOSS_LIMIT_EXCEEDED",
+                "message": f"🛑 [Devre Kesici]: Bugünün kümülatif net zararı (-${abs(total_realized_pnl_usd):.2f}) günlük azami zarar sınırını (-${abs(max_loss_usd_limit):.2f}) aştı. Sermaye koruması kilitlendi."
+            }
+
+        # 5. Son İşlemlerdeki Ardışık Zarar ve Cooldown Denetimi
+        recent_sells = today_sells
         consecutive_losses = 0
         last_stop_time = None
         

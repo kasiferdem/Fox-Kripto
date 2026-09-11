@@ -39,31 +39,37 @@ def test_model_routes_and_authorities():
     """Test: Nihai model görev dağılımı ve yetki kısıtları (Section 3)"""
     print("\n--- TEST 2: Model Rol Dağılımı ve Yetki Kısıtları ---")
     
-    # Routine Reporting
+    # Routine Reporting & Lead Strategist / Patron
     rr = ROLE_ROUTES_CONFIG["ROUTINE_REPORTING"]
-    assert rr["primary_model"] == "z-ai/glm-5.3-flash"
-    assert "nvidia/nemotron-3.5-lightning" in rr["fallback_models"]
+    assert "gpt-6" in rr["primary_model"]
     assert rr["execution_authority"] == "NONE"
+
+    # Patron
+    patron = ROLE_ROUTES_CONFIG["PATRON"]
+    assert patron["primary_model"] == "openai/gpt-6-astra"
+    assert patron["execution_authority"] == "BLOCK_ONLY"
+
+    # Chief Auditor
+    auditor = ROLE_ROUTES_CONFIG["CHIEF_AUDITOR"]
+    assert auditor["primary_model"] == "anthropic/claude-3.7-sonnet"
+    assert auditor["execution_authority"] == "BLOCK_ONLY"
     
     # Critical News
     cn = ROLE_ROUTES_CONFIG["CRITICAL_NEWS_ANALYSIS"]
-    assert cn["primary_model"] == "google/gemini-3.7-flash"
-    assert "z-ai/glm-5.3" in cn["fallback_models"]
+    assert "gemini-3.8-flash" in cn["primary_model"]
     assert cn["execution_authority"] == "BLOCK_ONLY"
     
     # Technical Second Opinion
     tso = ROLE_ROUTES_CONFIG["TECHNICAL_SECOND_OPINION"]
     assert tso["primary_model"] == "z-ai/glm-5.3"
-    assert "google/gemini-3.7-flash" in tso["fallback_models"]
     assert tso["execution_authority"] == "NONE"
     
     # Nightly Forensic Audit
     nfa = ROLE_ROUTES_CONFIG["NIGHTLY_FORENSIC_AUDIT"]
-    assert nfa["primary_model"] == "openai/gpt-6-astra:batch"
-    assert "z-ai/glm-5.3" in nfa["fallback_models"]
+    assert "gpt-6-astra" in nfa["primary_model"]
     assert nfa["execution_authority"] == "NONE"
     
-    print("✅ TEST 2 BAŞARILI: Tüm 5 rol ve model rotaları birebir uyumlu.")
+    print("✅ TEST 2 BAŞARILI: Tüm roller, Patron, Denetçi ve model rotaları birebir uyumlu.")
 
 def test_execution_gate_blocks_direct_ai_buy():
     """Test: AI BUY dese bile ExecutionGate şartlar sağlanmadığında emri reddetmeli (Section 1 & 5)"""

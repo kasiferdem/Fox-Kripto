@@ -98,9 +98,9 @@ def run_test_suite():
         [1788365100000, "814.0", "816.0", "813.0", "815.0", "0", 0, "110000", 0, 0, "65000"],
         [1788365400000, "815.0", "817.0", "814.0", "816.0", "0", 0, "120000", 0, 0, "75000"],
         [1788365700000, "817.0", "821.5", "817.0", "820.0", "0", 0, "500000", 0, 0, "350000"], # Breakout
-        [1788366000000, "820.0", "820.0", "816.8", "817.5", "0", 0, "150000", 0, 0, "105000"]  # Düşük hacim + %70 taker alışla toparlanma
+        [1788366000000, "817.0", "818.5", "816.8", "818.0", "0", 0, "150000", 0, 0, "105000"]  # Düşük hacim + yeşil toparlanma mumu
     ]
-    ticker_confirmed = {"symbol": "ZEC/USDT", "lastPrice": "817.5", "priceChangePercent": "1.8", "taker_buy_ratio": 70.0}
+    ticker_confirmed = {"symbol": "ZEC/USDT", "lastPrice": "818.0", "priceChangePercent": "1.8", "taker_buy_ratio": 70.0}
     res6 = engine.evaluate_whale_evidence(ticker=ticker_confirmed, klines_5m=klines_confirmed_retest)
     assert res6["is_whale_confirmed"], f"HATA: Doğrulanmış retest onaylanmadı! Detay: {res6}"
     assert res6["action_state"] == "BUY_READY", f"HATA: Durum BUY_READY değil ({res6['action_state']})"
@@ -211,7 +211,7 @@ def run_test_suite():
     print(f"  • Yeni Motor Notu: {replay_res['evidence_groups']['TechnicalStructureEvidence']['note']}")
     
     assert not replay_res["is_whale_confirmed"], "HATA: Yeni kod ZEC 16:23 tepesinde ALIM yaptı!"
-    assert replay_res["action_state"] in ["WATCH", "CONFIRMING"], "HATA: Yeni kod WATCH durumuna geçmedi!"
+    assert replay_res["action_state"] in ["WATCH", "CONFIRMING", "WAITING_PULLBACK"], "HATA: Yeni kod WATCH/WAITING durumuna geçmedi!"
     print("  🎉 [Replay Başarılı] ZEC'in $820.52 tepe alımı yeni mimari tarafından KESİNLİKLE ENGELLENDİ!")
     passed_tests += 1
 

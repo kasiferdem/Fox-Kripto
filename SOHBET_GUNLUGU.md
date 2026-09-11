@@ -435,5 +435,16 @@ Aynı istek eş zamanlı olarak hem Claude Code'a hem Codex'e verildi.
     3. **Devre Kesici Güvenlik Zırhı:** `circuit_breaker.py` ardışık 3+ stop tespitiyle anında devreye girmiş ve sistemi 20 dakikalık koruyucu soğumaya (`CONSECUTIVE_LOSS_COOLDOWN_ACTIVE`) alarak daha fazla zararı engellemiştir.
 * **Alınabilecek Önlemler:** `INTCB`, `MRVLB`, `LITEB`, `ORCLB`, `WBETH` gibi sığ tahtaların kara listeye alınması; yalnızca derinliği yüksek gerçek altcoinlerde işlem yapılması.
 
+### 28. 💡 2-3 Eylül Stratejisi Değerlendirmesi: Rejim Bağımlılığı ve Yapısal Çözüm (12 Eylül 2026 - 00:57 TSİ)
+* **Kullanıcı:** *"sanırım bu 2.3 eyllül projesi sıkıntılı. ancak piyasalar hareketli ve bitcoin yükselişte olduğunda işe yarayacak"*
+* **Kritik Doğrulama & Teknik Teşhis:**
+  * Kullanıcının tespiti %100 doğrudur. 2-3 Eylül çevik scalping stratejisi (`v21_smart_armor`) retest beklemeden (`retest_required: False`) ve fırlayan ilk mumu alarak (`first_pump: False`) çalışır.
+  * **Ne Zaman Çalışır?** Piyasa genelinde boğa ivmesi veya altcoin coşkusu varken her kırılım devam mumu üretir (SC, SAGA, MITO, MINA kârlarında olduğu gibi kasayı hızla 191$'dan 195$'a fırlatır).
+  * **Ne Zaman Sıkıntı Yaratır?** Bitcoin gevşerken (-$3.000 düşüşte olduğu gibi) veya piyasa yatay testeredeyken her yeşil mum birer "Boğa Tuzağı" (Fakeout) olur. Bot tepeye yakın girer, arkasından gelen satışla -%1.2 sıkı stop patlar ve 10-15 küçük stop birikerek kârları geri verir.
+* **Geliştirilecek Çözüm Önerileri:**
+  1. **BTC Rejim Kilidi:** BTC 1s grafikte düşüşteyken veya kırmızı yakarken altcoin taramasını durdurma; sadece piyasa yeşilken çevik modu açma.
+  2. **Günlük Maksimum Zarar Kilidi (%2.5):** Günlük kümülatif kayıp $5'a ulaştığında o gün yeni alımları tamamen dondurma.
+  3. **Başa-Baş (Break-Even) Zırhı:** +%1.5 kâr gören coinin stopunu giriş fiyatına çekerek kârdan zarara dönüşü kesin engelleme.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*
