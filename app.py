@@ -425,6 +425,57 @@ def run_autonomous_trading_loop():
                                     f"📤 *Satış Birim Fiyatı:* `{exit_str}`\n"
                                     f"{profit_label} `{profit_badge}`"
                                 )
+                        else:
+                            # 🛒 ALIM (BUY) BİLGİ KARTI: Giriş Fiyatı, Hedef Kâr (TP), Sıkı Stop (SL) ve Mikro-Trailing
+                            raw_entry = float(exec_res.get("executed_price") or proposal.get("entry_price") or 0.0) if (exec_res or proposal) else 0.0
+                            is_tr_pair = symbol.upper().endswith("TRY") or is_tr_tenant
+                            
+                            tp_pct = float(proposal.get("take_profit_percent") or 1.5) if proposal else 1.5
+                            raw_tp = float(proposal.get("take_profit_price") or 0.0) if proposal else 0.0
+                            if raw_tp <= 0 and raw_entry > 0:
+                                raw_tp = raw_entry * (1.0 + (tp_pct / 100.0))
+                                
+                            sl_pct = float(proposal.get("stop_loss_percent") or 1.2) if proposal else 1.2
+                            raw_sl = float(exec_res.get("stop_loss_price") or proposal.get("stop_loss_price") or 0.0) if (exec_res or proposal) else 0.0
+                            if raw_sl <= 0 and raw_entry > 0:
+                                raw_sl = raw_entry * (1.0 - (sl_pct / 100.0))
+                                
+                            raw_micro = raw_entry * 1.006 if raw_entry > 0 else 0.0
+                            
+                            def _fmt_price_val(val: float, is_try_c: bool = False) -> str:
+                                curr = "₺" if is_try_c else "$"
+                                if val <= 0:
+                                    return f"{curr}0.00"
+                                if val < 0.0001:
+                                    return f"{curr}{val:.8f}"
+                                elif val < 0.01:
+                                    return f"{curr}{val:.6f}"
+                                elif val < 1.0:
+                                    return f"{curr}{val:.4f}"
+                                elif val < 10.0:
+                                    return f"{curr}{val:.3f}"
+                                else:
+                                    return f"{curr}{val:,.2f}"
+
+                            entry_str = _fmt_price_val(raw_entry, is_tr_pair)
+                            tp_str = _fmt_price_val(raw_tp, is_tr_pair)
+                            sl_str = _fmt_price_val(raw_sl, is_tr_pair)
+                            micro_str = _fmt_price_val(raw_micro, is_tr_pair)
+
+                            if is_en_user:
+                                price_detail_line = (
+                                    f"\n📥 *Entry Unit Price:* `{entry_str}`\n"
+                                    f"🎯 *Take-Profit (+%{tp_pct:.1f}):* `{tp_str}`\n"
+                                    f"🛡️ *Strict Stop-Loss (-%{sl_pct:.1f}):* `{sl_str}`\n"
+                                    f"⚡ *Micro-Trailing (+%0.60):* `{micro_str}` (Armed)"
+                                )
+                            else:
+                                price_detail_line = (
+                                    f"\n📥 *Alış Birim Fiyatı:* `{entry_str}`\n"
+                                    f"🎯 *Hedef Kâr (+%{tp_pct:.1f}):* `{tp_str}`\n"
+                                    f"🛡️ *Sıkı Stop-Loss (-%{sl_pct:.1f}):* `{sl_str}`\n"
+                                    f"⚡ *Mikro-Trailing (+%0.60):* `{micro_str}` (Tetik Bekliyor)"
+                                )
                             
                         from telegram_poller import send_message
                         exch_display = "BINANCE.TR 🇹🇷" if is_tr_tenant else "BINANCE GLOBAL 🌍"

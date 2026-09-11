@@ -952,7 +952,8 @@ def handle_update(update: dict):
                         pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
                         pnl_fiat = val_try - (amt * entry_p) - (val_try * 0.002 if gross_pct > 0 else 0.0)
                         pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+₺{pnl_fiat:,.2f} TL)" if pnl_pct >= 0 else f" | 📉 -%{abs(pnl_pct):.2f} Net (-₺{abs(pnl_fiat):,.2f} TL)"
-                        tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{val_try:,.2f} TL{pnl_str})\n"
+                        entry_tag = f" @ ₺{entry_p:.4f}" if (0 < entry_p < 10) else (f" @ ₺{entry_p:,.2f}" if entry_p >= 10 else f" @ ₺{entry_p:.6f}") if entry_p > 0 else ""
+                        tr_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (₺{val_try:,.2f} TL{entry_tag}{pnl_str})\n"
             if not tr_holdings_str:
                 tr_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
 
@@ -1002,7 +1003,8 @@ def handle_update(update: dict):
                         pnl_pct = gross_pct - 0.20 if gross_pct > 0 else gross_pct
                         pnl_fiat = val - (amt * entry_p) - (val * 0.002 if gross_pct > 0 else 0.0)
                         pnl_str = f" | 📈 +%{pnl_pct:.2f} Net (+${pnl_fiat:,.2f} USD)" if pnl_pct >= 0 else f" | 📉 -%{abs(pnl_pct):.2f} Net (-${abs(pnl_fiat):,.2f} USD)"
-                        gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{pnl_str})\n"
+                        entry_tag = f" @ ${entry_p:.4f}" if (0 < entry_p < 10) else (f" @ ${entry_p:,.2f}" if entry_p >= 10 else f" @ ${entry_p:.6f}") if entry_p > 0 else ""
+                        gl_holdings_str += f" • 🟢 *{a}:* `{amt:,.4f}` (${val:,.2f} USD{entry_tag}{pnl_str})\n"
             if not gl_holdings_str:
                 gl_holdings_str = " • _(Açık coin pozisyonu yok)_\n"
 

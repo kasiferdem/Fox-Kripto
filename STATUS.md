@@ -146,9 +146,20 @@ python app.py
     - `test_execution_gate_suite.py` (%100 Başarılı)
     - `test_openrouter_and_execution_suite.py` (%100 Başarılı)
     - `test_retest_state_machine_suite.py` (%100 Başarılı - 14/14 test)
+- [x] **"Giden Trene Binme" Modu Canlıya Alındı & Sistem Ayağa Kaldırıldı (12 Eylül 01:55 TSİ):**
+  - `retest_required: False` ve `first_pump_candle_entry_blocked: False` hem Supabase veritabanına (`system_strategy_config`) hem `db.py` varsayılanlarına hem de yerel dosyalara kalıcı olarak işlendi.
+  - SAGA, LSK, DOGS gibi canlı momentum fırlamalarında artık retest için 30 dakika beklenmeyecek; doğrudan trene atlanacak.
+  - Trenden düşmemek için **Akıllı Oransal Çıkış (+%0.60 kâr / %0.20 çekilmede piyasadan anında satış)** ve **-%0.90 sıkı stop** kalkanı devrede.
+  - `python app.py` başlatıldı: FastAPI (Port 8000), 7/24 Otonom Alım-Satım Döngüsü, @FoxKriptoBot, @FoxSystemBot ve @FoxBorsaBot kesintisiz aktif.
+  - Git Commit `11707fb` GitHub ve DigitalOcean'a push edildi.
+
+- [x] **Canlı Alım & Portföy Bildirimlerine Şeffaf Fiyat/Hedef/Stop Kartı Eklendi (12 Eylül 02:08 TSİ):**
+  - `app.py`: Canlı alım (BUY) bildirimlerine **Alış Birim Fiyatı**, **Hedef Kâr (TP)**, **Sıkı Stop-Loss (SL)** ve **Mikro-Trailing (+%0.60)** kalkan seviyeleri eklendi; "kör bildirim" açığı giderildi.
+  - `telegram_poller.py`: `/portfoy` ve `durum` sorgularında açık pozisyonların yanına gerçek maliyet fiyatları (`@ $0.0110` / `@ ₺0.5400`) eklendi.
+  - Kod derlendi (`py_compile`), arka plan daemon süreci güncellendi ve GitHub/DigitalOcean'a push edildi.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-12 (01:30 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-12 (02:08 TSİ)*
 
 
 
