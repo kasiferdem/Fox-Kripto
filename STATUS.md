@@ -158,8 +158,13 @@ python app.py
   - `telegram_poller.py`: `/portfoy` ve `durum` sorgularında açık pozisyonların yanına gerçek maliyet fiyatları (`@ $0.0110` / `@ ₺0.5400`) eklendi.
   - Kod derlendi (`py_compile`), arka plan daemon süreci güncellendi ve GitHub/DigitalOcean'a push edildi.
 
+- [x] **Devre Kesici Gün Başlangıcı TSİ'ye (UTC+3) Bağlandı & Kilit Kaldırıldı (12 Eylül 02:28 TSİ):**
+  - `circuit_breaker.py`: Evrensel UTC 00:00 yerine yerel Türkiye Saati (TSİ / UTC+3) 00:00 gün dönümü baz alındı. Dün öğleden sonraki testere piyasası stoplarının gece seansını kilitlemesi engellendi.
+  - Gece seansının net PnL'i (-$0.71 USD) $6.00 azami sınırın altında olduğu için kilit derhal kalktı (`passed: True`).
+  - `python app.py` daemon süreci yeniden başlatıldı ve değişiklikler GitHub/DigitalOcean'a push edildi.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-12 (02:08 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-12 (02:28 TSİ)*
 
 
 

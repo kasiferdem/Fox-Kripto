@@ -24,8 +24,13 @@ def check_tenant_circuit_breakers(
     Kullanıcının canlı işlem geçmişini ve açık risklerini tarayarak
     tüm devre kesicileri kontrol eder.
     """
+    # 🇹🇷 Türkiye Saati (TSİ / UTC+3) gün başlangıcı (00:00 TSİ)
+    # Evrensel UTC gece yarısı yerine yerel takvim gününü baz alır (gece seansı sıfırlanır)
+    tz_tr = timezone(timedelta(hours=3))
+    now_tr = datetime.now(tz_tr)
+    today_start_tr = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = today_start_tr.astimezone(timezone.utc).isoformat()
     now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     
     try:
         from db import get_supabase, get_strategy_config
