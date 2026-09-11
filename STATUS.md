@@ -107,15 +107,19 @@ python app.py
   - Multi-tenant filtre eklendi; her kullanıcının işlem sayısı ve ardışık stopları sadece kendi `tenant_id`/`telegram_chat_id`'sine göre izole edildi.
   - Hızlı scalping için `max_daily_trades` kotası 10'dan 50'ye çıkarıldı.
 
-- [x] **Canlı Yüksek Beta Alımı Gerçekleşti (11 Eylül 14:37 TSİ):**
-  - Kilit açılır açılmaz sistem anlık olarak en güçlü hacim patlamasını gösteren `THETA/USDT` paritesine girdi:
-  - **Coin:** `THETA/USDT` | **Alış Fiyatı:** `$0.1929` | **Miktar:** 248.60 THETA (~$47.95 USD)
-  - **Fiziksel Borsa Stop-Loss:** `$0.1902` (-%1.2 SL borsaya iletildi)
-  - **Hedef Kâr:** `$0.1973` (+%2.5 TP) | **Trailing:** %0.6 Callback
-  - **Anlık Durum:** Pozisyon anlık olarak kârda işlem görüyor (~$0.1944 | +%0.58 Net).
+- [x] **2-3 Eylül Çevik Scalping Kâr Serisi & Kasa 195 USD'ye Yükseldi (11 Eylül 15:54 TSİ):**
+  - Devre kesici onarımı ve Yüksek Beta tarayıcısı devreye girdikten sonra peş peşe 4 adet Take-Profit kâr satışı gerçekleşti:
+    - 🎯 **SC/USDT:** **+%2.43 Net Kâr** ($49.07 USD kasaya eklendi)
+    - 🎯 **SAGA/USDT:** **+%2.36 Net Kâr** ($49.28 USD kasaya eklendi)
+    - 🎯 **SNXXB/USDT:** **+%2.67 Net Kâr** ($48.79 USD kasaya eklendi)
+    - 🎯 **MITO/USDT:** **+%2.31 Net Kâr** ($49.24 USD kasaya eklendi)
+    - 🛡️ NEWT (-%1.27) ve MARSCOIN (-%1.46) sıkı stop korumasıyla küçük zararlarla kesildi.
+  - **Kasa Değeri:** $191.08 USD'den **$195.05 USD**'ye (~₺9,480 TL) yükseldi.
+  - **Açık Pozisyonlar:** `ORCLB` ($49.02), `LITEB` ($48.72), `WBETH` ($48.55) | **Serbest Nakit:** $48.40 USDT.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-11 (14:41 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-11 (15:55 TSİ)*
+
 
 
 

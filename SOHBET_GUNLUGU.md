@@ -394,5 +394,18 @@ Aynı istek eş zamanlı olarak hem Claude Code'a hem Codex'e verildi.
   * **Hedef TP:** `$0.1973` (+%2.5) | **Trailing:** %0.6 Callback
   * **Pozisyon Durumu:** Pozisyon hemen kâra geçti (~$0.1944 | +%0.58 Net kârda).
 
+### 25. 🚀 2-3 Eylül Scalping Başarısı: 4 Ardışık Take-Profit ile Kasa 191$'dan 195$'a Çıktı (11 Eylül 2026 - 15:55 TSİ)
+* **Kullanıcı:** *"191 dolardan 195 çıktı kasa :)"*
+* **Borsa & Veritabanı Teyidi:**
+  * Devre kesici onarımından sonra 2-3 Eylül çevik scalping parametreleri (%2.5 TP, %0.6 Trailing, %1.2 SL, Yüksek Beta tarayıcı) tam gaz çalışarak arka arkaya 4 kârlı satış gerçekleştirdi:
+    1. **SC/USDT:** **+%2.43 Net Kâr** (Satış: $49.07 USD)
+    2. **SAGA/USDT:** **+%2.36 Net Kâr** (Satış: $49.28 USD)
+    3. **SNXXB/USDT:** **+%2.67 Net Kâr** (Satış: $48.79 USD)
+    4. **MITO/USDT:** **+%2.31 Net Kâr** (Satış: $49.24 USD)
+    * *Stoplar:* NEWT (-%1.27) ve MARSCOIN (-%1.46) sıkı zırhla anında kesilerek kâr korundu.
+  * **Toplam Portföy:** **$195.05 USD** (~₺9,480 TL)
+  * **Mevcut Açık Pozisyonlar:** `ORCLB` ($49.02), `LITEB` ($48.72), `WBETH` ($48.55) | Serbest USDT: $48.40 USD.
+* **Sonuç:** 2-3 Eylül'ün orijinal kazandıran çevik scalping stratejisine dönme ve Yüksek Beta patlayıcı coinlere odaklanma kararının doğruluğu kanıtlandı.
+
 ---
 *(Yeni konuşmalar ve teknik kararlar buraya eklenmeye devam edecektir.)*
