@@ -12,7 +12,10 @@ def _get_api_key():
     raise ValueError("CRITICAL: OPENROUTER_API_KEY is not configured in environment variables.")
 
 # -----------------------------------------
-from openrouter_gateway import OpenRouterGateway, CriticalNewsAssessment, RoutineReportingSummary
+from openrouter_gateway import (
+    OpenRouterGateway, CriticalNewsAssessment, RoutineReportingSummary,
+    MarketWeatherAssessment, FastScalpAssessment
+)
 
 def resolve_legacy_model_alias(model_alias: str) -> Dict[str, Any]:
     """Geçmiş kayıtlar için model kimliği ve bağımsızlık metadata çözümleyicisi (Section 2)."""
@@ -241,27 +244,88 @@ def formulate_trade_strategy(
         "risk_justification": f"Dinamik Hacim ve Balina Teyidi: Canlı piyasa lideri {chosen_symbol} seçildi."
     }
 # -----------------------------------------
-# 5. PATRON (GPT-6 ASTRA) & BAŞ DENETÇİ (CLAUDE 3.7 SONNET) YÖNETİŞİMİ
+# 5. PATRON (GPT-4o) & AKILLI VUR-KAÇ AJANI (GPT-4o) YÖNETİŞİMİ
 # -----------------------------------------
 def call_patron_market_weather(btc_price: float, btc_rsi: float, regime_info: Dict[str, Any]) -> Dict[str, Any]:
     """
-    5 Numara Patron (GPT-6 Astra): Piyasa havasını koklar ve rejim önerisi sunar.
+    🏛️ 1. MASA: PATRON AJAN (GPT-4o):
+    Piyasa havasını koklar (GÜNEŞLİ / PUSLU / FIRTINALI).
+    Fırtınada veya düşüşte yeni alımları kesinlikle yasaklar ve sermayeyi korur.
     """
     system_prompt = (
-        "Sen Fox-Kripto fonunun Patronu ve Baş Stratejistisin (Model: GPT-6 Astra).\n"
-        "Görevin piyasa havasını değerlendirmek (GÜNEŞLİ / PUSLU / FIRTINALI) ve scalping risk dozajını belirlemektir.\n"
-        "Kurallar: Açgözlülük yok, küçük ısırıklar (+%0.8 - +%1.2 TP, -%0.8 - -%1.0 SL). Fırtınada savunma moduna geç."
+        "Sen Fox-Kripto fonunun Patronu ve Baş Piyasa Stratejistisin (Model: GPT-4o).\n"
+        "Görevin Bitcoin canlı trendini ve piyasa rejimini analiz ederek havanın durumunu belirlemektir:\n"
+        "- GUNESLI: BTC istikrarlı, pozitif veya sakin yükselişte. Altcoinlerde hızlı vur-kaç serbest.\n"
+        "- PUSLU: BTC yatay testerede veya yön belirsiz. Yalnızca çok güçlü ve sıra dışı adaylara onay ver.\n"
+        "- FIRTINALI: BTC düşüşte, kırmızı baskı var veya ani satış dalgası riski var. KESİNLİKLE ALIM YASAK, NAKİTTE KAL!\n"
+        "Kurallar: Açgözlülük yok, sermaye koruması 1 numaralı önceliktir. Çıktıyı kesinlikle şemaya uygun döndür."
     )
-    user_content = f"Piyasa Verileri:\nBTC Fiyat: ${btc_price:,.1f}\nBTC RSI: {btc_rsi:.1f}\nRejim Durumu: {regime_info}"
+    user_content = (
+        f"Canlı Piyasa Verileri:\n"
+        f"- BTC Fiyat: ${btc_price:,.2f}\n"
+        f"- BTC RSI (1s): {btc_rsi:.1f}\n"
+        f"- Teknik Rejim Bilgisi: {json.dumps(regime_info, default=str)}"
+    )
     res = OpenRouterGateway.invoke(
         role="PATRON",
         system_prompt=system_prompt,
         user_content=user_content,
-        prompt_version="patron-v2.5"
+        schema_model=MarketWeatherAssessment,
+        prompt_version="patron-v3.0"
     )
+    struct = res.get("structured_data") or {}
+    weather = struct.get("weather", "PUSLU")
+    is_allowed = bool(struct.get("is_trade_allowed", False)) if weather != "FIRTINALI" else False
     return {
-        "patron_raw": res.get("raw_text", ""),
-        "model": "openai/gpt-6-astra"
+        "weather": weather,
+        "is_trade_allowed": is_allowed,
+        "risk_caution_note": struct.get("risk_caution_note", ""),
+        "market_regime_summary": struct.get("market_regime_summary", ""),
+        "model_used": res.get("model_used", "openai/gpt-4o")
+    }
+
+def call_fast_scalp_analyst(candidate_data: Dict[str, Any], market_weather: str = "GUNESLI") -> Dict[str, Any]:
+    """
+    🎯 2. MASA: EN AKILLI AJAN (GPT-4o):
+    Hacim patlaması yaşayan adayın hızlı vur-kaç potansiyelini inceler.
+    FOMO tepelerini, sığ tahtaları ve sahte tuzakları eler.
+    Gerçek alıcı baskısı ve koşu alanı olan adaylara onay verir.
+    """
+    system_prompt = (
+        "Sen Fox-Kripto'nun Baş Kuant Scalping ve Vur-Kaç Analistisin (Model: GPT-4o).\n"
+        "Görevin radara takılan hareketli altcoini incelemek ve GERÇEK bir hızlı vur-kaç potansiyeli olup olmadığını belirlemektir.\n"
+        "İnceleme Kriterleri:\n"
+        "1. Hacim & Alıcı Baskısı: Taker buy oranı yüksek mi? Gerçek para girişi var mı, yoksa sığ tahtada 2 lotla yapılmış manipülasyon mu?\n"
+        "2. Tepe Tuzağı (FOMO) Kontrolü: Mum zirvede tükenmiş mi, yoksa yeni bir kırılımın başlangıcı mı?\n"
+        "3. Koşu Alanı (Room to Run): Önünde %2.0 - %2.5 hedef için boşluk var mı?\n"
+        "Karar Kuralı: Yalnızca vur-kaç potansiyel skoru >= 7.5 olan ve tuzak olmayan temiz adaylar için is_scalp_recommended=True yap!\n"
+        "Önerilen TP hedefi %2.0 - %2.5 aralığında, Stop Loss ise %1.0 - %1.2 aralığında olmalıdır."
+    )
+    user_content = (
+        f"Piyasa Havası: {market_weather}\n"
+        f"Aday Coin Analiz Verileri:\n{json.dumps(candidate_data, default=str)}"
+    )
+    res = OpenRouterGateway.invoke(
+        role="FAST_SCALP_ANALYST",
+        system_prompt=system_prompt,
+        user_content=user_content,
+        schema_model=FastScalpAssessment,
+        prompt_version="scalp-analyst-v3.0"
+    )
+    struct = res.get("structured_data") or {}
+    is_recommended = bool(struct.get("is_scalp_recommended", False))
+    score = float(struct.get("potential_score", 5.0))
+    if score < 7.5:
+        is_recommended = False
+
+    return {
+        "is_scalp_recommended": is_recommended,
+        "potential_score": score,
+        "thesis_tr": struct.get("thesis_tr", "Yapay zeka analizi tamamlandı."),
+        "target_tp_pct": float(struct.get("target_tp_pct", 2.3)),
+        "stop_loss_pct": float(struct.get("stop_loss_pct", 1.1)),
+        "risk_warning": struct.get("risk_warning", ""),
+        "model_used": res.get("model_used", "openai/gpt-4o")
     }
 
 def call_chief_auditor_review(patron_assessment: str, risk_data: Dict[str, Any]) -> Dict[str, Any]:

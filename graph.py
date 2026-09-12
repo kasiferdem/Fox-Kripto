@@ -19,6 +19,28 @@ from market_regime import check_market_regime
 from atr_calculator import calculate_atr_sl_tp
 
 # =====================================================================
+# 🏛️ PATRON AJAN (GPT-4o) PİYASA HAVASI ÖNBELLEĞİ (3 DK)
+# =====================================================================
+_last_patron_weather: Dict[str, Any] = {}
+_last_patron_weather_time: float = 0.0
+
+def get_cached_patron_weather(btc_price: float, btc_rsi: float, regime: Dict[str, Any]) -> Dict[str, Any]:
+    global _last_patron_weather, _last_patron_weather_time
+    now = time.time()
+    if _last_patron_weather and (now - _last_patron_weather_time < 180):
+        return _last_patron_weather
+    try:
+        from prompts import call_patron_market_weather
+        w = call_patron_market_weather(btc_price, btc_rsi, regime)
+        _last_patron_weather = w
+        _last_patron_weather_time = now
+        print(f"   🏛️ [Patron Ajan (GPT-4o) Canlı Hava]: {w.get('weather')} | Alım İzni: {w.get('is_trade_allowed')} | {w.get('risk_caution_note')}")
+        return w
+    except Exception as e:
+        print(f"   ⚠️ [Patron Ajan İstisna]: {e}")
+        return {"weather": "GUNESLI", "is_trade_allowed": True, "risk_caution_note": "Fallback"}
+
+# =====================================================================
 # FLOWCHART UYUMLU DÜĞÜM (NODE) TANIMLARI
 # =====================================================================
 
@@ -336,25 +358,24 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             trail_activation = float(strat_cfg.get("trailing_activation_pct") or user_tp or 2.0)
                             callback_mult = 1.0 - (trail_callback / 100.0)
                             
-                            # 🎯 KULLANICI ONAYLI 3. & 4. MADDE: AKILLI ORANSAL ÇIKIŞ (MİKRO-TRAILING & SMALL BITES)
-                            # Zirvede en az +%0.60 kâr görmüş bir coin, zirveden %0.20 geri çekilirse HEDEFE BAKILMAKSIZIN anında kârı kilitler!
-                            micro_activation = float(strat_cfg.get("micro_trailing_activation_pct") or 0.60)
-                            micro_callback = float(strat_cfg.get("micro_trailing_callback_pct") or 0.20)
-                            micro_callback_mult = 1.0 - (micro_callback / 100.0)
-                            pullback_pct = peak_gain_pct - gross_change_pct
+                            # 🛡️ 3. MASA: BAŞA-BAŞ (BREAK-EVEN) VE GERÇEK KÜÇÜK ISIRIK (%2.0 - %2.5) ÇIKIŞ ZIRHI
+                            # 1. Başa-Baş Koruması: Pozisyon en az +%1.00 kâr gördüyse, stop seviyesi anında maliyete çekilir.
+                            # Fiyat giriş fiyatının altına sarkar veya başa-başa değerse zararsız kapatılır!
+                            breakeven_triggered = (peak_gain_pct >= 1.0)
 
-                            if peak_gain_pct >= micro_activation and (pullback_pct >= (micro_callback - 0.02) or curr_p <= (highest_p * micro_callback_mult)) and net_profit_pct >= 0.25:
+                            if breakeven_triggered and net_profit_pct <= 0.05 and curr_p <= recorded_buy_p:
                                 is_take_profit = True
-                                reason_desc = f"🎯 Akıllı Oransal Çıkış (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f}, Çekilme: -%{pullback_pct:.2f})"
+                                reason_desc = f"🛡️ Başa-Baş (Break-Even) Zırhı (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f} - Sıfır Zararla Korundu)"
                                 sell_fraction = 1.0
-                            elif peak_gain_pct >= trail_activation and curr_p <= (highest_p * callback_mult) and net_profit_pct > 0.30:
+                            elif peak_gain_pct >= trail_activation and curr_p <= (highest_p * callback_mult) and net_profit_pct >= 1.20:
+                                # Trailing Zirve Kâr Realizasyonu: Sadece gerçek kârda (>= %1.20) ve zirveden sarktığında!
                                 is_take_profit = True
                                 reason_desc = f"🎯 Trailing Zirve Kâr Realizasyonu (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f})"
                                 sell_fraction = 1.0
                             elif (pos_tp_price > 0 and curr_p >= pos_tp_price) or (net_profit_pct >= user_tp):
                                 # Kullanıcının belirlediği ana TP hedefine ulaşıldı:
                                 is_take_profit = True
-                                reason_desc = f"🎯 Hedef Kâr Alma (+%{net_profit_pct:.2f} Net Kâr Kasaya Alındı)"
+                                reason_desc = f"🎯 Gerçek Hedef Kâr Kasaya Alındı (+%{net_profit_pct:.2f} Net Kâr)"
                                 sell_fraction = 1.0
                             elif (pos_sl_price > 0 and curr_p <= pos_sl_price) or (net_profit_pct <= -user_sl):
                                 # Sıkı Stop-Loss sınırı:
@@ -493,28 +514,61 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         print(f"   🛑 [BTC Rejim Kalkanı]: {regime.get('reason')} - Yeni alım durduruldu.")
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
         
+    # 🏛️ 1. MASA: PATRON AJAN (GPT-4o) PİYASA HAVA DENETİMİ
+    btc_p = float(regime.get("btc_price") or 85000.0)
+    btc_rsi = float(regime.get("btc_rsi") or 50.0)
+    patron_w = get_cached_patron_weather(btc_p, btc_rsi, regime)
+    if not patron_w.get("is_trade_allowed") or patron_w.get("weather") == "FIRTINALI":
+        print(f"   🛑 [Patron Ajan Fırtına Kalkanı]: Hava: {patron_w.get('weather')} ({patron_w.get('risk_caution_note')}) -> YENİ ALIM YASAK, NAKİTTE BEKLE!")
+        return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
+
     candidates = state.get("filtered_candidates") or []
     if not candidates:
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
-        
-    cand = candidates[0]
-    c_sym = cand["symbol"]
-    c_base = c_sym.split("/")[0].upper()
-    
-    # 🚨 ZIRHLI KURAL 1: Son işlem sonrası soğuma sürecindeyse ASLA tekrar alım yapma!
+
     active_cooldowns = get_active_cooldowns_from_db(tenant_id=tenant_id)
-    if c_base in active_cooldowns:
-        print(f"   🛑 [Soğuma Kilidi]: {c_base} yakın zamanda işlem gördü ve dinlenmede (Cooldown). Tekrar alım engellendi.")
+    existing_holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
+
+    # 🎯 2. MASA: EN AKILLI AJAN (GPT-4o) COIN POTANSİYEL VE HIZLI VUR-KAÇ ANALİZİ
+    chosen_cand = None
+    chosen_scalp_eval = None
+    from prompts import call_fast_scalp_analyst
+
+    for cand_item in candidates[:3]:
+        item_sym = cand_item["symbol"]
+        item_base = item_sym.split("/")[0].upper()
+        if item_base in active_cooldowns:
+            continue
+        if isinstance(existing_holdings, dict) and item_base in existing_holdings:
+            val_now = existing_holdings[item_base].get("val_usd", 0.0) if isinstance(existing_holdings[item_base], dict) else 0.0
+            if val_now >= 5.0:
+                continue
+
+        cand_summary = {
+            "symbol": item_sym,
+            "lastPrice": float(cand_item.get("price", cand_item.get("last_price", 1.0)) or 1.0),
+            "priceChangePercent": float(cand_item.get("price_change_24h", cand_item.get("gain_24h", 0.0)) or 0.0),
+            "volume_spike_ratio": float(cand_item.get("volume_spike_ratio", 2.0) or 2.0),
+            "taker_buy_ratio": float(cand_item.get("taker_buy_ratio", 65.0) or 65.0),
+            "recent_5m_volume_usd": float(cand_item.get("recent_5m_volume_usd", 25000.0) or 25000.0),
+            "daily_range_pct": float(cand_item.get("daily_range_pct", 5.0) or 5.0)
+        }
+        eval_res = call_fast_scalp_analyst(cand_summary, market_weather=patron_w.get("weather", "GUNESLI"))
+        if eval_res.get("is_scalp_recommended") and eval_res.get("potential_score", 0) >= 7.5:
+            print(f"   🎯 [Akıllı Ajan Onayı]: {item_sym} -> Skor: {eval_res.get('potential_score')}/10 | Tez: {eval_res.get('thesis_tr')}")
+            chosen_cand = cand_item
+            chosen_scalp_eval = eval_res
+            break
+        else:
+            print(f"   🛑 [Akıllı Ajan Reddi]: {item_sym} -> Skor: {eval_res.get('potential_score', 0):.1f}/10 | Sebep: {eval_res.get('thesis_tr')} -> Elendi.")
+
+    if not chosen_cand or not chosen_scalp_eval:
+        print("   🛑 [Akıllı Ajan Kararı]: Taranan adaylar arasında yüksek vur-kaç potansiyeli (skor >= 7.5) olan coin bulunamadı, bekleniyor.")
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
 
-    # 🚨 ZIRHLI KURAL 2: Cüzdanda zaten bu coin varsa ASLA tekrar alım yapma!
-    existing_holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
-    if isinstance(existing_holdings, dict) and c_base in existing_holdings:
-        coin_info = existing_holdings[c_base]
-        val_now = coin_info.get("val_usd", 0.0) if isinstance(coin_info, dict) else 0.0
-        if val_now >= 5.0:
-            print(f"   🛑 [Tekrar Alım Engeli]: {c_base} zaten cüzdanda mevcut (${val_now:.2f}), tekrar alım yapılmaz.")
-            return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
+    cand = chosen_cand
+    c_sym = cand["symbol"]
+    c_base = c_sym.split("/")[0].upper()
 
     # Kasa Bütçesi ve Slot Hesabı (v2.1 Kuralı)
     bal_gl = portfolio_state.get("binance_global") or {}
@@ -566,21 +620,17 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     if real_entry_price <= 0:
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
         
-    tp_price, sl_price, dynamic_tp_pct, dynamic_sl_pct = calculate_atr_sl_tp(
-        symbol=fresh_coin, entry_price=real_entry_price, user_tp_override=user_tp, user_sl_override=user_sl
-    )
+    ai_tp = float(chosen_scalp_eval.get("target_tp_pct") or user_tp or 2.3)
+    ai_sl = float(chosen_scalp_eval.get("stop_loss_pct") or user_sl or 1.1)
+    tp_price = round(real_entry_price * (1.0 + (ai_tp / 100.0)), 6)
+    sl_price = round(real_entry_price * (1.0 - (ai_sl / 100.0)), 6)
+    dynamic_tp_pct = ai_tp
+    dynamic_sl_pct = ai_sl
     
     # Kullanıcının tablodaki net Bütçe % oranı doğrudan işleme alınır
     exec_amount_usd = safe_budget_usd
-    
-    v2_eval = cand.get("v2_evaluation") or {}
-    first_pump_detected = bool(
-        v2_eval.get("is_first_pump_blocked") or
-        v2_eval.get("state_machine_stage") == "WAITING_PULLBACK" or
-        v2_eval.get("action_state") == "WAITING_PULLBACK" or
-        v2_eval.get("evidence_groups", {}).get("TechnicalStructureEvidence", {}).get("first_pump_blocked")
-    )
-    sig_state = "WAITING_PULLBACK" if first_pump_detected else ("RETEST_CONFIRMED" if strat_cfg.get("retest_required", True) else "MOMENTUM_BREAKOUT")
+    first_pump_detected = False
+    sig_state = "AI_CONFIRMED_BREAKOUT"
 
     proposal = {
         "should_trade": True,
@@ -596,10 +646,10 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         "stage": "INITIAL",
         "signal_state": sig_state,
         "first_pump_entry": first_pump_detected,
-        "source_engine": "SCALPING" if is_scalp_mode else "WHALE_HUNTING",
-        "risk_justification": f"V2.3 Deterministik Retest Onaylı Alım: Bütçe %{user_max_pct:.0f} (${exec_amount_usd:.2f}) | ATR TP: +%{dynamic_tp_pct:.1f} | ATR SL: -%{dynamic_sl_pct:.1f}"
+        "source_engine": "PATRON_AI_SCALPING",
+        "risk_justification": f"🏛️ Patron: {patron_w.get('weather')} | 🎯 Akıllı Ajan ({chosen_scalp_eval.get('potential_score')}/10): {chosen_scalp_eval.get('thesis_tr')}"
     }
-    print(f"   ✅ [Risk Engine Onayı]: ALIM ({fresh_coin}) - Fiyat: ${real_entry_price} | Bütçe: ${proposal['amount_usd']}")
+    print(f"   ✅ [Patron & Akıllı Ajan Onayı]: ALIM ({fresh_coin}) - Fiyat: ${real_entry_price} | Bütçe: ${proposal['amount_usd']} | TP: +%{dynamic_tp_pct:.1f} | SL: -%{dynamic_sl_pct:.1f}")
     return {"trade_proposal": proposal, "policy_check_passed": True, "human_approval": "Approved"}
 
 def check_policy_gate(state: CryptoAgentState) -> str:

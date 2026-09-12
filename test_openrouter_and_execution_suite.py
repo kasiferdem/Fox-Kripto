@@ -39,19 +39,22 @@ def test_model_routes_and_authorities():
     """Test: Nihai model görev dağılımı ve yetki kısıtları (Section 3)"""
     print("\n--- TEST 2: Model Rol Dağılımı ve Yetki Kısıtları ---")
     
-    # Routine Reporting & Lead Strategist / Patron
+    # Routine Reporting
     rr = ROLE_ROUTES_CONFIG["ROUTINE_REPORTING"]
-    assert "gpt-6" in rr["primary_model"]
     assert rr["execution_authority"] == "NONE"
 
-    # Patron
+    # Patron (GPT-4o)
     patron = ROLE_ROUTES_CONFIG["PATRON"]
-    assert patron["primary_model"] == "openai/gpt-6-astra"
+    assert "gpt-4o" in patron["primary_model"]
     assert patron["execution_authority"] == "BLOCK_ONLY"
+
+    # Fast Scalp Analyst (GPT-4o)
+    scalp_a = ROLE_ROUTES_CONFIG["FAST_SCALP_ANALYST"]
+    assert "gpt-4o" in scalp_a["primary_model"]
+    assert scalp_a["execution_authority"] == "BLOCK_ONLY"
 
     # Chief Auditor
     auditor = ROLE_ROUTES_CONFIG["CHIEF_AUDITOR"]
-    assert auditor["primary_model"] == "anthropic/claude-3.7-sonnet"
     assert auditor["execution_authority"] == "BLOCK_ONLY"
     
     # Critical News

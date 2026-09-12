@@ -13,6 +13,7 @@ Tüm LLM çağrılarını tek bir merkezden yönetir:
 
 import os
 import sys
+if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
 import time
 import json
 import hashlib
@@ -29,35 +30,44 @@ load_dotenv()
 # =====================================================================
 ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
     "LEAD_STRATEGIST": {
-        "primary_model": "openai/gpt-6-astra",
-        "fallback_models": ["openai/gpt-4o", "anthropic/claude-3.7-sonnet"],
+        "primary_model": "openai/gpt-4o",
+        "fallback_models": ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"],
         "execution_authority": "BLOCK_ONLY",
         "timeout_seconds": 20,
         "max_output_tokens": 1500,
         "temperature": 0.2,
-        "description": "1 Numara: Baş Stratejist & Karar Motoru (GPT-6)"
+        "description": "1 Numara: Baş Stratejist & Karar Motoru (GPT-4o)"
     },
     "PATRON": {
-        "primary_model": "openai/gpt-6-astra",
-        "fallback_models": ["openai/gpt-4o", "anthropic/claude-3.7-sonnet"],
+        "primary_model": "openai/gpt-4o",
+        "fallback_models": ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"],
         "execution_authority": "BLOCK_ONLY",
-        "timeout_seconds": 20,
-        "max_output_tokens": 1500,
+        "timeout_seconds": 15,
+        "max_output_tokens": 1000,
         "temperature": 0.2,
-        "description": "5 Numara Patron: Baş Stratejist & Piyasa Rejim Yöneticisi (GPT-6 Astra)"
+        "description": "5 Numara Patron: Baş Stratejist & Piyasa Rejim Yöneticisi (GPT-4o)"
+    },
+    "FAST_SCALP_ANALYST": {
+        "primary_model": "openai/gpt-4o",
+        "fallback_models": ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"],
+        "execution_authority": "BLOCK_ONLY",
+        "timeout_seconds": 15,
+        "max_output_tokens": 800,
+        "temperature": 0.2,
+        "description": "Akıllı Ajan: Hızlı Vur-Kaç & Coin Potansiyel Masası (GPT-4o)"
     },
     "CHIEF_AUDITOR": {
-        "primary_model": "anthropic/claude-3.7-sonnet",
-        "fallback_models": ["openai/gpt-4o", "z-ai/glm-5.3"],
+        "primary_model": "anthropic/claude-sonnet-5",
+        "fallback_models": ["openai/gpt-4o", "openai/gpt-4o-mini"],
         "execution_authority": "BLOCK_ONLY",
         "timeout_seconds": 20,
         "max_output_tokens": 1200,
         "temperature": 0.1,
-        "description": "5 Numara Patronu Denetleyen Baş Denetçi (Claude 3.7 Sonnet) - Veto Yetkili Adli Kuant Denetçisi"
+        "description": "5 Numara Patronu Denetleyen Baş Denetçi (Claude Sonnet) - Veto Yetkili Adli Kuant Denetçisi"
     },
     "GENEL_MUDUR": {
-        "primary_model": "openai/gpt-6-astra",
-        "fallback_models": ["anthropic/claude-3.7-sonnet", "google/gemini-3.8-flash"],
+        "primary_model": "openai/gpt-4o",
+        "fallback_models": ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"],
         "execution_authority": "NONE",
         "timeout_seconds": 15,
         "max_output_tokens": 800,
@@ -65,22 +75,22 @@ ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
         "description": "8 Numara Genel Müdür: Kullanıcıya Profesyonel ve Düzenli İcra Brifingi Sunan Yönetici Ajan"
     },
     "ROUTINE_REPORTING": {
-        "primary_model": "openai/gpt-6-astra",
-        "fallback_models": ["z-ai/glm-5.3-flash", "google/gemini-3.8-flash", "openai/gpt-4o"],
+        "primary_model": "openai/gpt-4o-mini",
+        "fallback_models": ["openai/gpt-4o"],
         "execution_authority": "NONE",
         "timeout_seconds": 15,
         "max_output_tokens": 800,
         "temperature": 0.3,
-        "description": "Telegram rutin raporları, durum özetleri, işlem bildirimleri (GPT-6)"
+        "description": "Telegram rutin raporları, durum özetleri, işlem bildirimleri"
     },
     "CRITICAL_NEWS_ANALYSIS": {
-        "primary_model": "google/gemini-3.8-flash",
-        "fallback_models": ["google/gemini-3.7-flash", "z-ai/glm-5.3", "openai/gpt-4o-mini"],
+        "primary_model": "openai/gpt-4o-mini",
+        "fallback_models": ["openai/gpt-4o", "anthropic/claude-sonnet-5"],
         "execution_authority": "BLOCK_ONLY",
         "timeout_seconds": 12,
         "max_output_tokens": 500,
         "temperature": 0.1,
-        "description": "2 Numara: Makro & Haber Duyarlılık Ajanı (Gemini 3.8 Flash)"
+        "description": "2 Numara: Makro & Haber Duyarlılık Ajanı (GPT-4o-Mini)"
     },
     "TECHNICAL_SECOND_OPINION": {
         "primary_model": "z-ai/glm-5.3",
@@ -146,6 +156,20 @@ class NightlyForensicReport(BaseModel):
     configuration_drift_events: int = Field(default=0)
     forensic_findings: List[str] = Field(default_factory=list)
     recommended_tuning: List[str] = Field(default_factory=list)
+
+class MarketWeatherAssessment(BaseModel):
+    weather: Literal["GUNESLI", "PUSLU", "FIRTINALI"] = Field(default="PUSLU", description="Piyasa hava durumu")
+    is_trade_allowed: bool = Field(default=False, description="Yeni alım işlemine izin veriliyor mu?")
+    risk_caution_note: str = Field(default="", description="Kısa Türkçe piyasa gerekçesi")
+    market_regime_summary: str = Field(default="", description="BTC trend özeti")
+
+class FastScalpAssessment(BaseModel):
+    is_scalp_recommended: bool = Field(default=False, description="Hızlı vur-kaç için uygun mu?")
+    potential_score: float = Field(default=5.0, description="1.0 - 10.0 arası vur-kaç potansiyel skoru")
+    thesis_tr: str = Field(default="", description="Coinin alım/reddetme gerekçesi")
+    target_tp_pct: float = Field(default=2.3, description="Önerilen kâr hedefi yüzdesi (örn: 2.2 - 2.5)")
+    stop_loss_pct: float = Field(default=1.1, description="Önerilen stop loss yüzdesi (örn: 1.0 - 1.2)")
+    risk_warning: str = Field(default="", description="Varsa dikkat edilmesi gereken risk")
 
 # =====================================================================
 # 3. HASSAS VERİ TEMİZLEME (SANITIZATION) (Section 6 & 7)
@@ -287,10 +311,15 @@ class OpenRouterGateway:
             is_fallback = (model_idx > 0)
             start_t = time.time()
             try:
+                sys_content = str(sanitized_sys)
+                if schema_model:
+                    schema_keys = list(schema_model.model_fields.keys()) if hasattr(schema_model, "model_fields") else []
+                    sys_content += f"\n\nÖNEMLİ KURAL: Yanıtını SADECE geçerli bir JSON objesi formatında döndür. Gerekli alanlar: {schema_keys}"
+
                 payload = {
                     "model": model_name,
                     "messages": [
-                        {"role": "system", "content": str(sanitized_sys)},
+                        {"role": "system", "content": sys_content},
                         {"role": "user", "content": str(sanitized_usr)}
                     ],
                     "temperature": role_cfg.get("temperature", 0.2),

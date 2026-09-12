@@ -440,7 +440,8 @@ def run_autonomous_trading_loop():
                             if raw_sl <= 0 and raw_entry > 0:
                                 raw_sl = raw_entry * (1.0 - (sl_pct / 100.0))
                                 
-                            raw_micro = raw_entry * 1.006 if raw_entry > 0 else 0.0
+                            raw_be = raw_entry * 1.01 if raw_entry > 0 else 0.0
+                            ai_thesis = proposal.get("risk_justification", "") if proposal else ""
                             
                             def _fmt_price_val(val: float, is_try_c: bool = False) -> str:
                                 curr = "₺" if is_try_c else "$"
@@ -460,21 +461,24 @@ def run_autonomous_trading_loop():
                             entry_str = _fmt_price_val(raw_entry, is_tr_pair)
                             tp_str = _fmt_price_val(raw_tp, is_tr_pair)
                             sl_str = _fmt_price_val(raw_sl, is_tr_pair)
-                            micro_str = _fmt_price_val(raw_micro, is_tr_pair)
+                            be_str = _fmt_price_val(raw_be, is_tr_pair)
 
+                            ai_line = f"\n🧠 *AI Analiz Tez:* {ai_thesis}\n" if ai_thesis else ""
                             if is_en_user:
                                 price_detail_line = (
                                     f"\n📥 *Entry Unit Price:* `{entry_str}`\n"
                                     f"🎯 *Take-Profit (+%{tp_pct:.1f}):* `{tp_str}`\n"
                                     f"🛡️ *Strict Stop-Loss (-%{sl_pct:.1f}):* `{sl_str}`\n"
-                                    f"⚡ *Micro-Trailing (+%0.60):* `{micro_str}` (Armed)"
+                                    f"🛡️ *Break-Even Shield (+%1.0):* `{be_str}` (Zero-Risk Active)"
+                                    f"{ai_line}"
                                 )
                             else:
                                 price_detail_line = (
                                     f"\n📥 *Alış Birim Fiyatı:* `{entry_str}`\n"
                                     f"🎯 *Hedef Kâr (+%{tp_pct:.1f}):* `{tp_str}`\n"
                                     f"🛡️ *Sıkı Stop-Loss (-%{sl_pct:.1f}):* `{sl_str}`\n"
-                                    f"⚡ *Mikro-Trailing (+%0.60):* `{micro_str}` (Tetik Bekliyor)"
+                                    f"🛡️ *Başa-Baş Zırhı (+%1.0):* `{be_str}` (Kâr +%1'de stop maliyete çekilir)"
+                                    f"{ai_line}"
                                 )
                             
                         from telegram_poller import send_message
