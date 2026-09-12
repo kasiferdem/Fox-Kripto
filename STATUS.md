@@ -168,8 +168,15 @@ python app.py
   - Alım emirlerinde borsa herhangi bir filtre hatası (-1013) verirse otomatik 2. kademe `quoteOrderQty` ($ USDT tutarı) ile anında infaz zırhı entegre edildi.
   - Kod derlendi (`py_compile`), arka plan daemon süreci yeniden başlatıldı ve GitHub/DigitalOcean'a push edildi.
 
+- [x] **Gece & Sabah Kâr Hasadı & 12 Eylül Öğle Seansı Durumu (12 Eylül 13:55 TSİ):**
+  - Dün geceden bu yana sistem 27 adet Take-Profit kâr satışı gerçekleştirdi (VTHO +%4.12, MUBARAK +%1.40, BROCCOLI +%1.37, FF +%1.31, NEIRO +%1.29, ETHFI +%1.21, SOPH +%0.87, LSK +%0.74 vb.).
+  - Geri çekilen işlemlerde -%0.90 sıkı stop disipliniyle sermaye korundu; toplam portföy **$187.61 USD** (~₺9,150 TL).
+  - Sunucu yeniden başlatması sonrası `app.py` 7/24 daemon süreci anında tekrar devreye alındı.
+  - Açık Pozisyonlar: `VIRTUAL/USDT` ($46.68 USD), `ONG/USDT` ($46.84 USD), `MINA/USDT` ($46.87 USD), Serbest Nakit: $44.97 USD.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-12 (02:31 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-12 (13:55 TSİ)*
+
 
 
 
