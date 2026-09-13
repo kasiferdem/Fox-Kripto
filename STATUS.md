@@ -308,8 +308,22 @@ python app.py
     3. Eski V1 paneline de (`/v1/dashboard`) yeni V2'ye tek tıkla geçiş sağlayan yönlendirme bandı eklendi.
     4. Canlı HTTP testi ile `/`, `/dashboard` ve `/v2/dashboard` rotalarının Coin DNA bileşenini 200 OK ile eksiksiz döndürdüğü doğrulandı.
 
+- [x] **Çift Alım (HIVE $122) ve Telegram Mükerrer Mesaj Koruması Tamamlandı (14 Eylül 00:25 TSİ):**
+  - **Olay & Kök Neden:**
+    1. **HIVE Neden 2 Kat Alındı ($122)?:** 13 Eylül 20:54:08 ve 20:54:23 saatlerinde, 15 saniye arayla sistem HIVE için iki kez $60.92'lik alım emri göndermiştir. Kök neden: `graph.py` Node B (ön filtre) ve Node E (karar motoru) içinde, cüzdanda veya veritabanında zaten açık pozisyonu bulunan coinlerin (`already_held_coins`) yeni aday olarak seçilmesini engelleyen "çift alım engeli" (anti-duplicate / single slot shield) bulunmuyordu. Bu sebeple HIVE 2 slot birden kaplayarak serbest USDT'yi $2.90'a düşürmüştür.
+    2. **Telegram Neden Çift Portföy Kartı Gönderdi?:** Kullanıcı saat 00:11'de art arda iki kez `durum` yazdığı için poller her iki mesaja da ayrı ayrı cevap üretmiştir.
+  - **Mevcut Portföy Durumu (Kullanıcı S - Binance Global):**
+    - **Toplam Portföy Değeri:** **$183.62 USD** (~₺8,918 TL) — **KASADA KAYIP YOK, PORTFÖY KÂRDA!**
+    - **Açık Pozisyon 1:** `HIVE/USDT` — 2,319.68 Adet @ $0.0525 ($122.71 USD | +%0.56 Net Kâr)
+    - **Açık Pozisyon 2:** `GLM/USDT` — 478.32 Adet @ $0.1168 ($56.06 USD | +%0.14 Net Kâr)
+    - **Serbest Nakit:** $2.90 USD
+  - **Uygulanan Kalıcı Düzeltmeler:**
+    1. **Single-Slot Anti-Duplicate Zırhı (`graph.py`):** Hem Node B hem de Node E seviyesinde; Supabase `crypto_agent_states` ve canlı borsa cüzdanındaki tüm açık varlıklar taranarak `already_held_coins` kümesi oluşturuldu. Açık olan hiçbir coin (HIVE, GLM vb.) kesinlikle 2. kez alım adayı olarak seçilemez ve ikinci slot tahsis edilemez.
+    2. **Telegram Durum Debounce Koruması (`telegram_poller.py`):** Kullanıcı art arda `durum` veya buton tıklese bile 3 saniye içindeki mükerrer çağrılar sessizce yutularak çift mesaj spami engellendi.
+    3. **Arka Plan Süreci Yenilendi:** Yeni kalkanlar aktif edilerek canlı ticaret döngüsü kesintisiz sürdürüldü.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-13 (23:58 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-14 (00:25 TSİ)*
 
 
 

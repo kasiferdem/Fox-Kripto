@@ -30,6 +30,7 @@ BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 
 # Kullanıcı oturum durumları (Registration Wizards)
 user_states = {}
+_last_status_debounce = {}
 
 def send_message(chat_id: int, text: str, reply_markup=None):
     """
@@ -899,6 +900,11 @@ def handle_update(update: dict):
         return
 
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir", "status", "balance", "portfolio"]:
+        now_ts = time.time()
+        if (now_ts - _last_status_debounce.get(chat_id, 0)) < 3.0:
+            return  # 3 saniye içindeki mükerrer istekleri sessizce yut
+        _last_status_debounce[chat_id] = now_ts
+
         is_en = (user_lang == "en") or (text_clean in ["status", "balance", "portfolio"])
         try:
             if not tenant:

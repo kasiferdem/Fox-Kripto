@@ -62,6 +62,21 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
         print(f"   {cb_check.get('message')}")
         return {"filtered_candidates": []}
 
+    # Cüzdanda veya DB'de açık pozisyonu bulunan coinleri tespit et (Çift Alım / Duplicate Slot Kalkanı)
+    already_held_coins = set()
+    for exch in ["binance", "binancetr", "paper"]:
+        db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=False) or {}
+        for sym_k in db_p.keys():
+            already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
+            
+    if isinstance(existing_holdings, dict):
+        for k, v in existing_holdings.items():
+            base_clean = str(k).split(" ")[0].split("/")[0].split("_")[0].upper()
+            if base_clean not in ["USDT", "TRY", "BNB", "USDC", "FDUSD"]:
+                val = v.get("val_usd", 0.0) if isinstance(v, dict) else 0.0
+                if val >= 5.0:
+                    already_held_coins.add(base_clean)
+
     is_scalp = "scalp" in active_preset
     scalp_engine = V2ScalpingEngine(custom_params=strat_cfg)
     whale_engine = V2WhaleHuntingEngine(custom_params=strat_cfg)
@@ -72,6 +87,8 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
         c_base = c_sym.split("/")[0].upper()
         if c_base in active_cooldowns:
             print(f"   ⏳ [Soğuma Kilidi]: {c_base} son işlem sonrası dinlenmede, elendi.")
+            continue
+        if c_base in already_held_coins:
             continue
             
         # V2.3 Çok Boyutlu Değerlendirme
@@ -510,6 +527,21 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     active_cooldowns = get_active_cooldowns_from_db(tenant_id=tenant_id)
     existing_holdings = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
 
+    # 🛡️ Çift Alım & Çift Slot Engelleme Zırhı (Anti-Duplicate / Single Slot Shield)
+    already_held_coins = set()
+    for exch in ["binance", "binancetr", "paper"]:
+        db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=False) or {}
+        for sym_k in db_p.keys():
+            already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
+            
+    if isinstance(existing_holdings, dict):
+        for k, v in existing_holdings.items():
+            base_clean = str(k).split(" ")[0].split("/")[0].split("_")[0].upper()
+            if base_clean not in ["USDT", "TRY", "BNB", "USDC", "FDUSD"]:
+                val = v.get("val_usd", 0.0) if isinstance(v, dict) else 0.0
+                if val >= 5.0:
+                    already_held_coins.add(base_clean)
+
     # 🎯 2. MASA: EN AKILLI AJAN (GPT-4o) COIN POTANSİYEL VE HIZLI VUR-KAÇ ANALİZİ
     chosen_cand = None
     chosen_scalp_eval = None
@@ -520,6 +552,9 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         item_sym = cand_item["symbol"]
         item_base = item_sym.split("/")[0].upper()
         if item_base in active_cooldowns:
+            continue
+        if item_base in already_held_coins:
+            print(f"   🛑 [Çift Alım Engeli]: {item_base} zaten portföyde/veritabanında açık pozisyonda, pas geçiliyor.")
             continue
         if isinstance(existing_holdings, dict) and item_base in existing_holdings:
             val_now = existing_holdings[item_base].get("val_usd", 0.0) if isinstance(existing_holdings[item_base], dict) else 0.0
