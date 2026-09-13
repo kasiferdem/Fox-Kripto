@@ -712,12 +712,37 @@ class CoinBehavioralProbabilityEngine:
             "data_sources": ["Binance REST /klines (5m, 4h)", "Binance REST /depth (L2)"]
         }
 
+def calculate_dynamic_breakeven_probability(
+    target_pct: float = 1.0, 
+    stop_pct: float = 1.2, 
+    round_trip_fee_pct: float = 0.15, 
+    slippage_spread_pct: float = 0.10
+) -> float:
+    """
+    Komisyon, spread ve slippage sürtünmelerini hesaba katarak
+    matematiksel başabaş (Break-Even / Net Expectancy >= 0) için gereken
+    asgari kazanma olasılığını dinamik hesaplar.
+    
+    Formül:
+    P_be = (Stop + Friction) / (Target + Stop)
+    Örn: Target=%1.0, Stop=%1.2, Komisyon=%0.15, Slippage/Spread=%0.10 -> Toplam Sürtünme=%0.25
+    P_be = (1.20 + 0.25) / (1.00 + 1.20) = 1.45 / 2.20 = %65.91
+    (Maliyetsiz saf oran: 1.2 / 2.2 = %54.55)
+    """
+    friction = float(round_trip_fee_pct + slippage_spread_pct)
+    net_reward = target_pct - friction
+    if net_reward <= 0:
+        return 100.0
+    net_loss = stop_pct + friction
+    denom = target_pct + stop_pct
+    return round((net_loss / denom) * 100.0, 2)
+
 def is_coin_dna_blocked(analysis: Optional[Dict[str, Any]], custom_config: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
     """
     Coin DNA Kapı Muhafızı (BLOCK_ONLY):
     Yetersiz örneklemi olan (N < 20), önünde hemen majör direnç/duvar (<%2.2) bulunan,
-    AVWAP'tan aşırı sapmış (>%7.5) veya hedefe ulaşma olasılığı düşük (<%40) coinlerin
-    alımını kesin olarak engeller.
+    AVWAP'tan aşırı sapmış (>%7.5) veya hedefe ulaşma olasılığı dinamik başabaş
+    eşiğinin altında kalan coinleri değerlendirir.
     
     Dönüş: (is_blocked: bool, reason_tr: str)
     """
@@ -725,7 +750,7 @@ def is_coin_dna_blocked(analysis: Optional[Dict[str, Any]], custom_config: Optio
     if not cfg.get("coin_dna_enabled", True):
         return False, "Coin DNA motoru devre dışı."
 
-    authority = str(cfg.get("coin_dna_execution_authority") or "BLOCK_ONLY").upper()
+    authority = str(cfg.get("coin_dna_execution_authority") or "ADVISORY_ONLY").upper()
     if authority != "BLOCK_ONLY":
         return False, f"Yetki seviyesi engelleme yapmaz ({authority})"
 
@@ -772,14 +797,23 @@ def is_coin_dna_blocked(analysis: Optional[Dict[str, Any]], custom_config: Optio
     if avwap_dist >= 7.5:
         return True, f"Fiyat Anchored VWAP'tan aşırı koptu (+%{avwap_dist:.1f} >= %7.5)"
 
-    # 5. Olasılık Matrisi Kontrolü (+%1.0 Hedef Öncesi Stop Olasılığı < %40)
+    # 5. Dinamik Başabaş Olasılık Kontrolü (Komisyon, Spread ve Slippage Dahil)
+    fee_pct = float(cfg.get("round_trip_fee_pct", 0.15))
+    slippage_pct = float(cfg.get("slippage_spread_pct", 0.10))
+    min_required_prob = calculate_dynamic_breakeven_probability(
+        target_pct=1.0, 
+        stop_pct=1.2, 
+        round_trip_fee_pct=fee_pct, 
+        slippage_spread_pct=slippage_pct
+    )
+
     prob_matrix = analysis.get("probability_matrix") or []
     target_1pct_prob = next(
         (float(p.get("probability_target_before_stop", 0.0)) for p in prob_matrix if float(p.get("target_pct", 0.0)) == 1.0),
         None
     )
-    if target_1pct_prob is not None and target_1pct_prob < 40.0:
-        return True, f"+%1.0 hedefe ulaşma olasılığı kritik seviyenin altında (%{target_1pct_prob:.1f} < %40.0)"
+    if target_1pct_prob is not None and target_1pct_prob < min_required_prob:
+        return True, f"+%1.0 hedefe ulaşma olasılığı dinamik başabaş eşiğinin altında (%{target_1pct_prob:.1f} < %{min_required_prob:.2f} [Komisyon+%0.15, Slippage+%0.10 dahil])"
 
     return False, "Coin DNA Onaylandı (Koşu alanı geniş, örneklem derin)"
 

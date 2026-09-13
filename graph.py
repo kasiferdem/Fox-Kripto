@@ -558,7 +558,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                     cand_dna = dna_engine.evaluate_coin_dna(item_sym)
                     save_coin_dna_snapshot(cand_dna)
                     
-                    dna_authority = str(strat_cfg.get("coin_dna_execution_authority") or "BLOCK_ONLY").upper()
+                    dna_authority = str(strat_cfg.get("coin_dna_execution_authority") or "ADVISORY_ONLY").upper()
                     if dna_authority == "BLOCK_ONLY":
                         is_blocked, block_reason = is_coin_dna_blocked(cand_dna, custom_config=strat_cfg)
                         if is_blocked:
@@ -566,6 +566,8 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             continue
                         else:
                             print(f"   🛡️ [COIN DNA KAPI MUHAFIZI ONAYI]: {item_sym} -> Koşu alanı ve derinlik onaylandı ({cand_dna.get('decision_class')})")
+                    else:
+                        print(f"   🧬 [Coin DNA Bilgi Notu (ADVISORY_ONLY)]: {item_sym} -> Sınıf: {cand_dna.get('decision_class')}")
                 except Exception as e_cdna:
                     print(f"   ⚠️ [Coin DNA Aday Kontrol Hatası]: {e_cdna}")
 
@@ -672,7 +674,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         except Exception as e_dna:
             print(f"   ⚠️ [Coin DNA Değerlendirme]: {e_dna}")
 
-    dna_authority = str(strat_cfg.get("coin_dna_execution_authority") or "BLOCK_ONLY").upper()
+    dna_authority = str(strat_cfg.get("coin_dna_execution_authority") or "ADVISORY_ONLY").upper()
     if strat_cfg.get("coin_dna_enabled", True) and dna_authority == "BLOCK_ONLY":
         from coin_behavioral_probability_engine import is_coin_dna_blocked
         is_blocked, block_reason = is_coin_dna_blocked(coin_dna_analysis, custom_config=strat_cfg)
@@ -689,6 +691,11 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         n_samples = coin_dna_analysis.get("sample_count", 0)
         room_pct = (coin_dna_analysis.get("support_resistance") or {}).get("room_to_run_pct", 0.0)
         print(f"   🧬 [Coin DNA — Olasılık Haritası ({dna_authority})]: {fresh_coin} -> Sınıf: {d_class} | N={n_samples} | Koşu Alanı: +%{room_pct:.1f}")
+
+    # 🛑 YENİ ALIM EMİRLERİ KİLİDİ (newBuyOrdersEnabled)
+    if strat_cfg.get("new_buy_orders_enabled", True) is False:
+        print(f"   🛑 [Kasa Koruma Kilidi]: new_buy_orders_enabled=False olduğu için {fresh_coin} alım emri açılmadı (Nakit Güvende).")
+        return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected", "coin_dna_analysis": coin_dna_analysis}
 
     proposal = {
         "should_trade": True,

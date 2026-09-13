@@ -172,7 +172,7 @@ class EntrySafetyPolicy:
             reasons.append("Bu worker aktif execution leader değil (Double Execution Protection)")
 
         # 12. COIN DNA KAPI MUHAFIZI (BLOCK_ONLY) DENETİMİ (Öneri 1 Kuralı)
-        dna_authority = str(strat_cfg.get("coin_dna_execution_authority") or "BLOCK_ONLY").upper()
+        dna_authority = str(strat_cfg.get("coin_dna_execution_authority") or "ADVISORY_ONLY").upper()
         if strat_cfg.get("coin_dna_enabled", True) and dna_authority == "BLOCK_ONLY" and intent.direction.upper() == "BUY":
             from coin_behavioral_probability_engine import is_coin_dna_blocked
             dna_snap = intent.metadata.get("coin_dna_analysis")
@@ -182,6 +182,10 @@ class EntrySafetyPolicy:
             is_dna_bl, dna_bl_reason = is_coin_dna_blocked(dna_snap, custom_config=strat_cfg)
             if is_dna_bl:
                 reasons.append(f"Coin DNA Kapı Muhafızı Engeli: {dna_bl_reason}")
+
+        # 13. Canlı Yeni Alım İzin Kilidi (newBuyOrdersEnabled)
+        if intent.direction.upper() == "BUY" and strat_cfg.get("new_buy_orders_enabled", True) is False:
+            reasons.append("Runtime güvenlik kilidi: newBuyOrdersEnabled=False (Kasa Koruma Modu)")
 
         # -------------------------------------------------------------
         # 🛡️ 13. GELİŞMİŞ TESTERE & GÖLGE KALKANI DENETİMİ (ANTI-CHOP SHIELD)

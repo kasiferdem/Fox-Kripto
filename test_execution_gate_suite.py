@@ -9,6 +9,11 @@ def run_execution_gate_suite():
     print("🧪 FOX-KRİPTO: MERKEZİ GÜVENLİK KAPISI (EXECUTION GATE) TEST PAKETİ")
     print("=" * 75)
     
+    import db
+    db_cfg = db.get_strategy_config()
+    db_cfg["new_buy_orders_enabled"] = True
+    db._cached_strategy_config = db_cfg
+
     runtime_hash = compute_runtime_config_hash()
     
     # -------------------------------------------------------------

@@ -647,7 +647,7 @@ class StrategyConfigRequest(BaseModel):
     post_stop_cooldown_minutes: Optional[int] = 30
     cooldown_minutes: Optional[int] = 30
     coin_dna_enabled: Optional[bool] = True
-    coin_dna_execution_authority: Optional[str] = "BLOCK_ONLY"
+    coin_dna_execution_authority: Optional[str] = "ADVISORY_ONLY"
     coin_dna_min_sample_count: Optional[int] = 20
     coin_dna_target_levels: Optional[Any] = "0.5, 1.0, 1.5, 2.0, 2.5, 4.0"
     coin_dna_cache_ttl_minutes: Optional[int] = 60
@@ -656,6 +656,9 @@ class StrategyConfigRequest(BaseModel):
     coin_dna_volume_surge_multiplier: Optional[float] = 2.0
     coin_dna_ambiguous_bar_threshold_pct: Optional[float] = 0.10
     coin_dna_resistance_cluster_tolerance_pct: Optional[float] = 0.8
+    new_buy_orders_enabled: Optional[bool] = False
+    existing_position_protection_enabled: Optional[bool] = True
+    live_validation_status: Optional[str] = "NOT_TESTED"
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -715,8 +718,11 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "use_atr_dynamic_r": bool(req.use_atr_dynamic_r) if req.use_atr_dynamic_r is not None else False,
         "net_advantage_gate_enabled": bool(req.net_advantage_gate_enabled) if req.net_advantage_gate_enabled is not None else False,
         "minimum_expected_net_rr": float(req.minimum_expected_net_rr) if req.minimum_expected_net_rr is not None else 1.5,
+        "new_buy_orders_enabled": bool(req.new_buy_orders_enabled) if req.new_buy_orders_enabled is not None else False,
+        "existing_position_protection_enabled": bool(req.existing_position_protection_enabled) if req.existing_position_protection_enabled is not None else True,
+        "live_validation_status": str(req.live_validation_status or "NOT_TESTED"),
         "coin_dna_enabled": bool(req.coin_dna_enabled) if req.coin_dna_enabled is not None else True,
-        "coin_dna_execution_authority": str(req.coin_dna_execution_authority or "BLOCK_ONLY"),
+        "coin_dna_execution_authority": str(req.coin_dna_execution_authority or "ADVISORY_ONLY"),
         "coin_dna_min_sample_count": int(req.coin_dna_min_sample_count or 20),
         "coin_dna_target_levels": target_levels_list,
         "coin_dna_cache_ttl_minutes": int(req.coin_dna_cache_ttl_minutes or 60),
@@ -730,10 +736,8 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
     if req.execution_mode:
         m = str(req.execution_mode).upper()
         set_system_setting("execution_mode", m)
-        if m in ["LIVE_TRADING", "LIVE_CANARY"]:
-            set_system_setting("new_buy_orders_enabled", True)
-        elif m in ["SIGNAL_ONLY", "PAPER_TRADING", "SHADOW_TRADING"]:
-            set_system_setting("new_buy_orders_enabled", False)
+        # Güvenlik Protokolü: Kullanıcı açık onay vermeden new_buy_orders_enabled asla otomatik açılmaz
+        set_system_setting("new_buy_orders_enabled", payload.get("new_buy_orders_enabled", False))
     return {"status": "success" if ok else "error", "config": payload}
 
 class CoinDnaEvalRequest(BaseModel):

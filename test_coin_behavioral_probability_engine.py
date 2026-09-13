@@ -200,7 +200,7 @@ class TestCoinBehavioralProbabilityEngine(unittest.TestCase):
         }
         blocked, reason = is_coin_dna_blocked(snap_low_p, {"coin_dna_execution_authority": "BLOCK_ONLY"})
         self.assertTrue(blocked)
-        self.assertIn("olasılığı kritik seviyenin altında", reason)
+        self.assertIn("dinamik başabaş eşiğinin altında", reason)
 
     def test_10_approved_candidate_passes_gate(self):
         """Koşu alanı geniş, N >= 20 ve olasılık yüksek coin onaylanmalı."""
