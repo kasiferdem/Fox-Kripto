@@ -103,6 +103,7 @@ def generate_v2_dashboard_html(
 
     sel_coindna_true = "selected" if coin_dna_enabled else ""
     sel_coindna_false = "selected" if not coin_dna_enabled else ""
+    sel_cd_smart_block = "selected" if coin_dna_authority in ["SMART_BLOCK_ONLY", "SMART_BLOCK"] else ""
     sel_cd_block = "selected" if coin_dna_authority == "BLOCK_ONLY" else ""
     sel_cd_advisory = "selected" if coin_dna_authority == "ADVISORY_ONLY" else ""
     sel_cd_off = "selected" if coin_dna_authority == "OFF" else ""
@@ -922,7 +923,8 @@ def generate_v2_dashboard_html(
             <div class="param-box">
               <label style="color: #10b981; font-weight: 700;">İcra Yetkisi</label>
               <select id="param_coin_dna_execution_authority">
-                <option value="BLOCK_ONLY" {sel_cd_block}>🛡️ Kapı Muhafızı (BLOCK_ONLY - Riskliyi Engelle)</option>
+                <option value="SMART_BLOCK_ONLY" {sel_cd_smart_block}>🛡️ Akıllı Kapı Muhafızı (SMART_BLOCK - Yalnızca Direnç & Şişme Engeli)</option>
+                <option value="BLOCK_ONLY" {sel_cd_block}>🛑 Katı Kapı Muhafızı (BLOCK_ONLY - N<20 Dahil Engelle)</option>
                 <option value="ADVISORY_ONLY" {sel_cd_advisory}>ℹ️ Yalnızca Tavsiye (ADVISORY)</option>
                 <option value="OFF" {sel_cd_off}>🔴 Kapalı (OFF)</option>
               </select>

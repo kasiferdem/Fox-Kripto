@@ -322,8 +322,19 @@ python app.py
     2. **Telegram Durum Debounce Koruması (`telegram_poller.py`):** Kullanıcı art arda `durum` veya buton tıklese bile 3 saniye içindeki mükerrer çağrılar sessizce yutularak çift mesaj spami engellendi.
     3. **Arka Plan Süreci Yenilendi:** Yeni kalkanlar aktif edilerek canlı ticaret döngüsü kesintisiz sürdürüldü.
 
+- [x] **Akıllı Kapı Muhafızı (`SMART_BLOCK_ONLY`) UI'a Seçenek Olarak Eklendi ve Canlıda Aktif Edildi (14 Eylül 00:30 TSİ):**
+  - **Kullanıcı Talebi:** Paneldeki Coin DNA İcra Yetkisi açılır menüsüne Akıllı Kapı Muhafızı seçeneğinin eklenmesi ve sistemde aktif edilmesi.
+  - **Uygulanan Geliştirmeler:**
+    1. **V2 Dashboard UI (`v2_dashboard_html.py`):** "İcra Yetkisi" dropdown menüsüne `🛡️ Akıllı Kapı Muhafızı (SMART_BLOCK - Yalnızca Direnç & Şişme Engeli)` seçeneği eklendi (`SMART_BLOCK_ONLY`).
+    2. **Olasılık ve Karar Motoru (`coin_behavioral_probability_engine.py`):** `is_coin_dna_blocked` fonksiyonu güncellendi. Yakın satış duvarı (`<= %2.2`), majör direnç (`RESISTANCE_NEAR`) ve tepeden aşırı şişmiş fiyat kopmaları (`EXTENDED_MOVE / AVWAP >= %7.5`) kesin olarak engellenirken, taze patlama yapan coinlerin sırf geçmiş patlama sayısı 20'den az (`INSUFFICIENT_SAMPLE`) diye engellenmesi durduruldu.
+    3. **İnfaz Kapıları Senkronizasyonu (`graph.py`, `entry_safety_policy.py`):** Aday seçimi ve infaz aşamalarında `SMART_BLOCK_ONLY` yetkisi tam yetkili kapı muhafızı olarak devreye alındı.
+    4. **Canlı Yapılandırma ve Test Onayı:**
+       - Supabase (`global_system_settings`), `strategy_config_local.json` ve `db.py` içinde `coin_dna_execution_authority: "SMART_BLOCK_ONLY"` aktif edildi.
+       - 10 birim testi %100 başarıyla geçti (`test_coin_behavioral_probability_engine.py`).
+       - Arka plan daemon süreci güncel kodla yeniden başlatıldı.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-14 (00:25 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-14 (00:30 TSİ)*
 
 
 

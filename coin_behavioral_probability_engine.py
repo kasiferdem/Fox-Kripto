@@ -739,10 +739,11 @@ def calculate_dynamic_breakeven_probability(
 
 def is_coin_dna_blocked(analysis: Optional[Dict[str, Any]], custom_config: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
     """
-    Coin DNA Kapı Muhafızı (BLOCK_ONLY):
-    Yetersiz örneklemi olan (N < 20), önünde hemen majör direnç/duvar (<%2.2) bulunan,
-    AVWAP'tan aşırı sapmış (>%7.5) veya hedefe ulaşma olasılığı dinamik başabaş
-    eşiğinin altında kalan coinleri değerlendirir.
+    Coin DNA Kapı Muhafızı (SMART_BLOCK_ONLY & BLOCK_ONLY):
+    - SMART_BLOCK_ONLY (Akıllı): Sadece gerçek tehlikeleri engeller (Order Book satış duvarı <= %2.2, 
+      karar sınıfı RESISTANCE_NEAR, Anchored VWAP aşırı kopması >= %7.5 veya EXTENDED_MOVE).
+      Sırf geçmiş örnek az (INSUFFICIENT_SAMPLE / N < 20) diye fırsatları engellemez!
+    - BLOCK_ONLY (Katı): Yetersiz örneklemi olan (N < 20) tüm coinleri de katı bir şekilde engeller.
     
     Dönüş: (is_blocked: bool, reason_tr: str)
     """
@@ -751,8 +752,10 @@ def is_coin_dna_blocked(analysis: Optional[Dict[str, Any]], custom_config: Optio
         return False, "Coin DNA motoru devre dışı."
 
     authority = str(cfg.get("coin_dna_execution_authority") or "ADVISORY_ONLY").upper()
-    if authority != "BLOCK_ONLY":
+    if authority not in ["BLOCK_ONLY", "SMART_BLOCK_ONLY", "SMART_BLOCK"]:
         return False, f"Yetki seviyesi engelleme yapmaz ({authority})"
+
+    is_smart_mode = authority in ["SMART_BLOCK_ONLY", "SMART_BLOCK"]
 
     if not analysis or not isinstance(analysis, dict):
         return True, "Coin DNA analiz verisi bulunamadı (DATA_UNAVAILABLE / Fail-Closed)"
@@ -763,7 +766,35 @@ def is_coin_dna_blocked(analysis: Optional[Dict[str, Any]], custom_config: Optio
     if status_str in ["DATA_UNAVAILABLE", "ERROR", "FAIL_CLOSED"]:
         return True, f"Borsa verisi yetersiz veya eksik ({status_str})"
 
-    # 1. Yasaklı Karar Sınıfları Kontrolü
+    # 1. MUTLAK TEHLİKE 1: Order Book Satış Duvarı Çok Yakın (Mesafe <= %2.2)
+    ob = analysis.get("order_book") or {}
+    has_wall = bool(ob.get("has_wall", False))
+    wall_dist = float(ob.get("wall_distance_pct") or 999.0)
+    if has_wall and wall_dist <= 2.2:
+        return True, f"Satış duvarı çok yakın (Mesafe: %{wall_dist:.2f} <= %2.2)"
+
+    # 2. MUTLAK TEHLİKE 2: Majör Direnç Bölgesi (RESISTANCE_NEAR)
+    if d_class == "RESISTANCE_NEAR":
+        return True, f"Karar Sınıfı Engeli: RESISTANCE_NEAR (Önünde Yakın Direnç Var)"
+
+    # 3. MUTLAK TEHLİKE 3: Anchored VWAP Aşırı Kopması (Drift >= %7.5) veya EXTENDED_MOVE (Tepeden Alım)
+    if d_class == "EXTENDED_MOVE":
+        return True, f"Karar Sınıfı Engeli: EXTENDED_MOVE (Tepeden Aşırı Şişmiş Hareket)"
+    avwap_dist = float(analysis.get("anchored_vwap_distance_pct") or 0.0)
+    if avwap_dist >= 7.5:
+        return True, f"Karar Sınıfı Engeli: EXTENDED_MOVE (Fiyat Anchored VWAP'tan aşırı koptu: +%{avwap_dist:.1f} >= %7.5)"
+
+    # 4. AKILLI KAPI MUHAFIZI (SMART_BLOCK_ONLY) KONTROLÜ:
+    if is_smart_mode:
+        # Akıllı modda: Önünde duvar yoksa ve fiyat şişmemişse;
+        # Sırf N < 20 veya INSUFFICIENT_SAMPLE diye alım engellenmez!
+        if d_class in ["INSUFFICIENT_SAMPLE", "WIDE_ROOM", "MODERATE_ROOM"]:
+            return False, f"Akıllı Kapı Muhafızı Onayı ({d_class} - Direnç ve Şişme Riski Yok)"
+        if d_class in ["STALE", "LOW_CONFIDENCE"]:
+            return True, f"Karar Sınıfı Engeli: {d_class}"
+        return False, f"Akıllı Kapı Muhafızı Onayı ({d_class})"
+
+    # 5. KATI KAPI MUHAFIZI (BLOCK_ONLY - ESKİ/SERT DAVRANIŞ):
     blocked_classes = [
         "INSUFFICIENT_SAMPLE",
         "RESISTANCE_NEAR",
@@ -779,25 +810,13 @@ def is_coin_dna_blocked(analysis: Optional[Dict[str, Any]], custom_config: Optio
     if d_class not in ["WIDE_ROOM", "MODERATE_ROOM"]:
         return True, f"Uygunsuz Karar Sınıfı: {d_class} (Sadece WIDE_ROOM ve MODERATE_ROOM onaylanır)"
 
-    # 2. Minimum Örnek Sayısı (N >= 20)
+    # Minimum Örnek Sayısı (N >= 20)
     min_sample = int(cfg.get("coin_dna_min_sample_count") or 20)
     sample_count = int(analysis.get("sample_count") or 0)
     if sample_count < min_sample:
         return True, f"Yetersiz geçmiş patlama örneği (N={sample_count} < {min_sample})"
 
-    # 3. Order Book Duvarı Kontrolü (Mesafe <= 2.2%)
-    ob = analysis.get("order_book") or {}
-    has_wall = bool(ob.get("has_wall", False))
-    wall_dist = float(ob.get("wall_distance_pct") or 999.0)
-    if has_wall and wall_dist <= 2.2:
-        return True, f"Satış duvarı çok yakın (Mesafe: %{wall_dist:.2f} <= %2.2)"
-
-    # 4. Anchored VWAP Aşırı Uzama Kontrolü (Drift >= 7.5%)
-    avwap_dist = float(analysis.get("anchored_vwap_distance_pct") or 0.0)
-    if avwap_dist >= 7.5:
-        return True, f"Fiyat Anchored VWAP'tan aşırı koptu (+%{avwap_dist:.1f} >= %7.5)"
-
-    # 5. Dinamik Başabaş Olasılık Kontrolü (Komisyon, Spread ve Slippage Dahil)
+    # Dinamik Başabaş Olasılık Kontrolü (Komisyon, Spread ve Slippage Dahil)
     fee_pct = float(cfg.get("round_trip_fee_pct", 0.15))
     slippage_pct = float(cfg.get("slippage_spread_pct", 0.10))
     min_required_prob = calculate_dynamic_breakeven_probability(

@@ -718,7 +718,7 @@ DEFAULT_STRATEGY_CONFIG = {
     "existing_position_protection_enabled": True,
     "live_validation_status": "NOT_TESTED",
     "coin_dna_enabled": True,
-    "coin_dna_execution_authority": "ADVISORY_ONLY",
+    "coin_dna_execution_authority": "SMART_BLOCK_ONLY",
     "coin_dna_min_sample_count": 20,
     "coin_dna_target_levels": [0.5, 1.0, 1.5, 2.0, 2.5, 4.0],
     "coin_dna_cache_ttl_minutes": 60,

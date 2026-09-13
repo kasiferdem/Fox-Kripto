@@ -171,9 +171,9 @@ class EntrySafetyPolicy:
         if not intent.execution_leader_active:
             reasons.append("Bu worker aktif execution leader değil (Double Execution Protection)")
 
-        # 12. COIN DNA KAPI MUHAFIZI (BLOCK_ONLY) DENETİMİ (Öneri 1 Kuralı)
+        # 12. COIN DNA KAPI MUHAFIZI (BLOCK_ONLY / SMART_BLOCK_ONLY) DENETİMİ (Öneri 1 Kuralı)
         dna_authority = str(strat_cfg.get("coin_dna_execution_authority") or "ADVISORY_ONLY").upper()
-        if strat_cfg.get("coin_dna_enabled", True) and dna_authority == "BLOCK_ONLY" and intent.direction.upper() == "BUY":
+        if strat_cfg.get("coin_dna_enabled", True) and (dna_authority in ["BLOCK_ONLY", "SMART_BLOCK_ONLY", "SMART_BLOCK"]) and intent.direction.upper() == "BUY":
             from coin_behavioral_probability_engine import is_coin_dna_blocked
             dna_snap = intent.metadata.get("coin_dna_analysis")
             if not dna_snap and intent.symbol:
@@ -181,7 +181,7 @@ class EntrySafetyPolicy:
                 dna_snap = get_latest_coin_dna_snapshot(intent.symbol)
             is_dna_bl, dna_bl_reason = is_coin_dna_blocked(dna_snap, custom_config=strat_cfg)
             if is_dna_bl:
-                reasons.append(f"Coin DNA Kapı Muhafızı Engeli: {dna_bl_reason}")
+                reasons.append(f"Coin DNA Kapı Muhafızı Engeli ({dna_authority}): {dna_bl_reason}")
 
         # 13. Canlı Yeni Alım İzin Kilidi (newBuyOrdersEnabled)
         if intent.direction.upper() == "BUY" and strat_cfg.get("new_buy_orders_enabled", True) is False:
