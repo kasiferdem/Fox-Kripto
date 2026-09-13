@@ -51,10 +51,12 @@ def check_tenant_circuit_breakers(
         if not client:
             return {"passed": True, "reason": "DB_UNAVAILABLE_FALLBACK"}
             
-        # 1. Bugünün işlemlerini çek
+        # 1. Bugünün işlemlerini çek (Yeni model geçiş kesim zamanı destekli)
+        cutoff_iso = str(strat_cfg.get("daily_trades_cutoff_iso") or "")
+        start_filter = max(cutoff_iso, today_start) if cutoff_iso else today_start
         trades_res = client.table("crypto_trade_logs")\
             .select("*")\
-            .gte("created_at", today_start)\
+            .gte("created_at", start_filter)\
             .order("created_at", desc=True)\
             .execute()
             

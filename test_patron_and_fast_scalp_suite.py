@@ -9,17 +9,17 @@ from prompts import call_patron_market_weather, call_fast_scalp_analyst
 from openrouter_gateway import MarketWeatherAssessment, FastScalpAssessment
 
 def test_patron_weather_structure():
-    print("\n--- TEST 1: Patron Ajan Canlı Hava Analizi (GPT-4o) ---")
-    weather = call_patron_market_weather(
+    print("\n--- TEST 1: Patron Sıfır API Maliyetli Dalga Modu Doğrulaması ---")
+    from graph import get_cached_patron_weather
+    weather = get_cached_patron_weather(
         btc_price=85250.0,
         btc_rsi=51.5,
-        regime_info={"btc_1h_trend": "BULLISH", "is_bullish": True, "reason": "EMA200 üzerinde istikrarlı"}
+        regime={"btc_1h_trend": "BULLISH", "is_bullish": True, "reason": "EMA200 üzerinde"}
     )
     print(f"Patron Hava Sonucu: {weather}")
-    assert weather.get("weather") in ["GUNESLI", "PUSLU", "FIRTINALI"]
-    assert isinstance(weather.get("is_trade_allowed"), bool)
-    assert len(weather.get("risk_caution_note", "")) > 0
-    print("✅ TEST 1 BAŞARILI: Patron Ajan piyasa havasını başarıyla değerlendirdi.")
+    assert weather.get("weather") == "GUNESLI"
+    assert weather.get("is_trade_allowed") is True
+    print("✅ TEST 1 BAŞARILI: Patron katmanı kaldırıldı; API ücreti ve gecikme sıfırlandı.")
 
 def test_fast_scalp_analyst_evaluation():
     print("\n--- TEST 2: Akıllı Vur-Kaç Ajanı Aday İncelemesi (GPT-4o) ---")

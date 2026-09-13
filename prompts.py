@@ -286,20 +286,21 @@ def call_patron_market_weather(btc_price: float, btc_rsi: float, regime_info: Di
 
 def call_fast_scalp_analyst(candidate_data: Dict[str, Any], market_weather: str = "GUNESLI") -> Dict[str, Any]:
     """
-    🎯 2. MASA: EN AKILLI AJAN (GPT-4o):
-    Hacim patlaması yaşayan adayın hızlı vur-kaç potansiyelini inceler.
+    🎯 2. MASA: EN AKILLI AJAN (GPT-4o) - ASİMETRİK DALGA & PULLBACK ANALİZİ:
+    Hacimli kırılım yaşayan altcoini 15m/1h trend ve pullback yapısıyla inceler.
     FOMO tepelerini, sığ tahtaları ve sahte tuzakları eler.
-    Gerçek alıcı baskısı ve koşu alanı olan adaylara onay verir.
+    Desteğe çekilme (pullback/retest) yapmış, alıcı baskısı yüksek ve +%3.5 potansiyeli olan adaylara onay verir.
     """
     system_prompt = (
-        "Sen Fox-Kripto'nun Baş Kuant Scalping ve Vur-Kaç Analistisin (Model: GPT-4o).\n"
-        "Görevin radara takılan hareketli altcoini incelemek ve GERÇEK bir hızlı vur-kaç potansiyeli olup olmadığını belirlemektir.\n"
+        "Sen Fox-Kripto'nun Baş Kuant Swing ve Asimetrik Dalga Analistisin (Model: GPT-4o).\n"
+        "Görevin radara takılan hareketli altcoini incelemek ve GERÇEK bir 15m/1h trend-pullback potansiyeli olup olmadığını belirlemektir.\n"
         "İnceleme Kriterleri:\n"
-        "1. Hacim & Alıcı Baskısı: Taker buy oranı yüksek mi? Gerçek para girişi var mı, yoksa sığ tahtada 2 lotla yapılmış manipülasyon mu?\n"
-        "2. Tepe Tuzağı (FOMO) Kontrolü: Mum zirvede tükenmiş mi, yoksa yeni bir kırılımın başlangıcı mı?\n"
-        "3. Koşu Alanı (Room to Run): Önünde %2.0 - %2.5 hedef için boşluk var mı?\n"
-        "Karar Kuralı: Yalnızca vur-kaç potansiyel skoru >= 7.5 olan ve tuzak olmayan temiz adaylar için is_scalp_recommended=True yap!\n"
-        "Önerilen TP hedefi %2.0 - %2.5 aralığında, Stop Loss ise %1.0 - %1.2 aralığında olmalıdır."
+        "1. Hacim & Alıcı Baskısı: Taker buy oranı >= %60 mı? Gerçek para girişi var mı, yoksa sığ manipülasyon mu?\n"
+        "2. Tepe Tuzağı (FOMO) Kontrolü: Mum yeşilde tepede mi? Tepeye atlamak KESİNLİKLE YASAKTIR. Desteğe (EMA20/VWAP) çekilmiş veya retest yapmış olmalı.\n"
+        "3. Koşu Alanı (Room to Run): Önünde +%3.5 - +%5.0 hedef için direnç boşluğu var mı?\n"
+        "4. Risk/Ödül Asimetrisi: Stop %1.2 iken en az %3.5 kâr potansiyeli (R:R >= 1:2.8) bulunmalı.\n"
+        "Karar Kuralı: Yalnızca potansiyel skoru >= 7.5 olan ve pullback/retest teyitli temiz adaylar için is_scalp_recommended=True yap!\n"
+        "Önerilen TP hedefi %3.0 - %4.5 aralığında, Stop Loss ise %1.0 - %1.2 aralığında olmalıdır."
     )
     user_content = (
         f"Piyasa Havası: {market_weather}\n"
@@ -310,7 +311,7 @@ def call_fast_scalp_analyst(candidate_data: Dict[str, Any], market_weather: str 
         system_prompt=system_prompt,
         user_content=user_content,
         schema_model=FastScalpAssessment,
-        prompt_version="scalp-analyst-v3.0"
+        prompt_version="wave-analyst-v4.0"
     )
     struct = res.get("structured_data") or {}
     is_recommended = bool(struct.get("is_scalp_recommended", False))
@@ -322,8 +323,8 @@ def call_fast_scalp_analyst(candidate_data: Dict[str, Any], market_weather: str 
         "is_scalp_recommended": is_recommended,
         "potential_score": score,
         "thesis_tr": struct.get("thesis_tr", "Yapay zeka analizi tamamlandı."),
-        "target_tp_pct": float(struct.get("target_tp_pct", 2.3)),
-        "stop_loss_pct": float(struct.get("stop_loss_pct", 1.1)),
+        "target_tp_pct": float(struct.get("target_tp_pct", 3.5)),
+        "stop_loss_pct": float(struct.get("stop_loss_pct", 1.2)),
         "risk_warning": struct.get("risk_warning", ""),
         "model_used": res.get("model_used", "openai/gpt-4o")
     }

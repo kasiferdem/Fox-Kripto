@@ -118,7 +118,7 @@ class EntrySafetyPolicy:
         reasons = []
         
         # 1. Kaynak Motor Doğrulaması (Deterministik Motorlar)
-        valid_engines = ["SCALPING", "WHALE_HUNTING", "V2_SCALPING", "V2_WHALE_HUNTING"]
+        valid_engines = ["SCALPING", "WHALE_HUNTING", "V2_SCALPING", "V2_WHALE_HUNTING", "ASYMMETRIC_WAVE_ANALYST", "SURGE_DETECTOR", "QUANT_MOMENTUM", "COIN_DNA_QUANT"]
         if str(intent.source_engine).upper() not in valid_engines:
             reasons.append(f"Geçersiz kaynak motor: {intent.source_engine}")
 
@@ -171,8 +171,20 @@ class EntrySafetyPolicy:
         if not intent.execution_leader_active:
             reasons.append("Bu worker aktif execution leader değil (Double Execution Protection)")
 
+        # 12. COIN DNA KAPI MUHAFIZI (BLOCK_ONLY) DENETİMİ (Öneri 1 Kuralı)
+        dna_authority = str(strat_cfg.get("coin_dna_execution_authority") or "BLOCK_ONLY").upper()
+        if strat_cfg.get("coin_dna_enabled", True) and dna_authority == "BLOCK_ONLY" and intent.direction.upper() == "BUY":
+            from coin_behavioral_probability_engine import is_coin_dna_blocked
+            dna_snap = intent.metadata.get("coin_dna_analysis")
+            if not dna_snap and intent.symbol:
+                from db import get_latest_coin_dna_snapshot
+                dna_snap = get_latest_coin_dna_snapshot(intent.symbol)
+            is_dna_bl, dna_bl_reason = is_coin_dna_blocked(dna_snap, custom_config=strat_cfg)
+            if is_dna_bl:
+                reasons.append(f"Coin DNA Kapı Muhafızı Engeli: {dna_bl_reason}")
+
         # -------------------------------------------------------------
-        # 🛡️ 12. GELİŞMİŞ TESTERE & GÖLGE KALKANI DENETİMİ (ANTI-CHOP SHIELD)
+        # 🛡️ 13. GELİŞMİŞ TESTERE & GÖLGE KALKANI DENETİMİ (ANTI-CHOP SHIELD)
         # -------------------------------------------------------------
         anti_chop_violations = []
         if intent.direction.upper() == "BUY":

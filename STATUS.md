@@ -183,11 +183,93 @@ python app.py
   - **6. Günlük İşlem Kotası:** 100 işlemden 12 seçkin işleme düşürüldü; Binance'e komisyon taşıma dönemi bitti.
   - **7. Test Paketi & Canlı Süreç:** `test_patron_and_fast_scalp_suite.py` %100 başarıyla geçti, `python app.py` 7/24 daemon süreci güncellendi.
 
+- [x] **Vur-Kaç / Scalping Mimarisi Kullanıcı Kararıyla Tamamen Durduruldu (12 Eylül 17:15 TSİ):**
+  - **Kullanıcı Kararı:** "Vur kaçtan vazgeçtim artık cidden, para kalmadı."
+  - **Anlık Borsa & Kasa Durumu:** 
+    - Serbest Nakit: **$182.83 USDT** (Binance Global)
+    - Kırıntı/Rezerv: **~$2.16 USD**
+    - Toplam Kasa: **$184.99 USD**
+    - Açık Pozisyon: **0** (Tüm pozisyonlar kapalı, sermaye %100 güvende)
+  - **Alınan Güvenlik Önlemleri:**
+    - Arka plan işlem motoru (`task-3339`) derhal sonlandırıldı.
+    - 5 dakikalık yüksek frekanslı mikro-scalping ve komisyon öğütücü döngü tamamen iptal edildi.
+    - Kullanıcının onayı olmadan hiçbir yeni alım/emir gönderilmeyecek şekilde sistem güvenli nakit moduna alındı.
+
+- [x] **v2.2 Asimetrik Dalga & Pullback Modeli Kuruldu ve Doğrulandı (12 Eylül 17:30 TSİ):**
+  - **Ajanlar Masası Konsensüsü:** Claude, Codex ve GLM-5.3'ün ortak kararı ve kullanıcının onayıyla yeni model devreye alındı.
+  - **Kritik Kurallar:**
+    - 🎯 **İşlem Sıklığı:** Yapay günlük kota kaldırıldı (`max_daily_trades: 30`). Sistem günde yapay 3-4 kısıtlamasına takılmadan, piyasada 15m/1h teknik şartlar oluştuğunda doğal olarak işlem açar.
+    - 🛡️ **Eşzamanlılık:** Aynı anda en fazla **2 açık pozisyon** (`max_concurrent_positions: 2`, ~$60 + $60). Kasa hiçbir zaman %100 bağlanmaz.
+    - ⚖️ **Asimetrik R:R (~1:3):** Hedef Kâr: **+%3.50** (Net +$2.10 USD) | Stop-Loss: **-%1.20** (Net -$0.72 USD).
+    - 🛡️ **Başa-Baş (Break-Even) Zırhı:** Pozisyon +%1.20 kâra ulaştığı an stop maliyete çekilir, kârdaki işlem asla zarara dönmez.
+- [x] **Kuant Heyeti Arayüz Denetimi (Claude, GPT-6 Astra, GLM-5.3) & Eksik Senkronizasyonun Onarımı (12 Eylül 17:45 TSİ):**
+  - **Tespit Edilen Kritik Eksik:** Arayüzün altındaki `strategy_config` üzerinde TP %3.5 / SL %1.2 / Bütçe %33.3 yapılmış olmasına rağmen, üstteki `user_tenants` tablosunda Kullanıcı S'in kişisel kaydı eski scalping'ten kalma **TP: %0.8, SL: %1.9, Bütçe: %25.0** olarak kalmıştı. Bu durum bütçenin $60 yerine $46 hesaplanmasına yol açıyordu.
+  - **Yapılan Düzeltmeler:**
+    1. `user_tenants` tablosundaki Kullanıcı S kaydı doğrudan **TP: %3.5, SL: %1.2, Bütçe: %33.3** olarak güncellendi ve önbellek temizlendi.
+    2. **Kart 5 (Net Avantaj Kapısı - Politika D):** Modelimiz 2.65x net R/R ürettiği için kapı `net_advantage_gate_enabled: True` (🟢 Açık, Min R/R: 1.5) yapılarak sığ/komisyon tuzağı coinler engellendi.
+- [x] **Patron Katmanı Devre Dışı Bırakıldı & Sıfır API Gecikmesi (12 Eylül 17:50 TSİ):**
+  - Kullanıcı onayıyla, her 3 dakikada bir OpenRouter üzerinden GPT-4o'ya giden gereksiz "Hava Durumu" çağrısı ve API maliyeti tamamen iptal edildi.
+  - Genel piyasa güvenliği %100 deterministik teknik kurallara (BTC Trend, RSI 38 Tabanı, Retest, Net Avantaj Kapısı) devredildi.
+  - Aday coinlerin +%3.5 derinlik ve direnç boşluğu analizi doğrudan **Akıllı Dalga Analisti (GPT-4o)** tarafından tek elden yürütülmeye başlandı.
+  - Test paketi (7/7) doğrulandı, `python app.py` daemon süreci sıfır ek maliyetle güncellendi.
+
+- [x] **FIL Benzeri Canlı Rallileri Kaçırmayan Orijinal Momentum Modu Devreye Alındı (13 Eylül 21:20 TSİ):**
+  - Kullanıcı talebi doğrultusunda, aşırı katı kısıtlamalar (Retest Onayı ve İlk Pump Engeli) kaldırılarak 2-3 Eylül kazandıran çevik momentum ayarlarına dönüldü:
+  - `active_preset`: `v21_smart_armor` | `volume_spike_multiplier`: `1.15x` | `min_5m_volume_usd`: `$2,500`
+  - `first_pump_candle_entry_blocked`: `False` (Fırlayan ilk yeşil mumda doğrudan trene biner)
+  - `retest_required`: `False` (Retest için 30 dakika beklemez, anında momentumu satın alır)
+  - `max_recent_gain_24h`: `%45.0` (FIL gibi +%20-%25 prim yapmış güçlü trend koşucularını engellemez)
+  - `take_profit_pct`: `%3.0` | `trailing_callback_pct`: `%0.6` | `stop_loss_pct`: `%1.2`
+  - `break_even_trigger_pct`: `%1.0` (Pozisyon +%1 gördüğünde stop hemen maliyete çekilir, kâr asla zarara dönmez)
+  - `max_budget_percent`: `%33.3` ($182.83 USDT nakit / 3 = ~$60 USD slot başına) | `max_concurrent_positions`: `3`
+- [x] **Açık Uçlu Zirve Takibi (True Trailing Run) & Deterministik Kuant Onayı Devreye Alındı (13 Eylül 21:55 TSİ):**
+  - **Açık Uçlu Zirve Takibi (`true_trailing_run = True`):** Sabit %2-%3 TP tavanı kaldırıldı; pozisyon +%1.5 kâra ulaştığı andan itibaren tavan kalkar, fiyat nereye kadar tırmanırsa (ister %8, ister %25) zirve peşinden izlenir. Zirveden `%0.6` sarkma (`trailing_callback_pct = 0.6`) geldiği an kâr realize edilir.
+  - **Başa-Baş Kalkanı:** Fiyat +%1.0 gördüğü anda stop maliyete çekilir (`break_even_trigger_pct = 1.0`), kârdaki işlem asla zarara dönmez.
+  - **Kuant Motoru Onay Sigortası (`graph.py`):** OpenRouter API kredisi tükendiğinde (HTTP 402) işlemlerin kilitlenmesi engellendi; Node B'nin onayladığı (`v2_score >= 7.0`) güçlü teknik adaylar harici LLM'e gerek duymadan deterministik kuant onayıyla infaza gönderildi.
+
+- [x] **Coin DNA — Çok Zaman Dilimli Olasılık ve Hedef Haritası & Admin Panel Yönetimi Devreye Alındı (13 Eylül 22:50 TSİ):**
+  - **`CoinBehavioralProbabilityEngine` Modülü (`coin_behavioral_probability_engine.py`):**
+    - 2 Kademeli Hibrit Mimari: 30-90 günlük MTF S/R, POC ve MFE/MAE profili RAM'de TTL önbellekli (Kademe 1) + Sinyal anında anlık Anchored VWAP, Order Book 2% Imbalance ve Canlı Duvar tespiti <45ms (Kademe 2).
+    - Look-Ahead Bias sıfırlandı: Tarihsel patlamalar sadece o andaki göstergelerle ($N \ge 20$) tespit edilir.
+    - Muallak yol (Ambiguous Path) koruması: Aynı barda hem hedef hem stop görüldüğünde kâr sayılmaz, tarafsız işaretlenir.
+    - 9 Karar Sınıfı (`WIDE_ROOM`, `MODERATE_ROOM`, `LIMITED_ROOM`, `RESISTANCE_NEAR`, `EXTENDED_MOVE`, `LOW_CONFIDENCE`, `INSUFFICIENT_SAMPLE`, `DATA_UNAVAILABLE`, `STALE`).
+    - Pazarlamacı/kesinlik jargonuna karşı `sanitize_advisory_text` güvenlik filtresi.
+    - Yetki Sınırı: `ADVISORY_ONLY`. Bağımsız emir açmaz, hard stop limitlerini asla gevşetmez.
+  - **Admin Panel Yönetimi (`/v2/dashboard`):**
+    - **6. Grup: 🧬 Coin DNA Parametreleri:** Motor Açık/Kapalı, İcra Yetkisi (`ADVISORY_ONLY`), Min Örnek Sayısı ($N$), Tarama Gün Sayısı, RAM TTL (dk), Kırılım Eşiği (%), Hacim Sıçrama Çarpanı, Hedef Basamakları doğrudan panel üzerinden izlenebilir ve dinamik kaydedilebilir.
+    - **Canlı Görsel Kart: 🧬 Coin DNA — Olasılık ve Hedef Haritası:** Herhangi bir parite girilerek tek tuşla canlı analiz sorgulanabilir; Karar Rozeti, Örneklem, Koşu Alanı, En Yakın Direnç, AVWAP/POC, 2% Tahta Duvarı ve Hedef/Stop Olasılık Matrisi dinamik tablolanır.
+  - **API & LangGraph Entegrasyonu (`app.py`, `graph.py`, `state.py`, `db.py`):**
+    - `GET /api/coin_dna/{symbol}`, `GET /api/coin_dna_latest`, `POST /api/coin_dna/evaluate` uç noktaları eklendi.
+    - LangGraph'ta seçilen adaylar infaz öncesi otomatik analiz edilip `coin_dna_analysis` olarak kaydedilir.
+    - `test_coin_behavioral_probability_engine.py` paketi (7/7) %100 başarıyla geçti; `python -u app.py` daemon süreci güncellendi.
+
+- [x] **Öneri 1 Uygulandı: Coin DNA Kapı Muhafızı (BLOCK_ONLY) Devreye Alındı (13 Eylül 23:10 TSİ):**
+  - **Kök Neden & Amaç:** Momentum kuralları gevşetildiğinde sığ hacim sıçramalarıyla tepeden alınan coinlerin (ZIL, POWR) 1-2 dakikada stop olmasını önlemek amacıyla, Coin DNA motoru `ADVISORY_ONLY` (Tavsiye) statüsünden katı bir kapı muhafızına (`BLOCK_ONLY`) yükseltildi.
+  - **Katı Blokaj Kriterleri (`is_coin_dna_blocked`):**
+    1. Yetersiz geçmiş patlama örneği ($N < 20$ / `INSUFFICIENT_SAMPLE`).
+    2. En yakın direnç veya canlı tahtada satış duvarı mesafesi $\le \%2.2$ (`RESISTANCE_NEAR`).
+    3. Fiyatın Anchored VWAP'tan aşırı kopması $\ge \%7.5$ (`EXTENDED_MOVE`).
+    4. Karar sınıfının `WIDE_ROOM` veya `MODERATE_ROOM` haricinde olması (`LIMITED_ROOM`, `LOW_CONFIDENCE`, `DATA_UNAVAILABLE`, `STALE`).
+    5. Tarihsel benzerliklerde +%1.0 hedef kârın stop öncesi görülme olasılığının $<\%40$ olması.
+  - **3 Kademeli Çelik Kalkan:**
+    1. **Aday Seçim Döngüsü (`graph.py`):** Kriterleri sağlamayan adaylar (ZIL, POWR vb.) henüz seçilmeden döngüde `🛑 [COIN DNA KAPI MUHAFIZI ENGELLEDİ (BLOCK_ONLY)]` denilerek elenir.
+    2. **Teklif Düğümü (`graph.py`):** Seçilen adayın infaz teklifi Coin DNA onayından geçemezse borsa teklifi üretilmez, güvenli nakde dönülür.
+    3. **Merkezi Güvenlik Kapısı (`entry_safety_policy.py` - Kural 12):** `OrderIntent` borsaya gönderilmeden önce Coin DNA kararı doğrulanır, blokaj varsa emir borsa API'sine asla iletilmez.
+  - **Admin Panel & Canlı Durum:**
+    - Panelde (`/v2/dashboard`) İcra Yetkisi menüsüne `🛡️ Kapı Muhafızı (BLOCK_ONLY - Riskliyi Engelle)` seçeneği eklendi ve varsayılan yapıldı.
+    - Günlük işlem kotası 60'a çıkarıldı; 10/10 birim testi %100 başarıyla geçti.
+    - `python -u app.py` daemon süreci taze kodla yeniden başlatıldı; Kasa $181.19 USD (Serbest: $119.57 USDT, THETA: $61.62 USD) ile güvende.
+
+- [x] **Admin Panel Rota Yönlendirmesi Onarıldı & Coin DNA Hızlı Erişim Butonu Eklendi (13 Eylül 23:18 TSİ):**
+  - **Kök Neden:** Tarayıcıda `http://localhost:8000/` veya `http://localhost:8000/dashboard` açıldığında sistem eski V1 Klasik paneline yönleniyordu; bu arayüzde Coin DNA modülü yer almadığı için kullanıcı tarafından görüntülenemiyordu.
+  - **Düzeltmeler:**
+    1. `app.py` üzerinde `/`, `/dashboard` ve `/admin` rotaları doğrudan yeni ve modern **V2 Quant Terminali**'ne (`get_v2_dashboard_html`) bağlandı.
+    2. V2 arayüzünün üst navigasyon çubuğuna doğrudan tıklanabilir yeşil **`[🧬 Coin DNA]`** hızlı atlama butonu eklendi (`#coindna-section`).
+    3. Eski V1 paneline de (`/v1/dashboard`) yeni V2'ye tek tıkla geçiş sağlayan yönlendirme bandı eklendi.
+    4. Canlı HTTP testi ile `/`, `/dashboard` ve `/v2/dashboard` rotalarının Coin DNA bileşenini 200 OK ile eksiksiz döndürdüğü doğrulandı.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-12 (16:28 TSİ)*
-
-
-
+*Son Güncelleme Tarihi: 2026-09-13 (23:18 TSİ)*
 
 
 

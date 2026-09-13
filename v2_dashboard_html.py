@@ -62,7 +62,7 @@ def generate_v2_dashboard_html(
     sel_btctrend_false = "selected" if not btc_trend_filter_enabled else ""
 
     # Hibrit Mikro Zarar Kesici (Opsiyon 1 + Opsiyon 2)
-    hybrid_micro_cut_enabled = bool(strategy_config.get("hybrid_micro_cut_enabled", True))
+    hybrid_micro_cut_enabled = bool(strategy_config.get("hybrid_micro_cut_enabled", False))
     micro_cut_time_limit = int(strategy_config.get("micro_cut_time_limit_minutes", 5))
     micro_cut_time_loss = float(strategy_config.get("micro_cut_time_loss_pct", 0.25))
     micro_cut_taker_ratio = float(strategy_config.get("micro_cut_taker_sell_ratio", 65.0))
@@ -86,6 +86,26 @@ def generate_v2_dashboard_html(
     sel_atrdyn_false = "selected" if not use_atr_dynamic_r else ""
     sel_netadv_true = "selected" if net_adv_gate_enabled else ""
     sel_netadv_false = "selected" if not net_adv_gate_enabled else ""
+
+    # 6. Coin DNA & Olasılık Motoru Parametreleri
+    coin_dna_enabled = bool(strategy_config.get("coin_dna_enabled", True))
+    coin_dna_authority = str(strategy_config.get("coin_dna_execution_authority", "ADVISORY_ONLY"))
+    coin_dna_min_sample = int(strategy_config.get("coin_dna_min_sample_count", 20))
+    raw_targets = strategy_config.get("coin_dna_target_levels", [0.5, 1.0, 1.5, 2.0, 2.5, 4.0])
+    if isinstance(raw_targets, list):
+        coin_dna_targets_str = ", ".join(str(x) for x in raw_targets)
+    else:
+        coin_dna_targets_str = str(raw_targets)
+    coin_dna_cache_ttl = int(strategy_config.get("coin_dna_cache_ttl_minutes", 60))
+    coin_dna_history_days = int(strategy_config.get("coin_dna_history_days", 30))
+    coin_dna_breakout_thresh = float(strategy_config.get("coin_dna_breakout_threshold_pct", 2.5))
+    coin_dna_vol_mult = float(strategy_config.get("coin_dna_volume_surge_multiplier", 2.0))
+
+    sel_coindna_true = "selected" if coin_dna_enabled else ""
+    sel_coindna_false = "selected" if not coin_dna_enabled else ""
+    sel_cd_block = "selected" if coin_dna_authority == "BLOCK_ONLY" else ""
+    sel_cd_advisory = "selected" if coin_dna_authority == "ADVISORY_ONLY" else ""
+    sel_cd_off = "selected" if coin_dna_authority == "OFF" else ""
 
     # Tenants Tablosu SSR HTML (Tıklanabilir Satırlar)
     tenants_ssr_html = ""
@@ -600,6 +620,7 @@ def generate_v2_dashboard_html(
         <!-- Sürüm Seçici -->
         <a href="/v1/dashboard" class="btn btn-sm btn-ghost" data-i18n="v1_link">🏛️ V1 Klasik</a>
         <a href="/v2/dashboard" class="btn btn-sm btn-primary" data-i18n="v2_link">⚡ V2 Kripto</a>
+        <a href="#coindna-section" class="btn btn-sm" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; font-weight: 700; text-decoration: none;">🧬 Coin DNA</a>
         <a href="/borsa/dashboard" class="btn btn-sm btn-ghost" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; font-weight: 700;">🏛️ Fox-Borsa (Alpaca)</a>
 
         <!-- Testere Kalkanı & Gölge Mod -->
@@ -870,6 +891,58 @@ def generate_v2_dashboard_html(
           </div>
         </div>
 
+        <!-- 6. Grup: 🧬 Coin DNA & Olasılık Haritası Parametreleri -->
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.03em;">🧬 6. Coin DNA — Çok Zaman Dilimli Olasılık ve Hedef Haritası Parametreleri</div>
+            <span class="badge" style="font-size: 10px; padding: 2px 6px; background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3);">Quant Consensus ({coin_dna_authority})</span>
+          </div>
+          <div class="param-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0; padding: 0; background: transparent; border: none;">
+            <div class="param-box">
+              <label style="color: #10b981; font-weight: 700;">Coin DNA Motoru</label>
+              <select id="param_coin_dna_enabled">
+                <option value="true" {sel_coindna_true}>🟢 Açık (Aktif)</option>
+                <option value="false" {sel_coindna_false}>🔴 Kapalı</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label style="color: #10b981; font-weight: 700;">İcra Yetkisi</label>
+              <select id="param_coin_dna_execution_authority">
+                <option value="BLOCK_ONLY" {sel_cd_block}>🛡️ Kapı Muhafızı (BLOCK_ONLY - Riskliyi Engelle)</option>
+                <option value="ADVISORY_ONLY" {sel_cd_advisory}>ℹ️ Yalnızca Tavsiye (ADVISORY)</option>
+                <option value="OFF" {sel_cd_off}>🔴 Kapalı (OFF)</option>
+              </select>
+            </div>
+            <div class="param-box">
+              <label>Min Örnek Sayısı (N)</label>
+              <input type="number" min="5" max="100" step="1" id="param_coin_dna_min_sample_count" value="{coin_dna_min_sample}">
+            </div>
+            <div class="param-box">
+              <label>Geçmiş Tarama (Gün)</label>
+              <input type="number" min="7" max="180" step="1" id="param_coin_dna_history_days" value="{coin_dna_history_days}">
+            </div>
+            <div class="param-box">
+              <label>RAM TTL Önbellek (Dk)</label>
+              <input type="number" min="5" max="240" step="5" id="param_coin_dna_cache_ttl_minutes" value="{coin_dna_cache_ttl}">
+            </div>
+            <div class="param-box">
+              <label>Kırılım Eşiği (%)</label>
+              <input type="number" min="1.0" max="10.0" step="0.1" id="param_coin_dna_breakout_threshold_pct" value="{coin_dna_breakout_thresh}">
+            </div>
+            <div class="param-box">
+              <label>Hacim Sıçrama Çarpanı</label>
+              <input type="number" min="1.1" max="5.0" step="0.1" id="param_coin_dna_volume_surge_multiplier" value="{coin_dna_vol_mult}">
+            </div>
+            <div class="param-box" style="grid-column: span 2;">
+              <label>Hedef Basamakları (%)</label>
+              <input type="text" id="param_coin_dna_target_levels" value="{coin_dna_targets_str}" style="font-family: monospace;">
+            </div>
+          </div>
+          <div style="font-size: 11px; color: var(--ink-3); margin-top: 6px;">
+            💡 <em><strong>Admin Yönetimi:</strong> Bu parametreler Coin DNA motorunun patlama ve direnç tespit hassasiyetini belirler. Motor <code>BLOCK_ONLY</code> modundayken N &lt; 20 olan, önünde majör direnç/duvar (&lt;%2.2) bulunan veya AVWAP'tan aşırı kopmuş riskli coinlerin alımını kesin olarak engeller.</em>
+          </div>
+        </div>
+
       </div>
 
       <!-- 4 Temel Eylem Butonu (Sadeleştirilmiş & Eksiksiz) -->
@@ -894,6 +967,83 @@ def generate_v2_dashboard_html(
           <div class="audit-item verified">✓ 8. Düşük Spread (<%0.15)</div>
           <div class="audit-item verified">✓ 9. Düşük Fitil (Anti-FOMO)</div>
           <div class="audit-item verified">✓ 10. GLM + Gemini AI Onayı</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🧬 COIN DNA — OLASILIK VE HEDEF HARİTASI CANLI KARTI -->
+    <section class="card" id="coindna-section" style="border: 1px solid rgba(16, 185, 129, 0.45); background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, var(--surface) 100%);">
+      <div class="card-header" style="flex-wrap: wrap; gap: 10px;">
+        <div>
+          <div class="card-title" style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">🧬</span>
+            <span>Coin DNA — Olasılık ve Hedef Haritası</span>
+          </div>
+          <p style="font-size: 12.5px; color: var(--ink-3); margin-top: 2px;">Çok Zaman Dilimli Ampirik Olasılık Dağılımı, S/R Koşu Alanı ve Sarkma (MFE/MAE) Analizi</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="text" id="coindna_symbol_input" placeholder="Parite (örn: BTC/USDT)" value="BTC/USDT" style="padding: 6px 12px; background: var(--bg-1); border: 1px solid var(--line-2); border-radius: 6px; color: var(--ink); font-weight: 700; font-size: 12px; width: 140px; text-transform: uppercase;">
+          <button class="btn btn-sm btn-primary" onclick="runCoinDnaQuery()" style="background: #10b981; border-color: #059669; font-weight: 700;">🧬 Analiz Et</button>
+          <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);" id="coindna_auth_badge">🛡️ ADVISORY_ONLY</span>
+        </div>
+      </div>
+
+      <!-- KPI Stat Grid -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 14px;">
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px;">
+          <div style="font-size: 11px; color: var(--ink-3); font-weight: 600;">KARAR SINIFI</div>
+          <div id="coindna_decision_badge" style="font-size: 14px; font-weight: 800; color: #10b981; margin-top: 4px;">YÜKLENİYOR...</div>
+        </div>
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px;">
+          <div style="font-size: 11px; color: var(--ink-3); font-weight: 600;">ÖRNEKLEM (N)</div>
+          <div id="coindna_sample_count" style="font-size: 14px; font-weight: 800; color: var(--ink); margin-top: 4px;">-</div>
+        </div>
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px;">
+          <div style="font-size: 11px; color: var(--ink-3); font-weight: 600;">KOŞU ALANI (ROOM)</div>
+          <div id="coindna_room_pct" style="font-size: 14px; font-weight: 800; color: #38bdf8; margin-top: 4px;">-</div>
+        </div>
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px;">
+          <div style="font-size: 11px; color: var(--ink-3); font-weight: 600;">EN YAKIN DİRENÇ</div>
+          <div id="coindna_resistance_dist" style="font-size: 14px; font-weight: 800; color: #f59e0b; margin-top: 4px;">-</div>
+        </div>
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px;">
+          <div style="font-size: 11px; color: var(--ink-3); font-weight: 600;">AVWAP / POC MESAFESİ</div>
+          <div id="coindna_vwap_poc_dist" style="font-size: 14px; font-weight: 800; color: #a855f7; margin-top: 4px;">-</div>
+        </div>
+        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px;">
+          <div style="font-size: 11px; color: var(--ink-3); font-weight: 600;">2% DENGESİZLİK / DUVAR</div>
+          <div id="coindna_orderbook_wall" style="font-size: 14px; font-weight: 800; color: var(--ink); margin-top: 4px;">-</div>
+        </div>
+      </div>
+
+      <!-- Olasılık Matrisi Tablosu -->
+      <div class="table-wrap" style="margin-top: 14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Hedef Kâr (%)</th>
+              <th>Hard Stop (%)</th>
+              <th>P(Hedef > Stop)</th>
+              <th>Net Beklenti (Expectancy)</th>
+              <th>Medyan Süre (P50)</th>
+              <th>Medyan MAE (Sarkma)</th>
+              <th>Durum</th>
+            </tr>
+          </thead>
+          <tbody id="coindna_matrix_tbody">
+            <tr><td colspan="7" style="text-align: center; color: var(--ink-3); padding: 18px;">Henüz analiz sorgusu yapılmadı. Yukarıdaki butona tıklayınız.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Rapor Özeti ve Şartname Uyarısı -->
+      <div style="margin-top: 14px; padding: 12px 14px; background: rgba(0,0,0,0.25); border: 1px solid var(--line-2); border-radius: 8px;">
+        <div style="font-size: 11px; font-weight: 700; color: #34d399; margin-bottom: 4px;">📋 BİLİMSEL ANALİZ RAPORU (FAIL-CLOSED):</div>
+        <div id="coindna_summary_box" style="font-size: 12.5px; color: var(--ink-2); line-height: 1.5;">
+          Analiz bekleniyor...
+        </div>
+        <div style="font-size: 11px; color: var(--ink-3); margin-top: 8px; border-top: 1px dashed var(--line-2); padding-top: 6px;">
+          ⚖️ <em>Bu modül kesin hedef iddia etmez; ampirik olasılık ve risk alanlarını haritalandırır. Karar ve icra sorumluluğu kurumsal risk yönetmeliği altındadır.</em>
         </div>
       </div>
     </section>
@@ -1497,7 +1647,15 @@ def generate_v2_dashboard_html(
           r_final_target_r: parseFloat(getVal('param_r_final_target_r', '', 2.0)),
           use_atr_dynamic_r: (document.getElementById('param_use_atr_dynamic_r')?.value === 'true'),
           net_advantage_gate_enabled: (document.getElementById('param_net_advantage_gate_enabled')?.value === 'true'),
-          minimum_expected_net_rr: parseFloat(getVal('param_minimum_expected_net_rr', '', 1.5))
+          minimum_expected_net_rr: parseFloat(getVal('param_minimum_expected_net_rr', '', 1.5)),
+          coin_dna_enabled: (document.getElementById('param_coin_dna_enabled')?.value === 'true'),
+          coin_dna_execution_authority: document.getElementById('param_coin_dna_execution_authority')?.value || 'ADVISORY_ONLY',
+          coin_dna_min_sample_count: parseInt(getVal('param_coin_dna_min_sample_count', '', 20)),
+          coin_dna_history_days: parseInt(getVal('param_coin_dna_history_days', '', 30)),
+          coin_dna_cache_ttl_minutes: parseInt(getVal('param_coin_dna_cache_ttl_minutes', '', 60)),
+          coin_dna_breakout_threshold_pct: parseFloat(getVal('param_coin_dna_breakout_threshold_pct', '', 2.5)),
+          coin_dna_volume_surge_multiplier: parseFloat(getVal('param_coin_dna_volume_surge_multiplier', '', 2.0)),
+          coin_dna_target_levels: document.getElementById('param_coin_dna_target_levels')?.value || '0.5, 1.0, 1.5, 2.0, 2.5, 4.0'
         }};
 
         const res = await fetch('/api/strategy-config', {{
@@ -1705,12 +1863,100 @@ def generate_v2_dashboard_html(
       }}
     }}
 
+    // 🧬 Coin DNA Dinamik Sorgu Fonksiyonu
+    async function runCoinDnaQuery(symOverride) {{
+      const input = document.getElementById('coindna_symbol_input');
+      const sym = (symOverride || (input ? input.value : 'BTC/USDT') || 'BTC/USDT').trim().toUpperCase();
+      const decBadge = document.getElementById('coindna_decision_badge');
+      const sampleEl = document.getElementById('coindna_sample_count');
+      const roomEl = document.getElementById('coindna_room_pct');
+      const resEl = document.getElementById('coindna_resistance_dist');
+      const vwapEl = document.getElementById('coindna_vwap_poc_dist');
+      const obEl = document.getElementById('coindna_orderbook_wall');
+      const tbody = document.getElementById('coindna_matrix_tbody');
+      const sumBox = document.getElementById('coindna_summary_box');
+
+      if (decBadge) decBadge.innerText = 'HESAPLANIYOR...';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--ink-3); padding: 18px;">⏳ ' + sym + ' için çok zaman dilimli geçmiş mumlar ve emir defteri taranıyor...</td></tr>';
+
+      try {{
+        const url = '/api/coin_dna/' + encodeURIComponent(sym.replace('/', '-'));
+        const res = await fetch(url, {{ headers: getAuthHeaders() }});
+        if (!res.ok) throw new Error('API Hatası: ' + res.status);
+        const data = await res.json();
+        const a = data.analysis || {{}};
+
+        if (decBadge) {{
+          decBadge.innerText = a.decision_class || 'UNKNOWN';
+          const cls = a.decision_class || '';
+          if (cls === 'WIDE_ROOM') decBadge.style.color = '#10b981';
+          else if (cls === 'MODERATE_ROOM') decBadge.style.color = '#38bdf8';
+          else if (cls === 'RESISTANCE_NEAR' || cls === 'EXTENDED_MOVE') decBadge.style.color = '#ef4444';
+          else decBadge.style.color = '#f59e0b';
+        }}
+        if (sampleEl) sampleEl.innerText = (a.sample_count !== undefined ? a.sample_count : '-') + ' adet';
+        if (roomEl) {{
+          const sr = a.support_resistance || {{}};
+          roomEl.innerText = (sr.room_to_run_pct !== undefined ? '+' + sr.room_to_run_pct.toFixed(2) + '%' : '-');
+        }}
+        if (resEl) {{
+          const sr = a.support_resistance || {{}};
+          resEl.innerText = (sr.nearest_local_resistance_pct !== undefined ? '+' + sr.nearest_local_resistance_pct.toFixed(2) + '%' : '-');
+        }}
+        if (vwapEl) {{
+          const avwapDist = (a.anchored_vwap_distance_pct !== undefined ? a.anchored_vwap_distance_pct.toFixed(2) : '0');
+          const pocDist = (a.poc_distance_pct !== undefined ? a.poc_distance_pct.toFixed(2) : '0');
+          vwapEl.innerText = 'AVWAP: %' + avwapDist + ' | POC: %' + pocDist;
+        }}
+        if (obEl) {{
+          const ob = a.order_book || {{}};
+          const imb = (ob.imbalance_2pct !== undefined ? (ob.imbalance_2pct * 100).toFixed(0) + '%' : '-');
+          const wall = ob.has_wall ? ('Duvar: +%' + (ob.wall_distance_pct || 0).toFixed(1)) : 'Duvar Yok';
+          obEl.innerText = imb + ' Alıcı | ' + wall;
+        }}
+        if (sumBox) {{
+          sumBox.innerText = a.report_summary || 'Özet üretilemedi.';
+        }}
+
+        const matrix = a.probability_matrix || [];
+        if (tbody) {{
+          if (matrix.length === 0) {{
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--ink-3); padding: 18px;">Yeterli geçmiş patlama olayı bulunamadı (N < 20).</td></tr>';
+          }} else {{
+            let rows = '';
+            for (const row of matrix) {{
+              const p = row.probability_target_before_stop || 0;
+              const exp = row.net_expectancy || 0;
+              const expColor = exp >= 0 ? 'var(--ok-fg)' : 'var(--stop-fg)';
+              const pColor = p >= 50 ? 'var(--ok-fg)' : (p >= 35 ? '#f59e0b' : 'var(--stop-fg)');
+              rows += `
+                <tr>
+                  <td style="font-weight: 700; color: var(--ok-fg);">+${{row.target_pct}}%</td>
+                  <td style="color: var(--stop-fg); font-weight: 600;">-${{row.stop_pct}}%</td>
+                  <td style="font-weight: 800; color: ${{pColor}};">%${{p.toFixed(1)}}</td>
+                  <td style="font-weight: 700; color: ${{expColor}};">${{exp >= 0 ? '+' : ''}}${{exp.toFixed(3)}} USD</td>
+                  <td style="color: var(--ink-2);">${{row.median_time_to_target_minutes || 0}} dk</td>
+                  <td style="color: var(--ink-2);">${{row.median_mae_pct ? ('-%' + row.median_mae_pct.toFixed(2)) : '-'}}</td>
+                  <td><span class="badge ${{p >= 40 ? 'badge-ok' : 'badge-info'}}">${{p >= 40 ? 'AVANTAJLI' : 'RİSKLİ'}}</span></td>
+                </tr>
+              `;
+            }}
+            tbody.innerHTML = rows;
+          }}
+        }}
+      }} catch(e) {{
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--stop-fg); padding: 18px;">❌ Sorgu Hatası: ' + e.message + '</td></tr>';
+        if (decBadge) decBadge.innerText = 'HATA';
+      }}
+    }}
+
     // Sayfa Yüklendiğinde Kayıtlı Dili Uygula ve Trailing Rozetlerini Senkronize Et
     document.addEventListener('DOMContentLoaded', () => {{
       if (curLang && curLang !== 'tr') {{
         applyLanguage(curLang);
       }}
       syncTrailingLabels();
+      setTimeout(() => {{ runCoinDnaQuery('BTC/USDT'); }}, 1000);
     }});
   </script>
 </body>

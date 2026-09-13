@@ -617,6 +617,22 @@ STRATEGY_PRESETS = {
         "trailing_callback_pct": 0.6,
         "description": "3 Kademeli Akıllı Zırh: +%1.0 Breakeven sıfır risk, +%1.5 balina kâr kilidi, +%3.0 ralli takipçisi ve %25 (4 slot) kasa disiplini."
     },
+    "v22_asymmetric_wave": {
+        "name": "🌊 v2.2 Asimetrik Dalga & Pullback (1 Saatlik R:R 1:3)",
+        "volume_spike_multiplier": 1.25,
+        "min_volume_usd": 4000.0,
+        "max_recent_gain_24h": 15.0,
+        "min_ai_score": 6.0,
+        "max_budget_percent": 33.3,
+        "max_concurrent_positions": 2,
+        "max_daily_trades": 30,
+        "take_profit_pct": 3.5,
+        "stop_loss_pct": 1.2,
+        "break_even_trigger_pct": 1.2,
+        "retest_required": True,
+        "first_pump_candle_entry_blocked": True,
+        "description": "v2.2 1 Saatlik Asimetrik Dalga: 15m/1h desteğe çekilme teyidi, %3.5 hedef / %1.2 stop (R:R 1:3) ve %1.2 başa-baş kalkanı. Yapay kısıtlama yok, teknik sinyallerle çalışır."
+    },
     "v21_balanced": {
         "name": "🛡️ v2.1 Kurumsal Dengeli (Önerilen)",
         "volume_spike_multiplier": 1.2,
@@ -668,35 +684,46 @@ _cached_strategy_config = None
 _cached_strategy_config_ts = 0
 
 DEFAULT_STRATEGY_CONFIG = {
-    "active_preset": "v21_smart_armor",
-    "volume_spike_multiplier": 1.15,
-    "min_volume_usd": 2500.0,
-    "min_5m_volume_usd": 2500.0,
+    "active_preset": "v22_asymmetric_wave",
+    "volume_spike_multiplier": 1.25,
+    "min_volume_usd": 4000.0,
+    "min_5m_volume_usd": 4000.0,
     "min_24h_quote_volume_usd": 1000000.0,
-    "max_daily_trades": 100,
-    "max_recent_gain_24h": 60.0,
-    "min_ai_score": 4.5,
-    "max_budget_percent": 25.0,
-    "max_concurrent_positions": 3,
-    "take_profit_pct": 1.2,
-    "take_profit_percent": 1.2,
-    "stop_loss_pct": 0.9,
-    "stop_loss_percent": 0.9,
-    "trailing_callback_pct": 0.6,
-    "micro_trailing_activation_pct": 0.6,
-    "micro_trailing_callback_pct": 0.2,
+    "max_daily_trades": 60,
+    "max_recent_gain_24h": 20.0,
+    "min_ai_score": 6.0,
+    "max_budget_percent": 33.3,
+    "max_concurrent_positions": 2,
+    "take_profit_pct": 3.5,
+    "take_profit_percent": 3.5,
+    "stop_loss_pct": 1.2,
+    "stop_loss_percent": 1.2,
+    "break_even_trigger_pct": 1.2,
+    "trailing_callback_pct": 0.8,
+    "micro_trailing_activation_pct": 3.0,
+    "micro_trailing_callback_pct": 0.6,
     "daily_max_loss_usd": 6.0,
     "daily_loss_limit_pct": 3.0,
-    "retest_required": False,
-    "first_pump_candle_entry_blocked": False,
-    "post_stop_cooldown_minutes": 20,
-    "cooldown_minutes": 20,
-    "btc_min_rsi": 35.0,
-    "btc_trend_filter_enabled": False,
+    "retest_required": True,
+    "first_pump_candle_entry_blocked": True,
+    "post_stop_cooldown_minutes": 60,
+    "cooldown_minutes": 60,
+    "btc_min_rsi": 38.0,
+    "btc_trend_filter_enabled": True,
     "btc_ema_tolerance_pct": 10.0,
     "btc_flash_dump_5m_pct": 0.5,
     "btc_flash_dump_15m_pct": 1.0,
     "require_futures_oi": False,
+    "coin_dna_enabled": True,
+    "coin_dna_execution_authority": "BLOCK_ONLY",
+    "coin_dna_min_sample_count": 20,
+    "coin_dna_target_levels": [0.5, 1.0, 1.5, 2.0, 2.5, 4.0],
+    "coin_dna_cache_ttl_minutes": 60,
+    "coin_dna_history_days": 30,
+    "coin_dna_breakout_threshold_pct": 2.5,
+    "coin_dna_volume_surge_multiplier": 2.0,
+    "coin_dna_ambiguous_bar_threshold_pct": 0.10,
+    "coin_dna_resistance_cluster_tolerance_pct": 0.8,
     "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 }
 
@@ -760,6 +787,52 @@ def save_strategy_config(config_data: dict) -> bool:
     except Exception as e:
         print(f"⚠️ [Strateji Supabase Kaydetme]: {e}")
         return True
+
+_latest_coin_dna_snapshots: Dict[str, Any] = {}
+
+def save_coin_dna_snapshot(analysis: dict) -> bool:
+    """Coin DNA analiz sonucunu RAM önbelleğe ve Supabase'e kaydeder."""
+    global _latest_coin_dna_snapshots
+    if not analysis or not isinstance(analysis, dict):
+        return False
+    sym = analysis.get("symbol", "UNKNOWN").replace("/", "_").upper()
+    _latest_coin_dna_snapshots[sym] = analysis
+    _latest_coin_dna_snapshots["LATEST"] = analysis
+
+    client = get_supabase()
+    if client:
+        try:
+            client.table("crypto_agent_states").upsert({
+                "session_id": f"coin_dna_{sym}",
+                "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                "state_data": analysis
+            }).execute()
+        except Exception as e:
+            pass
+    return True
+
+def get_latest_coin_dna_snapshot(symbol: Optional[str] = None) -> Optional[dict]:
+    """En son hesaplanan Coin DNA analiz sonucunu RAM veya Supabase'den getirir."""
+    global _latest_coin_dna_snapshots
+    key = symbol.replace("/", "_").upper() if symbol else "LATEST"
+    if key in _latest_coin_dna_snapshots:
+        return _latest_coin_dna_snapshots[key]
+    if "LATEST" in _latest_coin_dna_snapshots and not symbol:
+        return _latest_coin_dna_snapshots["LATEST"]
+
+    client = get_supabase()
+    if client:
+        try:
+            sid = f"coin_dna_{key}" if symbol else "coin_dna_LATEST"
+            res = client.table("crypto_agent_states").select("state_data").eq("session_id", sid).execute()
+            if res.data and len(res.data) > 0:
+                snap = res.data[0].get("state_data")
+                if snap:
+                    _latest_coin_dna_snapshots[key] = snap
+                    return snap
+        except Exception:
+            pass
+    return None
 
 if __name__ == "__main__":
     print("🚀 Multi-Tenant db.py Modülü Test Ediliyor...")

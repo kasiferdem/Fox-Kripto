@@ -646,6 +646,16 @@ class StrategyConfigRequest(BaseModel):
     minimum_expected_net_rr: Optional[float] = 1.5
     post_stop_cooldown_minutes: Optional[int] = 30
     cooldown_minutes: Optional[int] = 30
+    coin_dna_enabled: Optional[bool] = True
+    coin_dna_execution_authority: Optional[str] = "BLOCK_ONLY"
+    coin_dna_min_sample_count: Optional[int] = 20
+    coin_dna_target_levels: Optional[Any] = "0.5, 1.0, 1.5, 2.0, 2.5, 4.0"
+    coin_dna_cache_ttl_minutes: Optional[int] = 60
+    coin_dna_history_days: Optional[int] = 30
+    coin_dna_breakout_threshold_pct: Optional[float] = 2.5
+    coin_dna_volume_surge_multiplier: Optional[float] = 2.0
+    coin_dna_ambiguous_bar_threshold_pct: Optional[float] = 0.10
+    coin_dna_resistance_cluster_tolerance_pct: Optional[float] = 0.8
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -658,6 +668,17 @@ def get_strategy_config_endpoint():
 @app_api.post("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def save_strategy_config_endpoint(req: StrategyConfigRequest):
     from db import save_strategy_config, set_system_setting
+    target_levels_val = req.coin_dna_target_levels
+    if isinstance(target_levels_val, str):
+        try:
+            target_levels_list = [float(x.strip()) for x in target_levels_val.split(",") if x.strip()]
+        except Exception:
+            target_levels_list = [0.5, 1.0, 1.5, 2.0, 2.5, 4.0]
+    elif isinstance(target_levels_val, list):
+        target_levels_list = [float(x) for x in target_levels_val]
+    else:
+        target_levels_list = [0.5, 1.0, 1.5, 2.0, 2.5, 4.0]
+
     payload = {
         "active_preset": req.active_preset,
         "volume_spike_multiplier": req.volume_spike_multiplier,
@@ -693,7 +714,17 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "r_final_target_r": float(req.r_final_target_r) if req.r_final_target_r is not None else 2.0,
         "use_atr_dynamic_r": bool(req.use_atr_dynamic_r) if req.use_atr_dynamic_r is not None else False,
         "net_advantage_gate_enabled": bool(req.net_advantage_gate_enabled) if req.net_advantage_gate_enabled is not None else False,
-        "minimum_expected_net_rr": float(req.minimum_expected_net_rr) if req.minimum_expected_net_rr is not None else 1.5
+        "minimum_expected_net_rr": float(req.minimum_expected_net_rr) if req.minimum_expected_net_rr is not None else 1.5,
+        "coin_dna_enabled": bool(req.coin_dna_enabled) if req.coin_dna_enabled is not None else True,
+        "coin_dna_execution_authority": str(req.coin_dna_execution_authority or "BLOCK_ONLY"),
+        "coin_dna_min_sample_count": int(req.coin_dna_min_sample_count or 20),
+        "coin_dna_target_levels": target_levels_list,
+        "coin_dna_cache_ttl_minutes": int(req.coin_dna_cache_ttl_minutes or 60),
+        "coin_dna_history_days": int(req.coin_dna_history_days or 30),
+        "coin_dna_breakout_threshold_pct": float(req.coin_dna_breakout_threshold_pct or 2.5),
+        "coin_dna_volume_surge_multiplier": float(req.coin_dna_volume_surge_multiplier or 2.0),
+        "coin_dna_ambiguous_bar_threshold_pct": float(req.coin_dna_ambiguous_bar_threshold_pct or 0.10),
+        "coin_dna_resistance_cluster_tolerance_pct": float(req.coin_dna_resistance_cluster_tolerance_pct or 0.8)
     }
     ok = save_strategy_config(payload)
     if req.execution_mode:
@@ -704,6 +735,37 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         elif m in ["SIGNAL_ONLY", "PAPER_TRADING", "SHADOW_TRADING"]:
             set_system_setting("new_buy_orders_enabled", False)
     return {"status": "success" if ok else "error", "config": payload}
+
+class CoinDnaEvalRequest(BaseModel):
+    symbol: str
+
+@app_api.get("/api/coin_dna_latest", dependencies=[Depends(authenticate_admin)])
+def get_coin_dna_latest_endpoint():
+    from db import get_latest_coin_dna_snapshot
+    snap = get_latest_coin_dna_snapshot()
+    return {"status": "success", "analysis": snap}
+
+@app_api.get("/api/coin_dna/{symbol:path}", dependencies=[Depends(authenticate_admin)])
+def get_coin_dna_endpoint(symbol: str):
+    from db import get_strategy_config, save_coin_dna_snapshot
+    from coin_behavioral_probability_engine import CoinBehavioralProbabilityEngine
+    cfg = get_strategy_config(use_cache=True) or {}
+    engine = CoinBehavioralProbabilityEngine(custom_config=cfg)
+    clean_sym = symbol.replace("-", "/").upper()
+    analysis = engine.evaluate_coin_dna(clean_sym)
+    save_coin_dna_snapshot(analysis)
+    return {"status": "success", "analysis": analysis}
+
+@app_api.post("/api/coin_dna/evaluate", dependencies=[Depends(authenticate_admin)])
+def post_coin_dna_evaluate_endpoint(req: CoinDnaEvalRequest):
+    from db import get_strategy_config, save_coin_dna_snapshot
+    from coin_behavioral_probability_engine import CoinBehavioralProbabilityEngine
+    cfg = get_strategy_config(use_cache=True) or {}
+    engine = CoinBehavioralProbabilityEngine(custom_config=cfg)
+    clean_sym = req.symbol.replace("-", "/").upper()
+    analysis = engine.evaluate_coin_dna(clean_sym)
+    save_coin_dna_snapshot(analysis)
+    return {"status": "success", "analysis": analysis}
 
 @app_api.post("/api/settings", dependencies=[Depends(authenticate_admin)])
 def update_settings_endpoint(req: SystemSettingsRequest):
@@ -1020,6 +1082,9 @@ def update_system_settings_endpoint(req: SystemSettingsRequest):
 
 # -----------------------------------------
 # WEB DASHBOARD (V1 & V2 HTML / JAVASCRIPT ARAYÜZÜ)
+@app_api.get("/", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
+@app_api.get("/admin", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/v2/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/V2/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/v2", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
@@ -1317,9 +1382,6 @@ def close_stock_position_endpoint(symbol: str):
 @app_api.get("/V1/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/v1", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 @app_api.get("/V1", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
-@app_api.get("/", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
-@app_api.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
-@app_api.get("/admin", response_class=HTMLResponse, dependencies=[Depends(authenticate_admin)])
 def get_dashboard_html():
     from db import get_supabase
     import json
@@ -1542,6 +1604,13 @@ def get_dashboard_html():
         </style>
     </head>
     <body>
+        <div style="background: linear-gradient(90deg, rgba(16, 185, 129, 0.25), rgba(59, 130, 246, 0.25)); border: 1px solid #10b981; border-radius: 12px; padding: 14px 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <strong style="color: #34d399; font-size: 16px;">🧬 Yeni V2.3 Kurumsal Panel ve Coin DNA Devrede!</strong>
+                <p style="color: #cbd5e1; font-size: 13px; margin-top: 3px;">Şu an eski V1 Klasik arayüzündesiniz. Coin DNA Olasılık Haritası, BLOCK_ONLY Kapı Muhafızı ve yeni V2.3 parametreleri için yeni panele geçin.</p>
+            </div>
+            <a href="/v2/dashboard" style="background: #10b981; color: white; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px; box-shadow: 0 4px 12px rgba(16,185,129,0.4);">⚡ V2 Kripto & Coin DNA Terminaline Git ➔</a>
+        </div>
         <div class="header">
             <div class="header-left">
                 <h1 id="i18n-title">🦊 Fox-Kripto Multi-Tenant Yönetim Paneli</h1>

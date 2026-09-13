@@ -17,3 +17,5 @@ class CryptoAgentState(TypedDict):
     policy_check_passed: bool                     # Deterministik RiskPolicyEngine kontrol sonucu
     human_approval: str                           # "Pending", "Approved", "Rejected"
     execution_result: Optional[Dict[str, Any]]   # İnfaz sonucu ve Supabase log özeti
+    coin_dna_analysis: Optional[Dict[str, Any]]  # Çok Zaman Dilimli Coin DNA ve Olasılık Haritası (ADVISORY_ONLY)
+
