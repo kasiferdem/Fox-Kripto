@@ -19,11 +19,52 @@ import os
 import sys
 import time
 import math
-import json
 import requests
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    np = None
 from typing import Dict, Any, List, Optional, Tuple
 from enum import Enum
+
+BINANCE_ENDPOINTS = [
+    "https://api.binance.com",
+    "https://data-api.binance.vision",
+    "https://api1.binance.com",
+    "https://api2.binance.com",
+    "https://api3.binance.com"
+]
+
+def _safe_mean(vals: List[float]) -> float:
+    if not vals:
+        return 0.0
+    return float(sum(vals) / len(vals))
+
+def _safe_median(vals: List[float]) -> float:
+    if not vals:
+        return 0.0
+    s = sorted(vals)
+    n = len(s)
+    mid = n // 2
+    if n % 2 != 0:
+        return float(s[mid])
+    return float((s[mid - 1] + s[mid]) / 2.0)
+
+def _safe_percentile(vals: List[float], q: float) -> float:
+    if not vals:
+        return 0.0
+    s = sorted(vals)
+    k = (len(s) - 1) * (q / 100.0)
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        return float(s[int(k)])
+    return float(s[int(f)] * (c - k) + s[int(c)] * (k - f))
+
+def _safe_argmax(vals: List[float]) -> int:
+    if not vals:
+        return 0
+    return int(max(range(len(vals)), key=lambda i: vals[i]))
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
@@ -104,16 +145,17 @@ class CoinBehavioralProbabilityEngine:
             if now - ts < ttl_sec:
                 return cached_data
 
-        url = f"https://api.binance.com/api/v3/klines?symbol={clean_s}&interval={interval}&limit={limit}"
-        try:
-            r = requests.get(url, timeout=4)
-            if r.status_code == 200:
-                data = r.json()
-                if isinstance(data, list) and len(data) > 0:
-                    _KLINE_CACHE[cache_key] = (now, data)
-                    return data
-        except Exception as e:
-            print(f"⚠️ [CoinDNA Kline Hatası - {clean_s} {interval}]: {e}")
+        for base_url in BINANCE_ENDPOINTS:
+            url = f"{base_url}/api/v3/klines?symbol={clean_s}&interval={interval}&limit={limit}"
+            try:
+                r = requests.get(url, timeout=3)
+                if r.status_code == 200:
+                    data = r.json()
+                    if isinstance(data, list) and len(data) > 0:
+                        _KLINE_CACHE[cache_key] = (now, data)
+                        return data
+            except Exception:
+                continue
         return []
 
     # -----------------------------------------------------------------
@@ -150,7 +192,8 @@ class CoinBehavioralProbabilityEngine:
             if i - last_event_idx < 6: # 30 dk olay kümelenmesi filtresi
                 continue
 
-            baseline_vol = np.mean(volumes[i-20:i]) if np.mean(volumes[i-20:i]) > 0 else 1.0
+            slice_vol = volumes[i-20:i]
+            baseline_vol = _safe_mean(slice_vol) if _safe_mean(slice_vol) > 0 else 1.0
             cur_vol = volumes[i]
             cur_open = opens[i]
             cur_close = closes[i]
@@ -246,7 +289,7 @@ class CoinBehavioralProbabilityEngine:
         # Son 36 bar (3 saat) içindeki en yüksek hacimli mumu anchor kabul et
         sub = klines_5m[-anchor_lookback:] if len(klines_5m) >= anchor_lookback else klines_5m
         vols = [float(k[5]) for k in sub]
-        anchor_rel_idx = int(np.argmax(vols))
+        anchor_rel_idx = _safe_argmax(vols)
 
         cum_vol = 0.0
         cum_tp_vol = 0.0
@@ -355,13 +398,20 @@ class CoinBehavioralProbabilityEngine:
         min_p = min(all_prices)
         max_p = max(all_prices)
         if min_p >= max_p:
-            return current_price, 0.0
+            return float(current_price), 0.0
 
-        hist, bin_edges = np.histogram(all_prices, bins=bins, weights=all_volumes)
-        max_bin_idx = int(np.argmax(hist))
-        poc_price = (bin_edges[max_bin_idx] + bin_edges[max_bin_idx+1]) / 2.0
-        dist_poc_pct = round(((current_price - poc_price) / poc_price * 100), 2)
-        return round(poc_price, 6), dist_poc_pct
+        step = (max_p - min_p) / bins
+        bin_weights = [0.0] * bins
+        for p, v in zip(all_prices, all_volumes):
+            idx = int((p - min_p) / step)
+            if idx >= bins:
+                idx = bins - 1
+            bin_weights[idx] += v
+
+        best_bin = _safe_argmax(bin_weights)
+        poc_price = float(min_p + (best_bin + 0.5) * step)
+        dist_poc_pct = float(round(((current_price - poc_price) / poc_price * 100), 2))
+        return float(round(poc_price, 6)), dist_poc_pct
 
     # -----------------------------------------------------------------
     # G. LİKİDİTE VE CANLI EMİR DEFTERİ (ORDER BOOK DUVALARI) (Şartname Madde 8 & 11)
@@ -374,54 +424,57 @@ class CoinBehavioralProbabilityEngine:
         - %1.5 - %7.0 aralığındaki devasa Satış Duvarı (Ask Wall) tespiti
         """
         clean_s = symbol.replace("/", "").replace("_", "").upper()
-        url = f"https://api.binance.com/api/v3/depth?symbol={clean_s}&limit=100"
-        try:
-            r = requests.get(url, timeout=3)
-            if r.status_code == 200:
-                data = r.json()
-                bids = data.get("bids", [])
-                asks = data.get("asks", [])
-
-                if not bids or not asks:
-                    return {"bid_ask_imbalance": 1.0, "has_wall": False, "wall_distance_pct": 99.0}
-
-                # %2 içi derinlik toplamı
-                p_lower = current_price * 0.98
-                p_upper = current_price * 1.02
-
-                bid_vol_2pct = sum(float(b[1]) * float(b[0]) for b in bids if float(b[0]) >= p_lower)
-                ask_vol_2pct = sum(float(a[1]) * float(a[0]) for a in asks if float(a[0]) <= p_upper)
-
-                imbalance = round(bid_vol_2pct / ask_vol_2pct, 2) if ask_vol_2pct > 0 else 1.0
-
-                # Satış Duvarı: Medyan kademenin 3 katı büyüklüğünde ve fiyatın %1.5 - %7 üstündeki blok
-                ask_sizes = [float(a[1]) * float(a[0]) for a in asks]
-                median_ask = float(np.median(ask_sizes)) if ask_sizes else 1000.0
-
-                has_wall = False
-                wall_dist_pct = 99.0
-                wall_size_usd = 0.0
-
-                for a in asks:
-                    a_price = float(a[0])
-                    a_val = float(a[1]) * a_price
-                    dist = ((a_price - current_price) / current_price * 100)
-                    if 1.0 <= dist <= 7.0 and a_val >= max(20000.0, median_ask * 3.5):
-                        has_wall = True
-                        wall_dist_pct = round(dist, 2)
-                        wall_size_usd = round(a_val, 2)
+        bids = []
+        asks = []
+        for base_url in BINANCE_ENDPOINTS:
+            url = f"{base_url}/api/v3/depth?symbol={clean_s}&limit=100"
+            try:
+                r = requests.get(url, timeout=3)
+                if r.status_code == 200:
+                    data = r.json()
+                    bids = data.get("bids", [])
+                    asks = data.get("asks", [])
+                    if bids and asks:
                         break
+            except Exception:
+                continue
 
-                return {
-                    "bid_ask_imbalance": imbalance,
-                    "has_wall": has_wall,
-                    "wall_distance_pct": wall_dist_pct,
-                    "wall_size_usd": wall_size_usd
-                }
-        except Exception:
-            pass
+        if not bids or not asks:
+            return {"bid_ask_imbalance": 1.0, "has_wall": False, "wall_distance_pct": 99.0, "wall_size_usd": 0.0}
 
-        return {"bid_ask_imbalance": 1.0, "has_wall": False, "wall_distance_pct": 99.0, "wall_size_usd": 0.0}
+        # %2 içi derinlik toplamı
+        p_lower = current_price * 0.98
+        p_upper = current_price * 1.02
+
+        bid_vol_2pct = sum(float(b[1]) * float(b[0]) for b in bids if float(b[0]) >= p_lower)
+        ask_vol_2pct = sum(float(a[1]) * float(a[0]) for a in asks if float(a[0]) <= p_upper)
+
+        imbalance = round(bid_vol_2pct / ask_vol_2pct, 2) if ask_vol_2pct > 0 else 1.0
+
+        # Satış Duvarı: Medyan kademenin 3 katı büyüklüğünde ve fiyatın %1.5 - %7 üstündeki blok
+        ask_sizes = [float(a[1]) * float(a[0]) for a in asks]
+        median_ask = _safe_median(ask_sizes) if ask_sizes else 1000.0
+
+        has_wall = False
+        wall_dist_pct = 99.0
+        wall_size_usd = 0.0
+
+        for a in asks:
+            a_price = float(a[0])
+            a_val = float(a[1]) * a_price
+            dist = ((a_price - current_price) / current_price * 100)
+            if 1.0 <= dist <= 7.0 and a_val >= max(20000.0, median_ask * 3.5):
+                has_wall = True
+                wall_dist_pct = round(dist, 2)
+                wall_size_usd = round(a_val, 2)
+                break
+
+        return {
+            "bid_ask_imbalance": imbalance,
+            "has_wall": has_wall,
+            "wall_distance_pct": wall_dist_pct,
+            "wall_size_usd": wall_size_usd
+        }
 
     # -----------------------------------------------------------------
     # H. HEDEFE STOP ÖNCESİ ULAŞMA OLASILIĞI (Şartname Madde 10)
@@ -471,7 +524,7 @@ class CoinBehavioralProbabilityEngine:
                 p_target = 0.0
                 p_stop = 100.0
 
-            med_mae = float(np.median(adverse_excursions)) if adverse_excursions else round(sl_pct * 0.5, 2)
+            med_mae = _safe_median(adverse_excursions) if adverse_excursions else round(sl_pct * 0.5, 2)
             net_reward = round(target - self.round_trip_fee_pct, 2)
             net_loss = round(sl_pct + self.round_trip_fee_pct, 2)
 
@@ -514,8 +567,16 @@ class CoinBehavioralProbabilityEngine:
             if live_ticker and live_ticker.get("lastPrice"):
                 current_price = float(live_ticker["lastPrice"])
             else:
-                r_p = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={clean_s}", timeout=2)
-                current_price = float(r_p.json().get("price", 1.0)) if r_p.status_code == 200 else 1.0
+                for base_url in BINANCE_ENDPOINTS:
+                    try:
+                        r_p = requests.get(f"{base_url}/api/v3/ticker/price?symbol={clean_s}", timeout=2)
+                        if r_p.status_code == 200:
+                            current_price = float(r_p.json().get("price", 1.0))
+                            break
+                    except Exception:
+                        continue
+                if not current_price or current_price <= 0:
+                    current_price = 1.0
 
         # KADEME 1: Profil Önbellek Kontrolü (RAM TTL)
         cached_profile = None
@@ -605,13 +666,13 @@ class CoinBehavioralProbabilityEngine:
         mfes = [e.get("mfe_pct", 0.0) for e in events] if events else [0.0]
         maes = [e.get("mae_pct", 0.0) for e in events] if events else [0.0]
 
-        p25_mfe = float(np.percentile(mfes, 25)) if len(mfes) >= 4 else 0.5
-        p50_mfe = float(np.percentile(mfes, 50)) if len(mfes) >= 4 else 1.5
-        p75_mfe = float(np.percentile(mfes, 75)) if len(mfes) >= 4 else 3.5
+        p25_mfe = _safe_percentile(mfes, 25) if len(mfes) >= 4 else 0.5
+        p50_mfe = _safe_percentile(mfes, 50) if len(mfes) >= 4 else 1.5
+        p75_mfe = _safe_percentile(mfes, 75) if len(mfes) >= 4 else 3.5
 
-        p25_mae = float(np.percentile(maes, 25)) if len(maes) >= 4 else 0.3
-        p50_mae = float(np.percentile(maes, 50)) if len(maes) >= 4 else 0.7
-        p75_mae = float(np.percentile(maes, 75)) if len(maes) >= 4 else 1.2
+        p25_mae = _safe_percentile(maes, 25) if len(maes) >= 4 else 0.3
+        p50_mae = _safe_percentile(maes, 50) if len(maes) >= 4 else 0.7
+        p75_mae = _safe_percentile(maes, 75) if len(maes) >= 4 else 1.2
 
         # Rapor Metni (Bilimsel, Şartname Madde 3 Uyumlu)
         prob_1pct = next((p["probability_target_before_stop"] for p in prob_matrix if p["target_pct"] == 1.0), 50.0)

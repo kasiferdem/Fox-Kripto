@@ -747,25 +747,53 @@ def get_coin_dna_latest_endpoint():
 
 @app_api.get("/api/coin_dna/{symbol:path}", dependencies=[Depends(authenticate_admin)])
 def get_coin_dna_endpoint(symbol: str):
-    from db import get_strategy_config, save_coin_dna_snapshot
-    from coin_behavioral_probability_engine import CoinBehavioralProbabilityEngine
-    cfg = get_strategy_config(use_cache=True) or {}
-    engine = CoinBehavioralProbabilityEngine(custom_config=cfg)
-    clean_sym = symbol.replace("-", "/").upper()
-    analysis = engine.evaluate_coin_dna(clean_sym)
-    save_coin_dna_snapshot(analysis)
-    return {"status": "success", "analysis": analysis}
+    try:
+        from db import get_strategy_config, save_coin_dna_snapshot
+        from coin_behavioral_probability_engine import CoinBehavioralProbabilityEngine
+        cfg = get_strategy_config(use_cache=True) or {}
+        engine = CoinBehavioralProbabilityEngine(custom_config=cfg)
+        clean_sym = symbol.replace("-", "/").upper()
+        analysis = engine.evaluate_coin_dna(clean_sym)
+        try:
+            save_coin_dna_snapshot(analysis)
+        except Exception as se:
+            logger.warning(f"⚠️ [CoinDNA Snapshot Kayıt Hatası]: {se}")
+        return {"status": "success", "analysis": analysis}
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        logger.error(f"❌ [CoinDNA Endpoint Hatası]: {e}\n{trace}")
+        return JSONResponse(status_code=500, content={"status": "error", "error": str(e), "analysis": {
+            "symbol": symbol,
+            "decision_class": "ERROR",
+            "report_summary": f"Analiz hatası: {e}",
+            "probability_matrix": []
+        }})
 
 @app_api.post("/api/coin_dna/evaluate", dependencies=[Depends(authenticate_admin)])
 def post_coin_dna_evaluate_endpoint(req: CoinDnaEvalRequest):
-    from db import get_strategy_config, save_coin_dna_snapshot
-    from coin_behavioral_probability_engine import CoinBehavioralProbabilityEngine
-    cfg = get_strategy_config(use_cache=True) or {}
-    engine = CoinBehavioralProbabilityEngine(custom_config=cfg)
-    clean_sym = req.symbol.replace("-", "/").upper()
-    analysis = engine.evaluate_coin_dna(clean_sym)
-    save_coin_dna_snapshot(analysis)
-    return {"status": "success", "analysis": analysis}
+    try:
+        from db import get_strategy_config, save_coin_dna_snapshot
+        from coin_behavioral_probability_engine import CoinBehavioralProbabilityEngine
+        cfg = get_strategy_config(use_cache=True) or {}
+        engine = CoinBehavioralProbabilityEngine(custom_config=cfg)
+        clean_sym = req.symbol.replace("-", "/").upper()
+        analysis = engine.evaluate_coin_dna(clean_sym)
+        try:
+            save_coin_dna_snapshot(analysis)
+        except Exception as se:
+            logger.warning(f"⚠️ [CoinDNA Snapshot Kayıt Hatası]: {se}")
+        return {"status": "success", "analysis": analysis}
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        logger.error(f"❌ [CoinDNA Endpoint Hatası]: {e}\n{trace}")
+        return JSONResponse(status_code=500, content={"status": "error", "error": str(e), "analysis": {
+            "symbol": req.symbol,
+            "decision_class": "ERROR",
+            "report_summary": f"Analiz hatası: {e}",
+            "probability_matrix": []
+        }})
 
 @app_api.post("/api/settings", dependencies=[Depends(authenticate_admin)])
 def update_settings_endpoint(req: SystemSettingsRequest):

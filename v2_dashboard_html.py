@@ -697,6 +697,20 @@ def generate_v2_dashboard_html(
         <button id="pill-cus" class="{pill_cus_cls}" onclick="switchRisk('CUSTOM')" data-i18n="prof_cus">Özel Ayarlar</button>
       </div>
 
+      <!-- 🧬 Hızlı Gezinme Çubuğu & Coin DNA Zırhı Göstergesi -->
+      <div style="display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 14px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">🧬</span>
+          <span style="font-size: 13px; font-weight: 700; color: #10b981;">Coin DNA Kapı Muhafızı (Risk Kalkanı):</span>
+          <span class="badge" style="background: rgba(16, 185, 129, 0.25); color: #34d399; font-weight: 800; padding: 3px 8px; border: 1px solid #10b981;">{coin_dna_authority}</span>
+          <span style="font-size: 12px; color: var(--ink-3);">(Sığ coinler & tepe tuzakları engellenir)</span>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <a href="#coindna-params" class="btn btn-sm btn-ghost" style="color: #34d399; font-size: 11.5px; padding: 4px 10px; border: 1px solid rgba(16,185,129,0.35); text-decoration: none;">⚙️ 6. Grup Parametreleri ➔</a>
+          <a href="#coindna-section" class="btn btn-sm btn-primary" style="background: #10b981; border-color: #059669; font-size: 11.5px; padding: 4px 12px; font-weight: 700; text-decoration: none;">🧬 Canlı Olasılık Haritası ➔</a>
+        </div>
+      </div>
+
       <!-- İnce Ayar Parametre Alanı (3 Düzenli & Hizalı Kategori) -->
       <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px;">
         
@@ -892,7 +906,7 @@ def generate_v2_dashboard_html(
         </div>
 
         <!-- 6. Grup: 🧬 Coin DNA & Olasılık Haritası Parametreleri -->
-        <div style="background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px;">
+        <div id="coindna-params" style="background: var(--bg-2); border: 1px solid rgba(16, 185, 129, 0.45); border-radius: 10px; padding: 12px 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <div style="font-size: 11.5px; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.03em;">🧬 6. Coin DNA — Çok Zaman Dilimli Olasılık ve Hedef Haritası Parametreleri</div>
             <span class="badge" style="font-size: 10px; padding: 2px 6px; background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3);">Quant Consensus ({coin_dna_authority})</span>
@@ -1882,7 +1896,11 @@ def generate_v2_dashboard_html(
       try {{
         const url = '/api/coin_dna/' + encodeURIComponent(sym.replace('/', '-'));
         const res = await fetch(url, {{ headers: getAuthHeaders() }});
-        if (!res.ok) throw new Error('API Hatası: ' + res.status);
+        if (!res.ok) {{
+          const errJson = await res.json().catch(() => null);
+          const errDetail = (errJson && errJson.error) ? errJson.error : ('API Hatası: ' + res.status);
+          throw new Error(errDetail);
+        }}
         const data = await res.json();
         const a = data.analysis || {{}};
 
@@ -1946,7 +1964,13 @@ def generate_v2_dashboard_html(
         }}
       }} catch(e) {{
         if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--stop-fg); padding: 18px;">❌ Sorgu Hatası: ' + e.message + '</td></tr>';
-        if (decBadge) decBadge.innerText = 'HATA';
+        if (decBadge) {{
+          decBadge.innerText = 'HATA';
+          decBadge.style.color = '#ef4444';
+        }}
+        if (sumBox) {{
+          sumBox.innerText = 'Analiz tamamlanamadı: ' + e.message;
+        }}
       }}
     }}
 
