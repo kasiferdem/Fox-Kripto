@@ -243,6 +243,15 @@ python app.py
     - LangGraph'ta seçilen adaylar infaz öncesi otomatik analiz edilip `coin_dna_analysis` olarak kaydedilir.
     - `test_coin_behavioral_probability_engine.py` paketi (7/7) %100 başarıyla geçti; `python -u app.py` daemon süreci güncellendi.
 
+- [x] **Coin DNA 500 API Hatası ve DigitalOcean Bağımlılık İyileştirmesi (13 Eylül 23:35 TSİ):**
+  - **Kök Neden Tespiti:** Panelde `Analiz Et` butonuna tıklandığında dönen `API Hatası: 500` hatasının kök nedeni saptandı: `requirements.txt` dosyasında `numpy` bulunmadığı için DigitalOcean Linux container ortamında `ModuleNotFoundError: numpy` fırlatılıyordu. Ayrıca `compute_volume_profile_poc` çıktısındaki `np.float64` türü FastAPI JSON serileştirmede istisna oluşturabiliyordu.
+  - **Çözüm & Güçlendirme:**
+    1. `requirements.txt` içerisine `numpy>=1.24.0` eklendi.
+    2. `coin_behavioral_probability_engine.py` sıfır dış bağımlılıkla çalışacak şekilde saf Python (`_safe_mean`, `_safe_median`, `_safe_percentile`, `_safe_argmax`, saf Python POC ağırlıklandırması) matematik yardımcılarıyla donatıldı; `numpy` kurulu olmasa dahi motor sıfır hatayla çalışır.
+    3. Binance Cloud IP sınırlamalarına karşı `BINANCE_ENDPOINTS` çoklu yedekli uç nokta failover sistemi (`api.binance.com`, `data-api.binance.vision`, `api1/2/3`) entegre edildi.
+    4. `app.py` içerisinde `/api/coin_dna/{symbol}` uç noktası ve Supabase kayıt çağrısı bağımsız `try...except` bloklarıyla zırhlandı.
+    5. `v2_dashboard_html.py` arayüzünde hata yakalama mesajları ayrıntılandırıldı; tüm testler (10/10) %100 başarıyla geçti ve git commit (`da6b8c5`) ile DigitalOcean dağıtımı tetiklendi.
+
 - [x] **Öneri 1 Uygulandı: Coin DNA Kapı Muhafızı (BLOCK_ONLY) Devreye Alındı (13 Eylül 23:10 TSİ):**
   - **Kök Neden & Amaç:** Momentum kuralları gevşetildiğinde sığ hacim sıçramalarıyla tepeden alınan coinlerin (ZIL, POWR) 1-2 dakikada stop olmasını önlemek amacıyla, Coin DNA motoru `ADVISORY_ONLY` (Tavsiye) statüsünden katı bir kapı muhafızına (`BLOCK_ONLY`) yükseltildi.
   - **Katı Blokaj Kriterleri (`is_coin_dna_blocked`):**
