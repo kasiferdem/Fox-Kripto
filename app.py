@@ -1,5 +1,5 @@
 import os, sys, time, json, asyncio, threading
-if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 from dotenv import load_dotenv
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
@@ -184,11 +184,14 @@ def run_autonomous_trading_loop():
                             chat_id=chat_id
                         )
                     
+                    from news_service import get_cached_live_crypto_news
+                    live_news_text = get_cached_live_crypto_news()
+
                     graph = create_crypto_graph()
                     initial_state = {
                         "tenant_id": tenant.get("id"),
                         "tenant_config": tenant,
-                        "news_data": "Crypto market showing volume breakout and bullish momentum.",
+                        "news_data": live_news_text,
                         "portfolio_state": live_bal,
                         "sentiment_score": 0.8,
                         "trade_proposal": None,

@@ -84,21 +84,21 @@ ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
         "description": "Telegram rutin raporları, durum özetleri, işlem bildirimleri"
     },
     "CRITICAL_NEWS_ANALYSIS": {
-        "primary_model": "openai/gpt-4o-mini",
-        "fallback_models": ["openai/gpt-4o", "anthropic/claude-sonnet-5"],
+        "primary_model": "nvidia/nemotron-3.5-lightning:free",
+        "fallback_models": ["openai/gpt-4o-mini", "google/gemini-2.0-flash-001"],
         "execution_authority": "BLOCK_ONLY",
         "timeout_seconds": 12,
-        "max_output_tokens": 500,
+        "max_output_tokens": 150,
         "temperature": 0.1,
-        "description": "2 Numara: Makro & Haber Duyarlılık Ajanı (GPT-4o-Mini)"
+        "description": "2 Numara: Makro & Haber Duyarlılık Ajanı (Nemotron 3.5 / Gemini)"
     },
     "TECHNICAL_SECOND_OPINION": {
         "primary_model": "z-ai/glm-5.3",
-        "fallback_models": ["google/gemini-3.7-flash", "meta-llama/llama-3.3-70b-instruct"],
+        "fallback_models": ["nvidia/nemotron-3.5-lightning:free", "openai/gpt-4o-mini"],
         "execution_authority": "NONE",
         "mode": "SHADOW_BY_DEFAULT",
         "timeout_seconds": 15,
-        "max_output_tokens": 600,
+        "max_output_tokens": 200,
         "temperature": 0.2,
         "description": "Python tarafından hesaplanmış teknik metriklerin gölge ikinci yorumu"
     },
@@ -356,6 +356,8 @@ class OpenRouterGateway:
                                 clean_json_text = clean_json_text.split("```json")[1].split("```")[0].strip()
                             elif "```" in clean_json_text:
                                 clean_json_text = clean_json_text.split("```")[1].split("```")[0].strip()
+                            if "{" in clean_json_text and "}" in clean_json_text:
+                                clean_json_text = clean_json_text[clean_json_text.find("{"):clean_json_text.rfind("}")+1]
                             
                             try:
                                 parsed_dict = json.loads(clean_json_text)

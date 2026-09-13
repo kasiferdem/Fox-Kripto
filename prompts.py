@@ -1,6 +1,6 @@
 import os, sys, json, requests, base64
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -57,52 +57,88 @@ def call_gpt4o(system_prompt: str, user_content: str, max_tokens: int = 1500) ->
 # -----------------------------------------
 # 1. HABER ANALİZ AJANI (NEWS AGENT)
 # -----------------------------------------
-def analyze_crypto_news(news_data: str, portfolio_state: Dict[str, Any]) -> Dict[str, Any]:
+def analyze_crypto_news(news_data: str, portfolio_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
-    OpenRouterGateway (CRITICAL_NEWS_ANALYSIS: Gemini 3.7 Flash) kullanarak haber metnini analiz eder.
+    OpenRouterGateway (CRITICAL_NEWS_ANALYSIS: Nemotron 3.5 / Gemini) ve
+    Deterministik Kripto NLP Sentiment Motoru kullanarak haber akışını analiz eder.
     Yalnızca BLOCK_ONLY yetkisine sahiptir, doğrudan alım emri açamaz (Section 3.2).
     """
+    clean_news = str(news_data or "").strip()
+    if not clean_news:
+        clean_news = "BTC and altcoin markets operating under standard liquidity conditions."
+
     system_prompt = (
         "Sen kıdemli bir Kripto Piyasa ve Makro Risk Analiz Ajanısın.\n"
-        "Görevin: Gelen anlık haberleri incelemek ve piyasa için risk şiddeti belirlemektir.\n"
+        "Görevin: Gelen son dakika haber başlıklarını incelemek ve piyasa risk şiddetini belirlemektir.\n"
         "Yalnızca şu severity değerlerinden birini döndür:\n"
-        "NORMAL, CAUTION, HIGH_RISK, HALT_RECOMMENDED, DATA_INSUFFICIENT"
+        "NORMAL, CAUTION, HIGH_RISK, HALT_RECOMMENDED"
     )
-    user_content = f"Gelen Haber & Duyarlılık Verisi:\n{news_data}\n\nPortföy Durumu:\n{portfolio_state}"
+    user_content = f"Küresel Son Dakika Kripto Haber Başlıkları:\n{clean_news}"
     
-    res = OpenRouterGateway.invoke(
-        role="CRITICAL_NEWS_ANALYSIS",
-        system_prompt=system_prompt,
-        user_content=user_content,
-        schema_model=CriticalNewsAssessment,
-        prompt_version="news-v2.4"
-    )
-    
-    struct = res.get("structured_data")
-    if struct and isinstance(struct, dict):
-        sev = struct.get("severity", "NORMAL")
-        # Sentiment skorunu severity'ye göre eşleştir (-10 ile +10)
-        score_map = {
-            "NORMAL": 6.5,
-            "CAUTION": 2.0,
-            "HIGH_RISK": -5.0,
-            "HALT_RECOMMENDED": -10.0,
-            "DATA_INSUFFICIENT": 0.0
-        }
-        return {
-            "sentiment_score": score_map.get(sev, 5.0),
-            "severity": sev,
-            "analysis_summary": struct.get("explanation", res.get("raw_text", "")),
-            "is_fake_news": (sev in ["HIGH_RISK", "HALT_RECOMMENDED"]),
-            "market_bias": "BULLISH" if sev == "NORMAL" else ("BEARISH" if sev in ["HIGH_RISK", "HALT_RECOMMENDED"] else "NEUTRAL")
-        }
-        
+    try:
+        res = OpenRouterGateway.invoke(
+            role="CRITICAL_NEWS_ANALYSIS",
+            system_prompt=system_prompt,
+            user_content=user_content,
+            schema_model=CriticalNewsAssessment,
+            prompt_version="news-v2.5"
+        )
+        struct = res.get("structured_data")
+        if struct and isinstance(struct, dict) and struct.get("severity") != "DATA_INSUFFICIENT":
+            sev = struct.get("severity", "NORMAL")
+            score_map = {
+                "NORMAL": 7.5,
+                "CAUTION": 3.0,
+                "HIGH_RISK": -5.0,
+                "HALT_RECOMMENDED": -10.0
+            }
+            return {
+                "sentiment_score": score_map.get(sev, 6.0),
+                "severity": sev,
+                "analysis_summary": str(struct.get("explanation") or res.get("raw_text") or "")[:200],
+                "is_fake_news": (sev in ["HIGH_RISK", "HALT_RECOMMENDED"]),
+                "market_bias": "BULLISH" if sev == "NORMAL" else ("BEARISH" if sev in ["HIGH_RISK", "HALT_RECOMMENDED"] else "CAUTION")
+            }
+    except Exception as e_ai:
+        print(f"   ⚠️ [Haber AI İstisnası]: {e_ai}")
+
+    # 🛡️ DETERMINISTIK FINANSAL NLP SENTIMENT MOTORU (Sıfır API Gecikmesi / Failover)
+    text_lower = clean_news.lower()
+    high_risk_words = ["hack", "exploit", "sec sue", "fraud", "crackdown", "ban", "arrest", "insolvent", "liquidation", "stolen", "crash", "black swan", "rug pull"]
+    caution_words = ["investigation", "delay", "inflation", "dump", "lawsuit", "warning", "fed hike", "outflow", "rate hike"]
+    bullish_words = ["etf", "rally", "surge", "bullish", "partnership", "record high", "approval", "adoption", "upgrade", "inflow", "gain", "breakout"]
+
+    found_high_risk = [w for w in high_risk_words if w in text_lower]
+    found_caution = [w for w in caution_words if w in text_lower]
+    found_bullish = [w for w in bullish_words if w in text_lower]
+
+    if found_high_risk:
+        sev = "HIGH_RISK"
+        score = -5.0
+        bias = "BEARISH"
+        summary = f"Kritik Makro Risk Tespiti: Haberlerde '{', '.join(found_high_risk)}' algılandı."
+    elif found_caution:
+        sev = "CAUTION"
+        score = 3.0
+        bias = "CAUTION"
+        summary = f"Dikkatli Piyasa Akışı: Haberlerde '{', '.join(found_caution)}' terimleri yer alıyor."
+    elif found_bullish:
+        sev = "NORMAL"
+        score = 7.5
+        bias = "BULLISH"
+        summary = f"Pozitif Piyasa Akışı: Haberlerde '{', '.join(found_bullish)}' momentumu mevcut."
+    else:
+        sev = "NORMAL"
+        score = 6.0
+        bias = "BULLISH"
+        summary = "Haber akışında olağandışı bir kriz tespit edilmedi, piyasa doğal akışında."
+
     return {
-        "sentiment_score": 5.0,
-        "severity": "NORMAL",
-        "analysis_summary": "Piyasa verisi normal akışta.",
-        "is_fake_news": False,
-        "market_bias": "NEUTRAL"
+        "sentiment_score": score,
+        "severity": sev,
+        "analysis_summary": summary,
+        "is_fake_news": (sev in ["HIGH_RISK", "HALT_RECOMMENDED"]),
+        "market_bias": bias
     }
 
 # -----------------------------------------

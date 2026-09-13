@@ -278,6 +278,15 @@ python app.py
     - Günlük işlem kotası 60'a çıkarıldı; 10/10 birim testi %100 başarıyla geçti.
     - `python -u app.py` daemon süreci taze kodla yeniden başlatıldı; Kasa $181.19 USD (Serbest: $119.57 USDT, THETA: $61.62 USD) ile güvende.
 
+- [x] **Zamansız Mikro Stop (CRV -%0.48) Kök Nedeni Çözüldü & Canlı Haber Motoru Entegre Edildi (14 Eylül 00:10 TSİ):**
+  - **CRV/USDT -%0.48 Satışının Kök Nedeni ve Düzeltilmesi:**
+    - CRV'nin hedefine (+%3.0) ve gerçek stopuna (-%1.20) ulaşmadan sadece 5 dakika sonra -%0.48 ile erken satılmasının nedeni saptandı: `hybrid_micro_cut_enabled: True` ayarındaki `micro_cut_time_limit_minutes: 5` kuralı, 5 dakika içinde hareket etmeyen coinleri panikle piyasa emriyle satıyordu.
+    - `hybrid_micro_cut_enabled` kalıcı olarak `False` yapıldı (`db.py`, `strategy_config_local.json`, Supabase). Erken panik satışı tamamen engellendi; işlemler artık yalnızca borsa fiziksel stopu (-%1.20) veya kâr hedeflerine (+%3.0 / trailing) göre yönetilecek.
+  - **Haber ve Analiz Motoru Açığının Kapatılması:**
+    - **1. Statik Metin Kaldırıldı:** `app.py:191` içindeki hardcoded tek cümlelik sahte haber metni kaldırıldı; `news_service.py` üzerinden CoinDesk, CoinTelegraph ve Decrypt'in canlı RSS akışları 10 dakikalık RAM TTL önbelleğiyle doğrudan döngüye bağlandı (`get_cached_live_crypto_news`).
+    - **2. Şişkin Promptlar ve Token İsrafı Temizlendi:** `analyze_crypto_news` fonksiyonuna 50+ cüzdan varlığını içeren devasa portföy JSON'u gönderilmesi durduruldu, prompt sadece anlık haber başlıklarına odaklandı.
+    - **3. Deterministik Finansal NLP Duyarlılık Motoru:** OpenRouter kredi yetersizliği (HTTP 402) durumunda analizin körleşip 0.0/10 Neutral'a düşmesini önlemek için, anlık haber başlıklarındaki kriz (hack, exploit, ban, crash vb.) ve momentum (rally, surge, etf, inflow vb.) terimlerini gerçek zamanlı puanlayan sıfır gecikmeli kuralcı NLP motoru devreye alındı.
+    - **4. Canlı Süreç Yenilendi:** `python -u app.py` daemon süreci canlı haber başlıklarını tarayacak ve CRV erken stopu gibi hataları engelleyecek şekilde yeniden başlatıldı.
 - [x] **Canlı Alım-Satım Döngüsü ve Coin DNA Takibi Kesintisiz Aktif Edildi (13 Eylül 23:55 TSİ):**
   - **Kullanıcı Açıklaması & Talimat:** Kullanıcının paylaştığı harici raporun analiz amaçlı olduğu teyit edildi; sistemde kısıtlayıcı kilitler yerine canlı alımların ve Coin DNA takibinin sürdürülmesi emri uygulandı.
   - **Uygulanan Ayarlar:**

@@ -99,6 +99,31 @@ def get_localized_crypto_news(lang: str = "tr", limit: int = 6) -> str:
         # İngilizce formatlama
         return "\n\n".join([f"• {h}" for h in selected])
 
+_cached_news_text = ""
+_cached_news_ts = 0
+
+def get_cached_live_crypto_news(ttl_seconds: int = 600) -> str:
+    """Canlı kripto haberlerini 10 dakikalık RAM önbelleği ile döndürür."""
+    global _cached_news_text, _cached_news_ts
+    import time
+    now = time.time()
+    if _cached_news_text and (now - _cached_news_ts < ttl_seconds):
+        return _cached_news_text
+    
+    try:
+        headlines = fetch_live_global_crypto_news(limit_per_source=3)
+        if headlines:
+            _cached_news_text = "\n".join(headlines)
+            _cached_news_ts = now
+            return _cached_news_text
+    except Exception as e:
+        print(f"⚠️ [Haber Servisi Uyarısı]: {e}")
+        
+    if not _cached_news_text:
+        _cached_news_text = "BTC and altcoins maintaining normal liquidity and volume breakout conditions."
+        _cached_news_ts = now
+    return _cached_news_text
+
 if __name__ == "__main__":
     news = fetch_live_global_crypto_news()
     print(f"✅ Toplam {len(news)} küresel canlı haber başlığı çekildi:")

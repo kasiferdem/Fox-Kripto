@@ -727,6 +727,7 @@ DEFAULT_STRATEGY_CONFIG = {
     "coin_dna_volume_surge_multiplier": 2.0,
     "coin_dna_ambiguous_bar_threshold_pct": 0.10,
     "coin_dna_resistance_cluster_tolerance_pct": 0.8,
+    "hybrid_micro_cut_enabled": False,
     "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 }
 

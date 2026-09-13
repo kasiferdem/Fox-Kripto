@@ -139,13 +139,14 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
     return {"filtered_candidates": clean_candidates}
 
 def node_gemini_news_report(state: CryptoAgentState) -> Dict[str, Any]:
-    """[C] Gemini 3.7 Flash: Haber ve hızlı rapor / duyarlılık sentezi"""
-    print("\n--- [C. NODE: GEMINI 3.7 FLASH HABER & HIZLI RAPOR] ---")
+    """[C] Küresel Canlı Haber ve Makro Duyarlılık Analizi (CoinDesk, CoinTelegraph, Decrypt)"""
+    print("\n--- [C. NODE: KÜRESEL CANLI HABER & DUYARLILIK ANALİZİ] ---")
     news_text = state.get("news_data", "")
     portfolio = state.get("portfolio_state", {})
     analysis = analyze_crypto_news(news_text, portfolio)
-    score = float(analysis.get("sentiment_score", 7.5))
-    print(f"   [Gemini 3.7 Flash Rapor]: Duyarlılık Skoru: {score}/10 | Yön: {analysis.get('market_bias', 'NEUTRAL')}")
+    score = float(analysis.get("sentiment_score", 6.0))
+    summary_txt = str(analysis.get("analysis_summary", "Piyasa akışı normal.")).strip()
+    print(f"   📰 [Küresel Haber Duyarlılığı]: Skor: {score}/10 | Yön: {analysis.get('market_bias', 'BULLISH')} | Özet: {summary_txt}")
     return {"sentiment_score": score}
 
 def node_technical_second_opinion(state: CryptoAgentState) -> Dict[str, Any]:
