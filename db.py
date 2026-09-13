@@ -714,7 +714,7 @@ DEFAULT_STRATEGY_CONFIG = {
     "btc_flash_dump_5m_pct": 0.5,
     "btc_flash_dump_15m_pct": 1.0,
     "require_futures_oi": False,
-    "new_buy_orders_enabled": False,
+    "new_buy_orders_enabled": True,
     "existing_position_protection_enabled": True,
     "live_validation_status": "NOT_TESTED",
     "coin_dna_enabled": True,

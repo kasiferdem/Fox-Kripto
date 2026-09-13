@@ -1210,7 +1210,7 @@ def execute_spot_trade(
 
     from db import get_system_setting
     exec_mode = str(get_system_setting("execution_mode", "PAPER_TRADING")).upper()
-    new_buys_enabled = bool(get_system_setting("new_buy_orders_enabled", False))
+    new_buys_enabled = bool(get_system_setting("new_buy_orders_enabled", True))
     tenant_mode = str((tenant_config or {}).get("trading_mode", "")).lower()
 
     # 🛑 1. GÜVENLİ MOD ALIM KİLİDİ: Eğer yeni alımlar kapalıysa kesinlikle alım gönderme

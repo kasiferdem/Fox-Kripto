@@ -278,6 +278,19 @@ python app.py
     - Günlük işlem kotası 60'a çıkarıldı; 10/10 birim testi %100 başarıyla geçti.
     - `python -u app.py` daemon süreci taze kodla yeniden başlatıldı; Kasa $181.19 USD (Serbest: $119.57 USDT, THETA: $61.62 USD) ile güvende.
 
+- [x] **Canlı Alım-Satım Döngüsü ve Coin DNA Takibi Kesintisiz Aktif Edildi (13 Eylül 23:55 TSİ):**
+  - **Kullanıcı Açıklaması & Talimat:** Kullanıcının paylaştığı harici raporun analiz amaçlı olduğu teyit edildi; sistemde kısıtlayıcı kilitler yerine canlı alımların ve Coin DNA takibinin sürdürülmesi emri uygulandı.
+  - **Uygulanan Ayarlar:**
+    1. `new_buy_orders_enabled: True` teyit edildi ve sistem ayarı canlıya işlendi.
+    2. `coin_dna_enabled: True` ve `coin_dna_execution_authority: "ADVISORY_ONLY"` olarak aktif tutuldu. Coin DNA çok zaman dilimli olasılık motoru her adayın direnç mesafesini, POC ve başabaş olasılığını hesaplayıp arayüzde ve kayıtlarda canlı takip ederken işlemleri engellemez.
+    3. Günlük işlem kotası (`max_daily_trades: 60`) genişletilerek devre kesicinin kota engeli kaldırıldı.
+    4. Başlangıçta 1 günlük kırıntı süpürme gecikmesini önlemek için `last_daily_dust_sweep_ts` zaman damgası güncellendi.
+  - **Canlı Portföy ve Açık Pozisyonlar (Kullanıcı S - Binance Global):**
+    - **Toplam Portföy Değeri:** **$182.43 USD** (~₺8,860 TL)
+    - **Açık Pozisyon 1:** `HIVE/USDT` — 2,319.68 Adet @ $0.0525 ($121.55 USD) | Fiziksel Stop: Binance Global #768582964 ($0.051771) | TP: $0.053972
+    - **Açık Pozisyon 2:** `CRV/USDT` — 158.34 Adet @ $0.3542 ($55.97 USD) | SL: $0.349851 | TP: $0.364723
+    - **Serbest USDT:** $2.97 USD
+    - **Alım & Satım Analiz Durumu:** 7/24 Kesintisiz Devam Ediyor. Açık pozisyonlar her 5 saniyede bir mikro-trailing, başabaş ve kâr realizasyonu için izleniyor; piyasa ise 30 saniyede bir yeni balina kırılımları için taranıyor.
 - [x] **Admin Panel Rota Yönlendirmesi Onarıldı & Coin DNA Hızlı Erişim Butonu Eklendi (13 Eylül 23:18 TSİ):**
   - **Kök Neden:** Tarayıcıda `http://localhost:8000/` veya `http://localhost:8000/dashboard` açıldığında sistem eski V1 Klasik paneline yönleniyordu; bu arayüzde Coin DNA modülü yer almadığı için kullanıcı tarafından görüntülenemiyordu.
   - **Düzeltmeler:**
@@ -287,7 +300,7 @@ python app.py
     4. Canlı HTTP testi ile `/`, `/dashboard` ve `/v2/dashboard` rotalarının Coin DNA bileşenini 200 OK ile eksiksiz döndürdüğü doğrulandı.
 
 ---
-*Son Güncelleme Tarihi: 2026-09-13 (23:18 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-13 (23:58 TSİ)*
 
 
 

@@ -134,7 +134,7 @@ def handle_autonomous_error_alert(tenant_name, sym_target, action_name, exch_nam
         )
         send_message(chat_id, warning_msg)
 
-last_daily_dust_sweep_ts = 0
+last_daily_dust_sweep_ts = time.time()
 
 def run_autonomous_trading_loop():
     """
