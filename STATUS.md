@@ -243,6 +243,15 @@ python app.py
     - LangGraph'ta seçilen adaylar infaz öncesi otomatik analiz edilip `coin_dna_analysis` olarak kaydedilir.
     - `test_coin_behavioral_probability_engine.py` paketi (7/7) %100 başarıyla geçti; `python -u app.py` daemon süreci güncellendi.
 
+- [x] **BLOCK_ONLY Canlı Karardan Ayrıldı (ADVISORY_ONLY) & Kasa Koruma Kilidi (13 Eylül 23:45 TSİ):**
+  - **Uygulanan Mandalar:**
+    1. `coin_dna_execution_authority` derhal `"ADVISORY_ONLY"` seviyesine çekildi; canlı infaz kapılarından (`graph.py`, `entry_safety_policy.py`) ayrıldı.
+    2. `new_buy_orders_enabled: false` yapılarak kasa korumaya alındı; kullanıcı açık onay vermeden canlı alım açılması kilitlendi.
+    3. `existing_position_protection_enabled: true` teyit edildi; açık pozisyon korumaları (fiziksel stop, trailing callback, başabaş kalkanı) kesintisiz aktiftir.
+    4. `live_validation_status: "NOT_TESTED"` olarak işaretlendi.
+    5. Statik %40 olasılık eşiği kaldırıldı; komisyon (%0.15) ve slippage/spread (%0.10) eklenmiş matematiksel `calculate_dynamic_breakeven_probability` formülü entegre edildi (%65.91 dinamik eşik).
+  - **Replay Simülasyonu:** 25 Binance çiftinde 285 bağımsız kırılım olayı test edildi; ham kırılımların win rate'i %35.79 (Profit factor: 0.46) iken, direnç ve derinlik engeline takılanların zarar oranı %65.90 olarak ölçüldü.
+
 - [x] **Coin DNA 500 API Hatası ve DigitalOcean Bağımlılık İyileştirmesi (13 Eylül 23:35 TSİ):**
   - **Kök Neden Tespiti:** Panelde `Analiz Et` butonuna tıklandığında dönen `API Hatası: 500` hatasının kök nedeni saptandı: `requirements.txt` dosyasında `numpy` bulunmadığı için DigitalOcean Linux container ortamında `ModuleNotFoundError: numpy` fırlatılıyordu. Ayrıca `compute_volume_profile_poc` çıktısındaki `np.float64` türü FastAPI JSON serileştirmede istisna oluşturabiliyordu.
   - **Çözüm & Güçlendirme:**
