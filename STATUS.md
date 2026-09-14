@@ -695,5 +695,13 @@
     5. **Yeni Alımlar Tam Açık:** `new_buy_orders_enabled: True` hem Supabase veritabanında hem de sistem ayarlarında tam aktif edildi. $114.48 USDT serbest nakit ile boş slotlar hazır bekliyor.
     6. **KATI SIFIR ZARAR ZIRHI (Zero Loss Mode):** `zero_loss_mode = True` koruması altında hiçbir spot pozisyon zararına satılamaz (`net_profit_pct < +%0.05` iken tüm stop emirleri engellenir). Çıkışlar yalnızca Take-Profit veya Başa-Baş ile gerçekleşir.
 
+- [x] **MTL/USDT VE KULLANICI KONTROLÜNDEKİ POZİSYONLAR İÇİN OTOMATİK SATIŞ KİLİDİ (14 Eylül 23:20 TSİ):**
+  - **Kullanıcı Talimatı:** *"Sakın kafana göre satma."*
+  - **Yapılan Güvenlik Entegrasyonu:**
+    1. `graph.py` ve `entry_safety_policy.py` (Kural 14) içerisine `manual_exit_only_coins` zırhı eklendi.
+    2. **MTL/USDT için botun otomatik satış yapması TAMAMEN ENGELLENDİ.**
+    3. Fiyat ne olursa olsun (TP, SL veya Breakeven), bot MTL için satış emri oluşturamaz (`ExecutionGate` reddeder).
+    4. Pozisyon yönetimi, kâr satışı veya elde tutma kararı %100 kullanıcının kontrolüne bırakıldı.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-14 (23:15 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-14 (23:20 TSİ)*

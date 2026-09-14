@@ -451,6 +451,16 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                         is_stop_loss = False
                         reason_desc = ""
 
+                    # 🛡️ KULLANICI EMRİ: "SAKIN KAFANA GÖRE SATMA"
+                    # Otomatik Satış Kilidi: Kullanıcı açıkça talimat vermedikçe veya kilitli coinlerde (MTL vb.)
+                    # bot kafasına göre otomatik satış yapamaz. Pozisyon yönetimi tamamen kullanıcıdadır.
+                    manual_exit_coins = [c.upper() for c in (strat_cfg.get("manual_exit_only_coins") or ["MTL"])]
+                    if asset_upper in manual_exit_coins or not bool(strat_cfg.get("auto_sell_enabled", True)):
+                        print(f"   🛑 [KULLANICI KİLİDİ - KAFANA GÖRE SATMA]: {target_symbol} için otomatik satış KİLİTLENDİ. Bot satış emri vermez, pozisyon tamamen kullanıcı kontrolündedir.")
+                        is_stop_loss = False
+                        is_take_profit = False
+                        reason_desc = ""
+
                     if is_stop_loss or is_take_profit:
                         if is_stop_loss:
                             try:

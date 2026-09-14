@@ -187,6 +187,13 @@ class EntrySafetyPolicy:
         if intent.direction.upper() == "BUY" and strat_cfg.get("new_buy_orders_enabled", True) is False:
             reasons.append("Runtime güvenlik kilidi: newBuyOrdersEnabled=False (Kasa Koruma Modu)")
 
+        # 14. Kullanıcı Emri: "Kafana Göre Satma" (manual_exit_only_coins / auto_sell_enabled)
+        if intent.direction.upper() == "SELL":
+            asset_base = intent.symbol.split("/")[0].split("_")[0].upper()
+            manual_exit_coins = [c.upper() for c in (strat_cfg.get("manual_exit_only_coins") or ["MTL"])]
+            if (not strat_cfg.get("auto_sell_enabled", True)) or (asset_base in manual_exit_coins):
+                reasons.append(f"Kullanıcı Emri ('Kafana Göre Satma'): {intent.symbol} için otomatik satış engellendi. Pozisyon tamamen kullanıcı kontrolündedir.")
+
         # -------------------------------------------------------------
         # 🛡️ 13. GELİŞMİŞ TESTERE & GÖLGE KALKANI DENETİMİ (ANTI-CHOP SHIELD)
         # -------------------------------------------------------------
