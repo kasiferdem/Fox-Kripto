@@ -467,6 +467,19 @@ class BinanceGlobalRESTClient:
                 
             spend_usd = max(10.0, spend_usd)
             
+            # 🛡️ SERBEST SPOT USDT GÜVENLİK KONTROLÜ (Yetersiz Bakiye -2010 Önlemi)
+            try:
+                bal_spot = self.fetch_balance()
+                free_spot_usdt = float(bal_spot.get("free", {}).get("USDT", 0.0))
+                if free_spot_usdt < 10.0:
+                    raise Exception(f"Binance Global serbest USDT bakiyesi (${free_spot_usdt:.2f}) asgari işlem tutarının ($10) altında.")
+                if spend_usd > free_spot_usdt * 0.98:
+                    print(f"⚖️ [Bakiye Dengeleme]: Talep edilen (${spend_usd:.2f}) serbest Spot USDT'yi (${free_spot_usdt:.2f}) aştığı için ${free_spot_usdt * 0.98:.2f}'a çekildi.")
+                    spend_usd = free_spot_usdt * 0.98
+            except Exception as e_spot:
+                if "asgari işlem tutarı" in str(e_spot):
+                    raise e_spot
+
             # 🎯 NET SATILABİLİR ADET ALIMI (SIFIR KÜSURAT / ZERO DUST)
             try:
                 g_ticker = fetch_ticker_price(f"{base_c}/USDT")
@@ -1286,6 +1299,17 @@ def execute_spot_trade(
         
     quantity = amount_usd / price if price > 0 else 0
     
+    if side.lower() in ["buy", "alim"] and exchange:
+        if hasattr(exchange, "fetch_balance"):
+            try:
+                bal_check = exchange.fetch_balance()
+                free_spot = float(bal_check.get("free", {}).get("USDT", 0.0))
+                if free_spot > 10.0 and amount_usd > free_spot * 0.98:
+                    amount_usd = free_spot * 0.98
+                    quantity = amount_usd / price if price > 0 else 0
+            except Exception:
+                pass
+
     if side.lower() == "sell" and exchange:
         base_asset = symbol.split("/")[0].split("_")[0].upper()
         clean_s = symbol.replace("/", "").replace("_", "").upper()

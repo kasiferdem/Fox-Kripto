@@ -103,30 +103,52 @@ def analyze_crypto_news(news_data: str, portfolio_state: Optional[Dict[str, Any]
         print(f"   ⚠️ [Haber AI İstisnası]: {e_ai}")
 
     # 🛡️ DETERMINISTIK FINANSAL NLP SENTIMENT MOTORU (Sıfır API Gecikmesi / Failover)
-    text_lower = clean_news.lower()
-    high_risk_words = ["hack", "exploit", "sec sue", "fraud", "crackdown", "ban", "arrest", "insolvent", "liquidation", "stolen", "crash", "black swan", "rug pull"]
+    lines = clean_news.split("\n")
+    high_risk_words = ["active hack", "major exploit", "sec sue", "fraud", "crackdown", "ban", "arrest", "insolvent", "liquidation", "market crash", "black swan", "rug pull", "halt trading"]
     caution_words = ["investigation", "delay", "inflation", "dump", "lawsuit", "warning", "fed hike", "outflow", "rate hike"]
-    bullish_words = ["etf", "rally", "surge", "bullish", "partnership", "record high", "approval", "adoption", "upgrade", "inflow", "gain", "breakout"]
+    bullish_words = ["climbs", "outperforms", "etf", "rally", "surge", "bullish", "partnership", "record high", "approval", "adoption", "upgrade", "inflow", "gain", "breakout"]
+    mitigating_words = ["recovered", "recovery", "bounty", "whitehat", "reimbursed", "mitigated", "resolved", "fake", "rumor"]
 
-    found_high_risk = [w for w in high_risk_words if w in text_lower]
-    found_caution = [w for w in caution_words if w in text_lower]
-    found_bullish = [w for w in bullish_words if w in text_lower]
+    found_high_risk = []
+    found_caution = []
+    found_bullish = []
+
+    for raw_line in lines:
+        l = raw_line.lower().strip()
+        if not l:
+            continue
+        is_mitigated = any(mw in l for mw in mitigating_words)
+        
+        # Eğer haberde "hack/exploit" var ama "recovered/bounty" gibi telafi terimleri geçiyorsa kriz tetiklenmez
+        if any(hw in l for hw in ["hack", "exploit", "stolen"]):
+            if not is_mitigated:
+                found_high_risk.append("hack/exploit")
+                
+        for w in high_risk_words:
+            if w in l and not is_mitigated:
+                found_high_risk.append(w)
+        for w in caution_words:
+            if w in l:
+                found_caution.append(w)
+        for w in bullish_words:
+            if w in l:
+                found_bullish.append(w)
 
     if found_high_risk:
         sev = "HIGH_RISK"
         score = -5.0
         bias = "BEARISH"
-        summary = f"Kritik Makro Risk Tespiti: Haberlerde '{', '.join(found_high_risk)}' algılandı."
-    elif found_caution:
+        summary = f"Kritik Makro Risk Tespiti: Haberlerde '{', '.join(set(found_high_risk))}' algılandı."
+    elif found_caution and len(found_caution) > len(found_bullish):
         sev = "CAUTION"
         score = 3.0
         bias = "CAUTION"
-        summary = f"Dikkatli Piyasa Akışı: Haberlerde '{', '.join(found_caution)}' terimleri yer alıyor."
+        summary = f"Dikkatli Piyasa Akışı: Haberlerde '{', '.join(set(found_caution))}' terimleri yer alıyor."
     elif found_bullish:
         sev = "NORMAL"
         score = 7.5
         bias = "BULLISH"
-        summary = f"Pozitif Piyasa Akışı: Haberlerde '{', '.join(found_bullish)}' momentumu mevcut."
+        summary = f"Pozitif Piyasa Akışı: Haberlerde '{', '.join(set(found_bullish))}' momentumu mevcut."
     else:
         sev = "NORMAL"
         score = 6.0
