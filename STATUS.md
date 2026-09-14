@@ -703,5 +703,15 @@
     3. Fiyat ne olursa olsun (TP, SL veya Breakeven), bot MTL için satış emri oluşturamaz (`ExecutionGate` reddeder).
     4. Pozisyon yönetimi, kâr satışı veya elde tutma kararı %100 kullanıcının kontrolüne bırakıldı.
 
+- [x] **MTL/USDT KULLANICI KÂR SATIŞI VE GÜNCEL PORTFÖY (14 Eylül 23:25 TSİ):**
+  - **Kullanıcı Satışı:** Kullanıcı MTL pozisyonunu bizzat borsa üzerinden kârla kapattı ($0.3240 alım ➔ $0.3250-$0.3260 satış, **$58.32 USD** nakde dönüştü).
+  - **Kayıt ve Mutabakat:** Veritabanındaki açık pozisyon kaydı güncellendi.
+  - **Canlı Portföy Durumu (3/3 Slot - Büyük Formül İnfazları):**
+    1. 🟢 **NEIRO/USDT:** 684,380 adet @ $0.00008499 | Canlı: $0.00008520 | Değer: ~$58.30 USD | **Kârda (+%0.25)**
+    2. 🟢 **ZEC/USDT:** 0.0480 adet @ $1210.98 | Değer: ~$58.05 USD | Giriş Seviyesinde
+    3. 🟢 **MORPHO/USDT:** 24.06 adet @ $2.2290 | Değer: ~$53.50 USD | Giriş Seviyesinde
+  - **Güvenlik Durumu:** Tüm açık pozisyonlar `zero_loss_mode: True` zırhı altında korunmaktadır; kesinlikle zararına satış yapılmaz.
+  - **Toplam Portföy:** **~$174.60+ USD**
+
 ---
-*Son Güncelleme Tarihi: 2026-09-14 (23:20 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-14 (23:25 TSİ)*
