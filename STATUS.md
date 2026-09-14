@@ -57,6 +57,7 @@
 ## 📋 Mevcut Yapılacaklar Listesi
 
 - [x] **Telegram Çift Cevap / Mükerrer Mesaj Engelleme (P0):** `telegram_poller.py` içine çoklu container/worker ortamlarında dahi aynı güncellemenin birden fazla kez işlenmesini imkansız kılan Dağıtık Atomik Supabase Kilidi (`claim_telegram_update`), giden mesaj mükerrer filtresi (`send_message` 3.5s hash dedup) ve 409 Conflict geri çekilme mekanizması entegre edildi.
+- [x] **Yeni Alım Emirleri İzni (`new_buy_orders_enabled`) Dashboard UI ve API Entegrasyonu (14 Eylül 12:00 TSİ):** Panelde 3. Grup ("🛡️ 3. BTC Rejim & Giriş Kuralları") altına doğrudan "Yeni Alım İzni" dropdown'u eklendi (`🟢 Açık (Alım Yapabilir)` / `🔴 Kapalı (Kasa Kilidi)`). `/api/strategy-config` endpoint'inde parametrenin varsayılan olarak `False`'a düşmesi engellendi ve canlı Supabase veritabanında `new_buy_orders_enabled: True` olarak aktif edildi.
 - [x] **Kusursuz Risk Profili Devrede:** `first_pump_blocked: True`, `retest_required: True`, `cooldown: 30 dk`, `stop_loss: %2.2` hem veritabanına hem UI'a dinamik bağlandı.
 - [x] **Çöp Dosyaların Temizlenmesi:** Tüm `scratch_*.py`, `check_orders*.py`, `fetch_*.py` dosyaları `_archive/scratch/` dizinine taşındı.
 - [x] **3'lü Test Paketi Onayı:** Tüm testler (`test_openrouter`, `test_execution_gate`, `test_retest_state_machine`) 0 hata ile %100 geçti.

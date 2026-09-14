@@ -60,6 +60,9 @@ def generate_v2_dashboard_html(
     sel_firstpump_false = "selected" if not first_pump_blocked else ""
     sel_btctrend_true = "selected" if btc_trend_filter_enabled else ""
     sel_btctrend_false = "selected" if not btc_trend_filter_enabled else ""
+    new_buys_enabled = bool(strategy_config.get("new_buy_orders_enabled", True))
+    sel_newbuys_true = "selected" if new_buys_enabled else ""
+    sel_newbuys_false = "selected" if not new_buys_enabled else ""
 
     # Hibrit Mikro Zarar Kesici (Opsiyon 1 + Opsiyon 2)
     hybrid_micro_cut_enabled = bool(strategy_config.get("hybrid_micro_cut_enabled", False))
@@ -812,6 +815,13 @@ def generate_v2_dashboard_html(
             <div class="param-box">
               <label data-i18n="p_cooldown" style="color: #38bdf8; font-weight: 700;">Soğuma Süresi (Dk)</label>
               <input type="number" step="5" id="param_cooldown_minutes" value="{cooldown_min}" style="border-color: #38bdf8; font-weight: 800;" onchange="markCustom()">
+            </div>
+            <div class="param-box">
+              <label style="color: #10b981; font-weight: 700;">Yeni Alım İzni</label>
+              <select id="param_new_buy_orders_enabled" onchange="markCustom()">
+                <option value="true" {sel_newbuys_true}>🟢 Açık (Alım Yapabilir)</option>
+                <option value="false" {sel_newbuys_false}>🔴 Kapalı (Kasa Kilidi / Güvenli Mod)</option>
+              </select>
             </div>
           </div>
         </div>
@@ -1648,6 +1658,7 @@ def generate_v2_dashboard_html(
           btc_trend_filter_enabled: (document.getElementById('param_btc_trend_filter_enabled')?.value === 'true'),
           first_pump_candle_entry_blocked: (document.getElementById('param_first_pump_blocked')?.value !== 'false'),
           retest_required: (document.getElementById('param_retest_required')?.value !== 'false'),
+          new_buy_orders_enabled: (document.getElementById('param_new_buy_orders_enabled')?.value !== 'false'),
           cooldown_minutes: parseInt(getVal('param_cooldown_minutes', 'p_cd', 30)),
           post_stop_cooldown_minutes: parseInt(getVal('param_cooldown_minutes', 'p_cd', 30)),
           require_futures_oi: false,
