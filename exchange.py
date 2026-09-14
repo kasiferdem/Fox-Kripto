@@ -513,6 +513,8 @@ class BinanceGlobalRESTClient:
                 pass
                 
             qty_str = format_quantity_by_step(amount, clean_symbol)
+            if float(qty_str or 0) <= 0:
+                raise Exception(f"Borsa asgari işlem adımının (LOT_SIZE) altında bakiye ({amount} {base_c}). Bu pozisyon zaten satılmış veya borsa limitinin altında bir kırıntıdır.")
             params = {
                 "symbol": clean_symbol,
                 "side": "SELL",
@@ -591,7 +593,15 @@ class BinanceGlobalRESTClient:
                 "info": data
             }
         else:
-            raise Exception(f"Binance Global Error ({data.get('code')}): {data.get('msg')}")
+            err_c = data.get('code')
+            err_m = data.get('msg')
+            if err_c == -1013:
+                if "market is closed" in str(err_m).lower():
+                    raise Exception(f"Binance Global İşleme Kapalı (-1013): Bu parite ({clean_symbol}) borsada geçici bakım veya durdurmaya (BREAK/HALT) alınmıştır: {err_m}")
+                act_label = "Alınmak" if side.upper() == "BUY" else "Satılmak"
+                qty_display = params.get('quantity') or params.get('quoteOrderQty')
+                raise Exception(f"Binance Global Lot/Miktar Kuralı (-1013): {act_label} istenen miktar ({qty_display}) borsanın adım büyüklüğü (LOT_SIZE) veya asgari limitine uymadı: {err_m}")
+            raise Exception(f"Binance Global Error ({err_c}): {err_m}")
 
     def execute_marketable_limit_ioc(
         self,

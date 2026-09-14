@@ -146,12 +146,13 @@ def get_active_trading_symbols():
             for s in r.json().get("symbols", []):
                 if s.get("status") == "TRADING":
                     symbols.add(s.get("symbol"))
-            _cached_active_symbols = symbols
-            _cached_active_symbols_ts = now
-            return symbols
+            if symbols:
+                _cached_active_symbols = symbols
+                _cached_active_symbols_ts = now
+                return symbols
     except Exception:
         pass
-    return set()
+    return _cached_active_symbols or set()
 
 def detect_early_volume_breakouts(quote: str = None, quote_asset: str = "USDT", min_volume_usd: float = None, max_recent_gain: float = None, **kwargs) -> List[Dict[str, Any]]:
     """Binance Spot üzerinde erken dip kırılımlarını paralel olarak tespit eder."""

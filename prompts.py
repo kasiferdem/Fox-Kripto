@@ -37,7 +37,7 @@ def call_llm_model(model: str, system_prompt: str, user_content: str, max_tokens
     """
     # stealth/ox-alpha isteklerini z-ai/glm-5.3-flash'a dönüştür (Section 2)
     resolved_role = "LEAD_STRATEGIST"
-    if "news" in system_prompt.lower() or "haber" in system_prompt.lower() or "critical" in system_prompt.lower():
+    if "haber analiz ajanı" in system_prompt.lower() or "critical_news_assessment" in system_prompt.lower():
         resolved_role = "CRITICAL_NEWS_ANALYSIS"
     elif "audit" in system_prompt.lower() or "forensic" in system_prompt.lower():
         resolved_role = "NIGHTLY_FORENSIC_AUDIT"

@@ -60,6 +60,11 @@ def resolve_exchange_error_details(err_str: str) -> dict:
             "reason": "Emir tutarı borsa asgari işlem sınırının ($10 / ₺200) altında veya adım büyüklüğü uyuşmadı.",
             "action": "Bütçe ve adım büyüklüğü otomatik düzeltilerek yeniden deneniyor."
         },
+        "-1013_CLOSED": {
+            "title": "İşleme Kapalı Parite (MARKET_CLOSED)",
+            "reason": "Bu coin Binance Global üzerinde geçici bakım, askı veya işlem molasındadır (BREAK/HALT).",
+            "action": "Bot bu coin çiftini güvenle pas geçti ve sıradaki aktif balina fırsatına yöneldi."
+        },
         "-2010": {
             "title": "Yetersiz Serbest Bakiye (INSUFFICIENT_BALANCE)",
             "reason": "Cüzdanda bu işlemi gerçekleştirecek serbest nakit (USDT / TRY) bulunmuyor.",
@@ -87,9 +92,16 @@ def resolve_exchange_error_details(err_str: str) -> dict:
         }
     }
     
-    resolved = error_dict.get(code_str)
+    if code_str == "-1013" and ("market is closed" in err_lower or "işleme kapalı" in err_lower or "break" in err_lower):
+        resolved = error_dict["-1013_CLOSED"]
+    else:
+        resolved = error_dict.get(code_str)
+
     if not resolved:
-        if "insufficient balance" in err_lower or "yetersiz" in err_lower:
+        if "market is closed" in err_lower or "işleme kapalı" in err_lower:
+            resolved = error_dict["-1013_CLOSED"]
+            code_str = "-1013"
+        elif "insufficient balance" in err_lower or "yetersiz" in err_lower:
             resolved = error_dict["-2010"]
             code_str = "-2010"
         elif "lot_size" in err_lower or "quantity" in err_lower:

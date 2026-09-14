@@ -16,5 +16,8 @@ Her yeni sohbet oturumu başladığında:
 - **`exchange.py`**: CCXT Binance Borsa Modülü
 - **`db.py`**: Supabase Veritabanı ve Loglama
 
-## 🚀 Hızlı Başlatma
-Proje başlatılırken `python app.py` komutu kullanılır.
+## 🛑 KESİN ÇALIŞTIRMA VE DAĞITIM KURALI (P0 - ASLA İHLAL EDİLEMEZ)
+- **ASLA YEREL BİLGİSAYARDA `python app.py` VEYA `telegram_poller.py` ÇALIŞTIRILMAYACAKTIR.**
+- Kullanıcı açıkça talimat vermedikçe yerel terminalde hiçbir bot, daemon veya poller süreci başlatılamaz.
+- Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
+- Yapılan tüm geliştirmeler, hata düzeltmeleri ve parametreler `git push origin main` ile doğrudan DigitalOcean'a sevk edilir.

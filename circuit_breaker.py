@@ -76,8 +76,11 @@ def check_tenant_circuit_breakers(
         else:
             today_trades = all_today_trades
         
-        # 2. Günlük Toplam İşlem Sayısı Denetimi
-        daily_executed_count = len([t for t in today_trades if t.get("direction") == "BUY"])
+        # 2. Günlük Toplam Gerçekleşen İşlem Sayısı Denetimi (Yalnızca başarılı emirler sayılır, NO_TRADE/FAILED hariç)
+        daily_executed_count = len([
+            t for t in today_trades 
+            if t.get("direction") == "BUY" and str(t.get("status", "")).lower() in ["success", "executed", "filled"]
+        ])
         if daily_executed_count >= max_daily_trades:
             return {
                 "passed": False,
@@ -94,8 +97,11 @@ def check_tenant_circuit_breakers(
             }
             
         # 4. Günlük Kümülatif Net Zarar Denetimi (Cumulative Daily Realized Loss Shield)
-        # 🔒 Bugün gerçekleşen tüm kâr ve zararların net USD toplamı hesaplanır
-        today_sells = [t for t in today_trades if t.get("direction") == "SELL"]
+        # 🔒 Bugün gerçekleşen tüm başarılı kâr ve zararların net USD toplamı hesaplanır
+        today_sells = [
+            t for t in today_trades 
+            if t.get("direction") == "SELL" and str(t.get("status", "")).lower() in ["success", "executed", "filled"]
+        ]
         total_realized_pnl_usd = 0.0
         
         for s in today_sells:

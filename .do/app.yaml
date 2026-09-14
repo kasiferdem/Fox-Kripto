@@ -16,7 +16,7 @@ services:
     type: SECRET
   - key: SUPABASE_URL
     scope: RUN_AND_BUILD
-    value: https://eodhhrokdmlltslqzerh.supabase.co
+    value: https://guxltqbzlquozniriznm.supabase.co
   - key: SUPABASE_SERVICE_ROLE_KEY
     scope: RUN_AND_BUILD
     type: SECRET
@@ -34,4 +34,4 @@ services:
     value: binance
   - key: EXCHANGE_TESTNET
     scope: RUN_AND_BUILD
-    value: "true"
+    value: "false"

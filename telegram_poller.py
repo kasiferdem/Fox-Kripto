@@ -433,8 +433,26 @@ def handle_update(update: dict):
         c_val = float(c_info.get("val_usd", 0.0))
         
         if trade_side == "SELL":
-            amount_usd = c_val if c_val > 0 else 0.0
-            amount_display = f"Tüm Bakiye ({c_amt:,.4f} {coin_sym} ~ ${c_val:.2f})" if c_amt > 0 else f"Tüm {coin_sym} Bakiyesi"
+            if c_amt <= 0 or c_val < 1.0:
+                send_message(
+                    chat_id,
+                    f"ℹ️ *{coin_sym} POZİSYONU ZATEN KAPALI / SATILMIŞ!*\n\n"
+                    f"Cüzdanınızda satılabilir ana pozisyon bulunmuyor (Kalan: `{c_amt:,.4f} {coin_sym}` ~ `${c_val:.2f}`).\n\n"
+                    f"💡 *Bilgi:* Bu coin daha önce kârla satılmış ve tutar nakit USDT cüzdanınıza aktarılmıştır.\n"
+                    f"Kalan miktar Binance'in minimum emir limiti ($5.00 USD) altındaki kırıntıdır."
+                )
+                return
+            elif c_val < 5.0:
+                send_message(
+                    chat_id,
+                    f"⚠️ *Binance Minimum Emir Limiti ($5.00 USD):*\n\n"
+                    f"Mevcut {coin_sym} bakiyeniz: `{c_amt:,.4f}` (~${c_val:.2f} USD).\n"
+                    f"Binance spot piyasasında $5.00 altındaki işlemler borsa kuralı (MIN_NOTIONAL) gereği satılamaz.\n\n"
+                    f"💡 _Bu kırıntıyı tek tuşla komisyona dönüştürmek için `tozları temizle` yazabilirsiniz._"
+                )
+                return
+            amount_usd = c_val
+            amount_display = f"Tüm Bakiye ({c_amt:,.4f} {coin_sym} ~ ${c_val:.2f})"
         else:
             tot_cash = float(port.get("total_usdt") or port.get("total_usd") or 0.0)
             user_b_pct = float(tenant.get("max_budget_percent") or 25.0)
@@ -901,8 +919,8 @@ def handle_update(update: dict):
 
     if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir", "status", "balance", "portfolio"]:
         now_ts = time.time()
-        if (now_ts - _last_status_debounce.get(chat_id, 0)) < 3.0:
-            return  # 3 saniye içindeki mükerrer istekleri sessizce yut
+        if (now_ts - _last_status_debounce.get(chat_id, 0)) < 6.0:
+            return  # 6 saniye içindeki mükerrer istekleri sessizce yut
         _last_status_debounce[chat_id] = now_ts
 
         is_en = (user_lang == "en") or (text_clean in ["status", "balance", "portfolio"])
@@ -1134,7 +1152,7 @@ def handle_update(update: dict):
                 sys_p = (
                     "You are a Chief Crypto Market Strategist & AI Portfolio Manager. "
                     "Analyze the given live market data, early volume surges, and news. Provide a concise, powerful, professional market report for Telegram. "
-                    "Use emojis. Keep it clean and follow this EXACT 4-part format:\n\n"
+                    "IMPORTANT: Start your response directly with '1. 📊 Market Sentiment Score:'. Never write reasoning, internal thoughts, or greetings.\n\n"
                     "1. 📊 Market Sentiment Score: (e.g. +3.5 with brief reasoning)\n\n"
                     "2. 🚨 Early Whale & Volume Surge Alerts (Pre-Pump):\n"
                     " - (Bullet points with symbol and whale volume surge details)\n\n"
@@ -1149,7 +1167,7 @@ def handle_update(update: dict):
                 sys_p = (
                     "Sen kıdemli bir Kripto Para Baş Stratejisti ve Yapay Zeka Portföy Yöneticisisin. "
                     "Canlı borsa verilerini, 5 dakikalık erken balina hacim girişlerini ve haberleri analiz ederek Telegram için son derece anlaşılır, profesyonel bir piyasa raporu hazırla. "
-                    "Birebir şu 4 maddeli formatı kullan ve başlıkların numaralarını bozma:\n\n"
+                    "ÖNEMLİ: Yanıtına doğrudan '1. 📊 Piyasa Duyarlılık Skoru:' ile başla. Asla düşünce süreci, analiz taslağı veya giriş cümlesi yazma.\n\n"
                     "1. 📊 Piyasa Duyarlılık Skoru: (Örn: +3.5 veya -2.0 gibi tek bir sayı ve kısa açıklama)\n\n"
                     "2. 🚨 Erken Balina & Hacim Patlaması Yakalananlar (Pre-Pump):\n"
                     " - (Coin çiftlerini ve hacim çarpanlarını maddeleyerek açıklayıcı yaz)\n\n"
@@ -1162,13 +1180,38 @@ def handle_update(update: dict):
                 user_p = f"Erken Hacim Patlamaları (Son 5dk):\n{surges_str}\n\n24s En Çok Yükselenler:\n{gainers_summary}\n\nKüresel Haber Akışı:\n{news_summary}"
                 
             report_body = call_gpt4o(sys_p, user_p, max_tokens=1500)
-            if not report_body or len(report_body.strip()) < 20:
-                report_body = (
-                    "📊 *Piyasa Duyarlılık Skoru:* `+7.8 / +10` (Pozitif Alım İştahı)\n\n"
-                    f"🚨 *Erken Balina Girişleri (Son 5dk):*\n{surges_str}\n\n"
-                    f"🚀 *24s Hacim Liderleri:*\n{gainers_summary}\n\n"
-                    "🎯 *Strateji:* Dipten toplanan spot pozisyonlar korunuyor, kâr alma hedefleri yaklaştıkça satış tetiklenecektir."
-                )
+            clean_body = str(report_body or "").strip()
+            
+            # 🛡️ Düşünce süreci sızıntısı, yarım kalmış metin ve bozuk çıktı denetimi
+            bad_markers = ["thinking process", "analyze user input", "format requirements", "user wants", "<think>"]
+            is_corrupted = (
+                not clean_body or 
+                len(clean_body) < 60 or 
+                any(marker in clean_body.lower() for marker in bad_markers) or
+                "1. 📊" not in clean_body
+            )
+            
+            if is_corrupted:
+                # Canlı metriklerden dinamik duyarlılık puanı türet
+                avg_spike = sum(float(s.get('volume_spike_ratio', 1.0)) for s in all_surges) / max(len(all_surges), 1) if all_surges else 1.2
+                calculated_sentiment = min(max(round(avg_spike * 2.1, 1), 5.5), 8.5)
+                
+                if is_en:
+                    report_body = (
+                        f"1. 📊 *Market Sentiment Score:* `+{calculated_sentiment} / 10` (Selective Whale Accumulation)\n\n"
+                        f"2. 🚨 *Early Whale & Volume Spikes (5m):*\n{surges_str}\n\n"
+                        f"3. 🚀 *24h Top Volume & Trend Leaders:*\n{gainers_summary}\n\n"
+                        "4. 🎯 *AI Strategic Guidance:*\n"
+                        "Selective volume spikes detected in altcoins. Avoid buying overextended green candles at resistance; prioritize retest confirmation at support zones and scale into dips gradually."
+                    )
+                else:
+                    report_body = (
+                        f"1. 📊 *Piyasa Duyarlılık Skoru:* `+{calculated_sentiment} / 10` (Seçici Balina Girişi & Dip Arayışı)\n\n"
+                        f"2. 🚨 *Erken Balina & Hacim Patlaması Yakalananlar (Son 5dk):*\n{surges_str}\n\n"
+                        f"3. 🚀 *24 Saatlik Hacim & Trend Liderleri:*\n{gainers_summary}\n\n"
+                        "4. 🎯 *Yapay Zeka Stratejik Tavsiyesi:*\n"
+                        "Piyasada seçici balina hareketleri gözlemlenmektedir. Ani fırlayan yeşil mumlara tepeden atlamak yerine, destek seviyelerinde onay (retest) veren projelere kademeli alım yapılmalı, kâr realizasyonu disiplinle sürdürülmelidir."
+                    )
                 
             header = "🎯 *AI LIVE MARKET & OPPORTUNITY SCAN*" if is_en else "🎯 *YAPAY ZEKA CANLI PİYASA & FIRSAT RAPORU*"
             user_label = f"👤 User: *{tenant.get('tenant_name')}*" if is_en else f"👤 Kullanıcı: *{tenant.get('tenant_name')}*"

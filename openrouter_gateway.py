@@ -31,7 +31,7 @@ load_dotenv()
 ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
     "LEAD_STRATEGIST": {
         "primary_model": "openai/gpt-4o",
-        "fallback_models": ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"],
+        "fallback_models": ["openai/gpt-4o-mini", "nex-agi/nex-n2.5-pro:free"],
         "execution_authority": "BLOCK_ONLY",
         "timeout_seconds": 20,
         "max_output_tokens": 1500,
@@ -40,7 +40,7 @@ ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
     },
     "PATRON": {
         "primary_model": "openai/gpt-4o",
-        "fallback_models": ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"],
+        "fallback_models": ["openai/gpt-4o-mini", "nex-agi/nex-n2.5-pro:free"],
         "execution_authority": "BLOCK_ONLY",
         "timeout_seconds": 15,
         "max_output_tokens": 1000,
@@ -49,7 +49,7 @@ ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
     },
     "FAST_SCALP_ANALYST": {
         "primary_model": "openai/gpt-4o",
-        "fallback_models": ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"],
+        "fallback_models": ["openai/gpt-4o-mini", "nex-agi/nex-n2.5-pro:free"],
         "execution_authority": "BLOCK_ONLY",
         "timeout_seconds": 15,
         "max_output_tokens": 800,
@@ -67,7 +67,7 @@ ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
     },
     "GENEL_MUDUR": {
         "primary_model": "openai/gpt-4o",
-        "fallback_models": ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"],
+        "fallback_models": ["openai/gpt-4o-mini", "nex-agi/nex-n2.5-pro:free"],
         "execution_authority": "NONE",
         "timeout_seconds": 15,
         "max_output_tokens": 800,
@@ -76,7 +76,7 @@ ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
     },
     "ROUTINE_REPORTING": {
         "primary_model": "openai/gpt-4o-mini",
-        "fallback_models": ["openai/gpt-4o"],
+        "fallback_models": ["nex-agi/nex-n2.5-pro:free", "openai/gpt-4o"],
         "execution_authority": "NONE",
         "timeout_seconds": 15,
         "max_output_tokens": 800,
@@ -84,17 +84,17 @@ ROLE_ROUTES_CONFIG: Dict[str, Dict[str, Any]] = {
         "description": "Telegram rutin raporları, durum özetleri, işlem bildirimleri"
     },
     "CRITICAL_NEWS_ANALYSIS": {
-        "primary_model": "nvidia/nemotron-3.5-lightning:free",
-        "fallback_models": ["openai/gpt-4o-mini", "google/gemini-2.0-flash-001"],
+        "primary_model": "nex-agi/nex-n2.5-pro:free",
+        "fallback_models": ["openai/gpt-4o-mini"],
         "execution_authority": "BLOCK_ONLY",
         "timeout_seconds": 12,
-        "max_output_tokens": 150,
+        "max_output_tokens": 300,
         "temperature": 0.1,
-        "description": "2 Numara: Makro & Haber Duyarlılık Ajanı (Nemotron 3.5 / Gemini)"
+        "description": "2 Numara: Makro & Haber Duyarlılık Ajanı (Nex-AGI Pro / Mini)"
     },
     "TECHNICAL_SECOND_OPINION": {
         "primary_model": "z-ai/glm-5.3",
-        "fallback_models": ["nvidia/nemotron-3.5-lightning:free", "openai/gpt-4o-mini"],
+        "fallback_models": ["nex-agi/nex-n2.5-pro:free", "openai/gpt-4o-mini", "nvidia/nemotron-3.5-lightning:free"],
         "execution_authority": "NONE",
         "mode": "SHADOW_BY_DEFAULT",
         "timeout_seconds": 15,
@@ -343,7 +343,27 @@ class OpenRouterGateway:
                     data = res.json()
                     choices = data.get("choices", [])
                     if choices:
-                        raw_text = choices[0].get("message", {}).get("content", "").strip()
+                        msg_data = choices[0].get("message") or {}
+                        raw_text = str(msg_data.get("content") or "").strip()
+                        
+                        # 🧹 REASONING / THINKING SÜRECİ TEMİZLEME:
+                        import re
+                        if "<think>" in raw_text:
+                            raw_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
+                            if "<think>" in raw_text:
+                                raw_text = re.sub(r'<think>.*', '', raw_text, flags=re.DOTALL).strip()
+                        
+                        bad_markers = ["thinking process", "analyze user input", "format requirements", "user wants"]
+                        if any(marker in raw_text.lower() for marker in bad_markers):
+                            match = re.search(r'(?:^|\n)\s*(?:1[\.\)]\s*(?:📊|\*?\*?Piyasa|\*?\*?Market).*)$', raw_text, flags=re.DOTALL | re.IGNORECASE)
+                            candidate_clean = match.group(0).strip() if match else ""
+                            if candidate_clean and len(candidate_clean) > 80 and not any(m in candidate_clean.lower() for m in bad_markers):
+                                raw_text = candidate_clean
+                            elif not schema_model:
+                                print(f"⚠️ [OpenRouterGateway]: {model_name} düşünce taslağı/sızıntısı üretti, sıradaki yedeğe geçiliyor...")
+                                last_err = "Model returned incomplete thinking process"
+                                continue
+
                         usage = data.get("usage", {})
                         in_tok = usage.get("prompt_tokens", 0)
                         out_tok = usage.get("completion_tokens", 0)
@@ -397,8 +417,13 @@ class OpenRouterGateway:
                     last_err = f"HTTP {res.status_code}: {res.text}"
                     print(f"⚠️ [OpenRouterGateway Failover]: {model_name} HTTP {res.status_code} verdi, sıradaki yedeğe geçiliyor...")
                     if res.status_code == 402:
-                        print("⚠️ [OpenRouterGateway]: OpenRouter hesap kredisi tükendi (HTTP 402). Gecikmeyi önlemek için yedek zincir sonlandırıldı.")
-                        break
+                        remaining_free = any(":free" in m for m in clean_target_models[model_idx+1:])
+                        if not remaining_free:
+                            print("⚠️ [OpenRouterGateway]: OpenRouter hesap kredisi tükendi (HTTP 402). Ücretsiz yedek model bulunamadı.")
+                            break
+                        else:
+                            print(f"⚠️ [OpenRouterGateway]: {model_name} HTTP 402 verdi, sıradaki ücretsiz yedek modele geçiliyor...")
+                            continue
 
             except Exception as call_err:
                 last_err = str(call_err)
