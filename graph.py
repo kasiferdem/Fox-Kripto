@@ -211,8 +211,8 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     tenant_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id") or "default_tenant")
     from db import get_strategy_config
     strat_cfg_risk = get_strategy_config(use_cache=True) or {}
-    user_tp = float(strat_cfg_risk.get("take_profit_pct") or strat_cfg_risk.get("take_profit_percent") or tenant_config.get("take_profit_percent") or 2.5)
-    user_sl = float(strat_cfg_risk.get("stop_loss_pct") or strat_cfg_risk.get("stop_loss_percent") or tenant_config.get("stop_loss_percent") or 1.7)
+    user_tp = float(strat_cfg_risk.get("take_profit_pct") or strat_cfg_risk.get("take_profit_percent") or tenant_config.get("take_profit_percent") or 3.5)
+    user_sl = float(strat_cfg_risk.get("stop_loss_pct") or strat_cfg_risk.get("stop_loss_percent") or tenant_config.get("stop_loss_percent") or 2.2)
     exch_id = str(tenant_config.get("exchange_id", "")).lower()
     is_tr_user = bool(exch_id in ["binancetr", "binance.tr", "trbinance"])
     live_fx = get_live_usd_try_rate()
@@ -615,13 +615,25 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                 break
             else:
                 print(f"   ⚡ [Deterministik Kuant Motoru Onayı (Sıfır API Gecikmesi)]: {item_sym} -> Skor: {v2_cand_score:.1f}/10 (Hacim: {cand_item.get('volume_spike_ratio', 1.5):.1f}x | Taker Buy: %{cand_item.get('taker_buy_ratio', 60):.1f})")
-                chosen_cand = cand_item
+                # 🧬 Coinin kendi DNA'sındaki MAE (geri çekilme) ve MFE (potansiyel koşu) verisi
+                dna_dist = (cand_dna or {}).get("distribution") or {}
+                cand_mae = float(dna_dist.get("mae_p50_median") or 0.0)
+                cand_mfe = float(dna_dist.get("mfe_p50_median") or 0.0)
+                
+                # Dinamik Stop: Coinin DNA medyan geri çekilmesine (%5 marj ile) tam nefes alanı tanı
+                if 1.8 <= cand_mae <= 3.5:
+                    dyn_sl = round(cand_mae * 1.05, 2)
+                else:
+                    dyn_sl = float(strat_cfg.get("stop_loss_pct") or 2.2)
+                    
+                dyn_tp = round(min(max(cand_mfe, float(strat_cfg.get("take_profit_pct") or 3.5)), 6.0), 2)
+
                 chosen_scalp_eval = {
                     "is_scalp_recommended": True,
                     "potential_score": v2_cand_score,
                     "thesis_tr": f"Deterministik Kuant Onayı: {cand_item.get('volume_spike_ratio', 1.5):.1f}x hacim sıçraması ve güçlü alıcı baskısı.",
-                    "target_tp_pct": float(strat_cfg.get("take_profit_pct") or 3.0),
-                    "stop_loss_pct": float(strat_cfg.get("stop_loss_pct") or 1.2)
+                    "target_tp_pct": dyn_tp,
+                    "stop_loss_pct": dyn_sl
                 }
                 chosen_cand_dna = cand_dna
                 break
@@ -687,11 +699,25 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
         
     ai_tp = float(chosen_scalp_eval.get("target_tp_pct") or user_tp or 3.5)
-    ai_sl = float(chosen_scalp_eval.get("stop_loss_pct") or user_sl or 1.2)
-    tp_price = round(real_entry_price * (1.0 + (ai_tp / 100.0)), 6)
-    sl_price = round(real_entry_price * (1.0 - (ai_sl / 100.0)), 6)
-    dynamic_tp_pct = ai_tp
-    dynamic_sl_pct = ai_sl
+    ai_sl = float(chosen_scalp_eval.get("stop_loss_pct") or user_sl or 2.2)
+    
+    # 🧬 Coin DNA Dinamik Nefes Payı
+    dna_dist = (chosen_cand_dna or {}).get("distribution") or {}
+    dna_mae = float(dna_dist.get("mae_p50_median") or 0.0)
+    dna_mfe = float(dna_dist.get("mfe_p50_median") or 0.0)
+    if 1.8 <= dna_mae <= 3.5:
+        dynamic_sl_pct = round(dna_mae * 1.05, 2)
+        print(f"   🧬 [Coin DNA Dinamik Nefes Payı]: {c_base} için geçmiş medyan MAE (%{dna_mae:.2f}) referans alındı -> SL: -%{dynamic_sl_pct:.2f}")
+    else:
+        dynamic_sl_pct = max(ai_sl, 2.2)
+        
+    if dna_mfe >= 3.0:
+        dynamic_tp_pct = round(min(dna_mfe, 6.0), 2)
+    else:
+        dynamic_tp_pct = max(ai_tp, 3.5)
+
+    tp_price = round(real_entry_price * (1.0 + (dynamic_tp_pct / 100.0)), 6)
+    sl_price = round(real_entry_price * (1.0 - (dynamic_sl_pct / 100.0)), 6)
     
     # Kullanıcının tablodaki net Bütçe % oranı doğrudan işleme alınır
     exec_amount_usd = safe_budget_usd
