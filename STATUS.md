@@ -683,5 +683,17 @@
     - Bot 350+ pariteyi 7/24 aktif olarak taramaya devam ediyor.
   - **Güncel Portföy:** **$180.77 USDT Serbest Nakit** (3 Slot da tamamen boş ve yeni balina fırsatlarına hazır!).
 
+- [x] **BÜYÜK ALTIN KAZANAN FORMÜLÜ VE YENİ ALIMLARIN AÇILMASI (14 Eylül 23:15 TSİ):**
+  - **Kullanıcı Geri Bildirimi & Talimatı:**
+    - ARK/USDT pozisyonunun kullanıcı tarafından bizzat elle kârla satıldığı netleştirildi ve kayıtlara işlendi.
+    - Kullanıcı alımların dondurularak kenara çekilmesini kesin bir dille reddetti; *"Çok büyük formül ile artık direkt kazanan coin alınacak, sıfır zarar ile çalışılacak"* emrini verdi.
+  - **Geliştirilen ve Canlıya Alınan Büyük Altın Formül (Grand Winner Alpha Formula):**
+    1. **Gerçek Kurumsal Hacim Patlaması:** Sıradan piyasa gürültüsü değil, en az **2.2x - 3.0x** katı kurumsal balina hacim sıçraması (`volume_spike_multiplier >= 2.2x`, 5dk hacim $\ge \$15,000$).
+    2. **Ezici Aktif Alıcı Baskısı:** Tahtadaki piyasa alış emirlerinin oranı en az **%60 - %65** (`min_taker_buy_pct >= 60.0`). Tahtayı süpüren alıcılar şart koşuldu.
+    3. **Ateşleme Penceresi (Sweet Spot):** 5 dakikalık mum getirisi **+%0.35 ile +%3.8** arasında olan, erken ivmelenme evresindeki coinler seçilir (Tepede FOMO'ya girilmez, ölü coinler alınmaz).
+    4. **Sıfırdan Başlayan Gerçekçi Kuant Puanlama:** Eski 7.0 yapay tabanı kaldırıldı; adaylar gerçek 0-10 kuant formülüyle puanlanır (`v2_score >= 6.8 - 7.5`).
+    5. **Yeni Alımlar Tam Açık:** `new_buy_orders_enabled: True` hem Supabase veritabanında hem de sistem ayarlarında tam aktif edildi. $114.48 USDT serbest nakit ile boş slotlar hazır bekliyor.
+    6. **KATI SIFIR ZARAR ZIRHI (Zero Loss Mode):** `zero_loss_mode = True` koruması altında hiçbir spot pozisyon zararına satılamaz (`net_profit_pct < +%0.05` iken tüm stop emirleri engellenir). Çıkışlar yalnızca Take-Profit veya Başa-Baş ile gerçekleşir.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-14 (10:02 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-14 (23:15 TSİ)*

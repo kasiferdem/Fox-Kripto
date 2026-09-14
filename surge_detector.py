@@ -76,8 +76,8 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     from db import get_strategy_config
     strat_cfg = get_strategy_config(use_cache=True) or {}
     min_24h_vol = float(strat_cfg.get("min_24h_quote_volume_usd") or strat_cfg.get("min_24h_vol") or 500000.0)
-    min_5m_vol = float(strat_cfg.get("min_5m_volume_usd") or strat_cfg.get("min_volume_usd") or strat_cfg.get("min_vol") or min_volume_usd or 2500.0)
-    vol_spike_req = float(strat_cfg.get("volume_spike_multiplier") or strat_cfg.get("spike") or 1.15)
+    min_5m_vol = float(strat_cfg.get("min_5m_volume_usd") or strat_cfg.get("min_volume_usd") or strat_cfg.get("min_vol") or min_volume_usd or 15000.0)
+    vol_spike_req = float(strat_cfg.get("volume_spike_multiplier") or strat_cfg.get("spike") or 2.2)
     cfg_max_gain = float(strat_cfg.get("max_recent_gain_24h") or strat_cfg.get("gain") or max_recent_gain or 60.0)
 
     # 🔒 Likidite ve Maksimum 24s Prim Kontrolü
@@ -92,6 +92,14 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
     prev_vol_avg = sum(c["quote_volume"] for c in candles[-5:-2]) / 3.0 if len(candles) >= 5 else 1.0
     if prev_vol_avg <= 0:
         return None
+
+    # 👑 BÜYÜK ALTIN KAZANAN FORMÜLÜ (GRAND WINNER ALPHA FORMULA)
+    # Kriterler:
+    # 1. Hacim Patlaması: En az 2.2x - 3.0x (Kurumsal / balina hacim akışı)
+    # 2. Aktif Alıcı Baskısı: En az %60 - %65 taker buy (alıcılar tahtayı süpürüyor)
+    # 3. İdeal Ateşleme Penceresi: 5dk mum kazancı +%0.35 ile +%3.8 arasında (hareketin başında, tepede değil)
+    # 4. Yeterli Likidite: 5dk hacim en az min_5m_vol (varsayılan $15,000 USD)
+    min_tb_pct = float(strat_cfg.get("min_taker_buy_pct") or 60.0)
 
     # Hem canlı oluşan mumu hem de az önce kapanmış son mumu değerlendir (Erken Kaçırma Engeli)
     for target_c in [candles[-1], candles[-2]]:
@@ -108,9 +116,14 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
         tb_vol = target_c.get("taker_buy_quote_volume", 0.0)
         tb_pct = (tb_vol / v_curr * 100.0) if v_curr > 0 else 55.0
 
-        if spike_ratio >= vol_spike_req and v_curr >= min_5m_vol and gain_5m >= 0.25:
-            beta_bonus = min(1.5, daily_range_pct / 8.0)
-            momentum_score = min(10.0, round(7.0 + (spike_ratio * 0.35) + (gain_5m * 0.4) + (beta_bonus * 0.5), 1))
+        if spike_ratio >= vol_spike_req and v_curr >= min_5m_vol and (0.35 <= gain_5m <= 3.8) and tb_pct >= min_tb_pct:
+            # Gerçekçi 0-10 Kuant Puanlama (Yalancı 7.0 tabanı kaldırıldı)
+            vol_pts = min(3.5, (spike_ratio / 2.5) * 2.5)
+            tb_pts = min(3.5, ((tb_pct - 50.0) / 25.0) * 3.5)
+            mom_pts = min(2.0, (gain_5m / 2.0) * 2.0)
+            beta_bonus = min(1.0, daily_range_pct / 10.0)
+            momentum_score = min(10.0, round(vol_pts + tb_pts + mom_pts + beta_bonus, 1))
+
             clean_base = sym.replace("USDT", "").replace("TRY", "")
             quote_suffix = "TRY" if sym.endswith("TRY") else "USDT"
             return {
@@ -124,8 +137,8 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
                 "recent_5m_volume_usd": round(v_curr, 0),
                 "momentum_score": momentum_score,
                 "taker_buy_ratio": round(tb_pct, 1),
-                "signal": f"⚡ YÜKSEK BETA KIRILIMI (Oynaklık: %{daily_range_pct:.1f} / 5dk: +%{gain_5m:.1f} / {spike_ratio:.1f}x Hacim / Skor: {momentum_score})",
-                "recommendation": f"Dinamik Yüksek Beta Girişi: ${v_curr:,.0f} hacim ve %{daily_range_pct:.1f} oynaklıkla teyit edildi."
+                "signal": f"👑 BÜYÜK ALTIN KIRILIM (Hacim: {spike_ratio:.1f}x | Taker Alış: %{tb_pct:.1f} | 5dk: +%{gain_5m:.1f} | Skor: {momentum_score}/10)",
+                "recommendation": f"Büyük Formül Onayı: ${v_curr:,.0f} likidite, %{tb_pct:.1f} alıcı baskısı ve {spike_ratio:.1f}x hacim sıçraması ile kurumsal ateşleme."
             }
 
     return None

@@ -447,6 +447,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                     # Pozisyon ancak ve ancak başa-başta (Net PnL >= +%0.05) veya kârda satılabilir.
                     zero_loss_mode = bool(strat_cfg.get("zero_loss_mode", True))
                     if zero_loss_mode and is_stop_loss and net_profit_pct < 0.05:
+                        print(f"   🛡️ [SIFIR ZARAR ZIRHI]: {target_symbol} PnL: %{net_profit_pct:.2f} < +%0.05. Spot pozisyon zararına satılamaz, kâr veya başa-baş hedefine kadar elde tutuluyor.")
                         is_stop_loss = False
                         reason_desc = ""
 
@@ -580,10 +581,14 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
             "recent_5m_volume_usd": float(cand_item.get("recent_5m_volume_usd", 25000.0) or 25000.0),
             "daily_range_pct": float(cand_item.get("daily_range_pct", 5.0) or 5.0)
         }
+        # 👑 BÜYÜK ALTIN KAZANAN FORMÜLÜ (GRAND WINNER ALPHA FORMULA)
+        # Sadece gerçek kurumsal kırılımlar, yüksek alıcı baskısı ve erken ateşleme evresindeki coinler onaylanır!
+        vol_spike = float(cand_item.get("volume_spike_ratio", 1.0) or 1.0)
+        tb_ratio = float(cand_item.get("taker_buy_ratio", 50.0) or 50.0)
+        p_gain_5m = float(cand_item.get("price_change_5m", cand_item.get("price_change_1m", 0.0)) or 0.0)
+        v2_cand_score = float(cand_item.get("v2_score") or cand_item.get("momentum_score") or 0.0)
+
         # Deterministik Kuant Analizi + LLM (Varsa):
-        # Kullanıcı "Patron ve gereksiz API ücreti kalksın" talimatı doğrultusunda ve OpenRouter 402 kredisi bittiğinde
-        # Node B'nin onayladığı (v2_score >= 7.0) gerçek teknik adaylar kilitlenmez!
-        v2_cand_score = float(cand_item.get("v2_score") or cand_item.get("momentum_score") or 7.5)
         eval_res = None
         try:
             eval_res = call_fast_scalp_analyst(cand_summary, market_weather="GUNESLI")
@@ -591,7 +596,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
             pass
 
         llm_approved = bool(eval_res and eval_res.get("is_scalp_recommended") and eval_res.get("potential_score", 0) >= 7.5)
-        quant_approved = (v2_cand_score >= 7.0)
+        quant_approved = bool(vol_spike >= 2.0 and tb_ratio >= 58.0 and (0.35 <= p_gain_5m <= 4.0) and v2_cand_score >= 6.8)
 
         if llm_approved or quant_approved:
             # 🧬 COIN DNA KAPI MUHAFIZI (BLOCK_ONLY) KONTROLÜ
@@ -624,7 +629,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                 chosen_cand_dna = cand_dna
                 break
             else:
-                print(f"   ⚡ [Deterministik Kuant Motoru Onayı (Sıfır API Gecikmesi)]: {item_sym} -> Skor: {v2_cand_score:.1f}/10 (Hacim: {cand_item.get('volume_spike_ratio', 1.5):.1f}x | Taker Buy: %{cand_item.get('taker_buy_ratio', 60):.1f})")
+                print(f"   👑 [BÜYÜK FORMÜL KUANT ONAYI]: {item_sym} -> Skor: {v2_cand_score:.1f}/10 | Hacim: {vol_spike:.1f}x | Taker Alış: %{tb_ratio:.1f} | 5dk: %{p_gain_5m:+.2f}")
                 # 🧬 Coinin kendi DNA'sındaki MAE (geri çekilme) ve MFE (potansiyel koşu) verisi
                 dna_dist = (cand_dna or {}).get("distribution") or {}
                 cand_mae = float(dna_dist.get("mae_p50_median") or 0.0)
@@ -642,17 +647,17 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                 chosen_scalp_eval = {
                     "is_scalp_recommended": True,
                     "potential_score": v2_cand_score,
-                    "thesis_tr": f"Deterministik Kuant Onayı: {cand_item.get('volume_spike_ratio', 1.5):.1f}x hacim sıçraması ve güçlü alıcı baskısı.",
+                    "thesis_tr": f"👑 Büyük Altın Formül Onayı: {vol_spike:.1f}x kurumsal hacim sıçraması ve %{tb_ratio:.1f} aktif alıcı baskısı.",
                     "target_tp_pct": dyn_tp,
                     "stop_loss_pct": dyn_sl
                 }
                 chosen_cand_dna = cand_dna
                 break
         else:
-            print(f"   🛑 [Aday Reddi]: {item_sym} -> Skor yetersiz, elendi.")
+            print(f"   🛑 [Büyük Formül Reddi]: {item_sym} -> Hacim: {vol_spike:.1f}x | Taker Alış: %{tb_ratio:.1f} | 5dk: %{p_gain_5m:+.2f} | Skor: {v2_cand_score:.1f}/10 (Kriterleri Karşılamadı)")
 
     if not chosen_cand or not chosen_scalp_eval:
-        print("   🛑 [Kuant Kararı]: Taranan adaylar arasında yüksek potansiyeli (skor >= 7.0) olan coin bulunamadı, bekleniyor.")
+        print("   🛑 [Büyük Formül Kararı]: Taranan adaylar arasında 'Büyük Altın Formül' şartlarını (Hacim >= 2.0x, Taker Buy >= %58, Erken Ateşleme) karşılayan coin bulunamadı, güvenle bekleniyor.")
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
 
     cand = chosen_cand
