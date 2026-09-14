@@ -41,8 +41,10 @@ def node_fetch_live_data(state: CryptoAgentState) -> Dict[str, Any]:
 def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
     """[B] Deterministik ön filtre (V2 Scalping & Whale Hunting Confirmation Filter)"""
     print("\n--- [B. NODE: V2 DETERMINISTIK ÖN FİLTRE & TEYİT MATRİSİ] ---")
-    raw_candidates = detect_early_volume_breakouts()
     tenant_config = state.get("tenant_config") or {}
+    exch_id = str(tenant_config.get("exchange_id", "")).lower()
+    is_tr_user = bool(exch_id in ["binancetr", "binance.tr", "trbinance"])
+    raw_candidates = detect_early_volume_breakouts(quote="TRY" if is_tr_user else "USDT")
     tenant_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id") or "default_tenant")
     active_cooldowns = get_active_cooldowns_from_db(tenant_id=tenant_id)
     
@@ -628,6 +630,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                     
                 dyn_tp = round(min(max(cand_mfe, float(strat_cfg.get("take_profit_pct") or 3.5)), 6.0), 2)
 
+                chosen_cand = cand_item
                 chosen_scalp_eval = {
                     "is_scalp_recommended": True,
                     "potential_score": v2_cand_score,
