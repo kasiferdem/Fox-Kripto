@@ -442,6 +442,14 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                                 except Exception:
                                     pass
                             
+                    # 🛡️ KATI SIFIR ZARAR ZIRHI (ZERO LOSS POLICY)
+                    # Kullanıcı Emri: ASLA zararına satış yapılmayacak.
+                    # Pozisyon ancak ve ancak başa-başta (Net PnL >= +%0.05) veya kârda satılabilir.
+                    zero_loss_mode = bool(strat_cfg.get("zero_loss_mode", True))
+                    if zero_loss_mode and is_stop_loss and net_profit_pct < 0.05:
+                        is_stop_loss = False
+                        reason_desc = ""
+
                     if is_stop_loss or is_take_profit:
                         if is_stop_loss:
                             try:
