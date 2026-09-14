@@ -46,18 +46,17 @@
 
 ---
 
-## ⚙️ Güvenli Çalıştırma
-
-```bash
-# Web Paneli + Otonom Botu Çalıştırma
-python app.py
-```
-*Web Arayüzü:* `http://localhost:8000/v2/dashboard` (veya `/dashboard`)
+## 🛑 KESİN ÇALIŞTIRMA VE DAĞITIM KURALI (P0 - ASLA İHLAL EDİLEMEZ)
+- **ASLA YEREL BİLGİSAYARDA `python app.py` VEYA `telegram_poller.py` ÇALIŞTIRILMAYACAKTIR.**
+- Kullanıcı açıkça talimat vermedikçe yerel terminalde hiçbir bot veya daemon başlatılamaz.
+- Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
+- Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
 ---
 
 ## 📋 Mevcut Yapılacaklar Listesi
 
+- [x] **Telegram Çift Cevap / Mükerrer Mesaj Engelleme (P0):** `telegram_poller.py` içine çoklu container/worker ortamlarında dahi aynı güncellemenin birden fazla kez işlenmesini imkansız kılan Dağıtık Atomik Supabase Kilidi (`claim_telegram_update`), giden mesaj mükerrer filtresi (`send_message` 3.5s hash dedup) ve 409 Conflict geri çekilme mekanizması entegre edildi.
 - [x] **Kusursuz Risk Profili Devrede:** `first_pump_blocked: True`, `retest_required: True`, `cooldown: 30 dk`, `stop_loss: %2.2` hem veritabanına hem UI'a dinamik bağlandı.
 - [x] **Çöp Dosyaların Temizlenmesi:** Tüm `scratch_*.py`, `check_orders*.py`, `fetch_*.py` dosyaları `_archive/scratch/` dizinine taşındı.
 - [x] **3'lü Test Paketi Onayı:** Tüm testler (`test_openrouter`, `test_execution_gate`, `test_retest_state_machine`) 0 hata ile %100 geçti.

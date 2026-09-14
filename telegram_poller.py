@@ -32,11 +32,93 @@ BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 user_states = {}
 _last_status_debounce = {}
 
+_dedup_lock = threading.Lock()
+_local_seen_keys = {}
+_last_sent_messages = {}
+
+def claim_telegram_update(update: dict) -> bool:
+    """
+    Çift Mesaj / Çoklu Süreç Engelleme Kilidi (Distributed Atomic Lock):
+    İster bulutta çift container / worker çalışsın, ister aynı anda 2 thread tetiklensin;
+    aynı update_id veya message_id YALNIZCA BİR KEZ işlenir.
+    """
+    update_id = update.get("update_id")
+    if not update_id:
+        return True
+
+    now = time.time()
+    lock_keys = [f"tg_upd_{update_id}"]
+    
+    msg = update.get("message")
+    if msg:
+        c_id = msg.get("chat", {}).get("id")
+        m_id = msg.get("message_id")
+        if c_id and m_id:
+            lock_keys.append(f"tg_msg_{c_id}_{m_id}")
+            
+    cb = update.get("callback_query")
+    if cb:
+        cb_id = cb.get("id")
+        if cb_id:
+            lock_keys.append(f"tg_cb_{cb_id}")
+
+    # 1. Hızlı Yerel Bellek Kontrolü (Sub-millisecond Local Thread Lock)
+    with _dedup_lock:
+        for k in lock_keys:
+            if k in _local_seen_keys:
+                print(f"🛑 [Yerel Mükerrer Engellendi]: {k}")
+                return False
+            _local_seen_keys[k] = now
+        
+        # 10 dakikadan eski anahtarları temizle
+        if len(_local_seen_keys) > 2000:
+            cutoff = now - 600
+            to_del = [k for k, ts in _local_seen_keys.items() if ts < cutoff]
+            for k in to_del:
+                _local_seen_keys.pop(k, None)
+
+    # 2. Dağıtık Atomik Supabase Kilidi (Bulut Sunucu / Rolling Deploy Container Kilidi)
+    client = get_supabase()
+    if client:
+        primary_session_id = f"tg_lock_{update_id}"
+        try:
+            client.table("crypto_agent_states").insert({
+                "session_id": primary_session_id,
+                "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                "state_data": {
+                    "claimed_at": now,
+                    "keys": lock_keys,
+                    "pid": os.getpid()
+                }
+            }).execute()
+        except Exception as e:
+            err_str = str(e).lower()
+            if "duplicate key" in err_str or "23505" in err_str or "unique" in err_str:
+                print(f"🛑 [Bulut Mükerrer Engellendi]: {primary_session_id} başka bir süreç tarafından zaten işlendi!")
+                return False
+            # Supabase geçici hata verse bile yerel kilit korumaya devam eder
+            pass
+
+    return True
+
 def send_message(chat_id: int, text: str, reply_markup=None):
     """
-    Güvenli Telegram Mesaj Gönderme:
+    Güvenli Telegram Mesaj Gönderme (Mükerrer Filtreli):
     Markdown formatı veya reply_markup hatası almamak için dinamik payload oluşturur.
+    Aynı mesajın 3.5 saniye içinde aynı sohbete mükerrer iletilmesini engeller.
     """
+    global _last_sent_messages
+    now = time.time()
+    clean_text = (text or "").strip()
+    msg_hash = hashlib.md5(clean_text.encode('utf-8', errors='ignore')).hexdigest()
+    
+    with _dedup_lock:
+        last_hash, last_ts = _last_sent_messages.get(chat_id, ("", 0))
+        if msg_hash == last_hash and (now - last_ts) < 3.5:
+            print(f"🛑 [Outbound Mükerrer Engellendi]: Chat ID {chat_id} için aynı mesaj 3.5s içinde tekrar gönderilmedi.")
+            return
+        _last_sent_messages[chat_id] = (msg_hash, now)
+
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
@@ -56,6 +138,13 @@ def send_message(chat_id: int, text: str, reply_markup=None):
         print(f"❌ Telegram Send Error: {e}")
 
 def handle_update(update: dict):
+    if not update:
+        return
+        
+    # 🛑 MÜKERRER MESAJ KİLİDİ: Aynı güncelleme sadece TEK BİR KEZ işlenebilir!
+    if not claim_telegram_update(update):
+        return
+
     # 1. Buton Tıklamaları (Callback Query - ONAY / REDDET)
     callback = update.get("callback_query")
     if callback:
@@ -1729,6 +1818,9 @@ def start_poller():
                     offset = update["update_id"] + 1
                     # Her mesajı paralel arka plan iş parçacığında (Thread) çalıştır - Sıfır Bloklanma!
                     threading.Thread(target=handle_update, args=(update,), daemon=True).start()
+            elif res.status_code == 409:
+                print("⚠️ [Telegram Poller 409 Conflict]: Başka bir bot örneği/container dinlemede. 5 sn bekleniyor...")
+                time.sleep(5)
             time.sleep(0.5)
         except Exception as e:
             time.sleep(1)
