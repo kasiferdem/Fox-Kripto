@@ -733,5 +733,11 @@
     6. **Sıkı Zarar Kalkanı:** İşler ters giderse en fazla **-%1.4'te kol keser (`stop_loss_pct: 1.4`)**; asla -%5'e sarkmaz.
     7. **Yeni Alımlar Aktif:** `new_buy_orders_enabled: True` olarak güncellendi.
 
+- [x] **POZİSYONLARIN NAKDE DÖNÜŞMESİ VE %100 NAKİT BAŞLANGICI (15 Eylül 10:15 TSİ):**
+  - **İnfaz Edilen Çıkışlar:** `zero_loss_mode` kaldırılır kaldırılmaz sunucu 3 açık pozisyonu da derhal Stop-Loss seviyesinden piyasa emriyle satarak kilitleri çözdü (ZEC @ 1145.13, NEIRO @ 0.00008199, MORPHO @ 2.1480).
+  - **Güncel Kasa Durumu:** **$164.19 USDT (%100 Serbest Nakit)**.
+  - **Slotlar:** 3 Slot da tamamen boşaldı.
+  - **Aktif Strateji:** "Hızlı & Karlı Scalp" (`whale_hunting_balanced`) 350+ pariteyi taze nakitle tarıyor.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-15 (10:05 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-15 (10:15 TSİ)*
