@@ -722,5 +722,16 @@
     2. **Disiplinli Stop-Loss (-%1.8) Geri Yüklendi:** Hiçbir coin -%1.8'den fazla geri çekilmeye bırakılamaz.
     3. **Yeni Alımlar Donduruldu (`new_buy_orders_enabled: False`):** Mevcut durum temizlenene ve kullanıcı açık onay verene kadar yeni alım yapılmayacak.
 
+- [x] **HIZLI VE KARLI SCALP STRATEJİSİNİN DEVREYE ALINMASI (15 Eylül 10:05 TSİ):**
+  - **Kullanıcı Talimatı:** *"Bütün botlar hızlı alım satıma ama karlı işlere girecek şekilde bir ayar yapın."*
+  - **Uygulanan Altın Parametre Seti (`whale_hunting_balanced`):**
+    1. **Hızlı İvme Yakalama:** `retest_required: False` ve `first_pump_candle_entry_blocked: False` ile kırılım anında trene anında biner.
+    2. **Kalite & Likidite Filtresi:** En az **$2,000,000 USD** 24s hacim şartı getirildi (Sığ manipülatif tahtalar elendi).
+    3. **Ezici Alıcı Gücü:** Tahtadaki piyasa alış emirlerinin oranı en az **%65.0** olmak zorunda (`min_taker_buy_pct: 65.0`).
+    4. **Hızlı Kâr Alma (Vur-Kaç):** `take_profit_pct: %2.2`.
+    5. **Kârı Cebe Kilitleme (Break-Even):** Fiyat +%0.9'a ulaştığı an Stop maliyete çekilir (`break_even_trigger_pct: 0.9`). Kâra geçen işlem zarara dönemez.
+    6. **Sıkı Zarar Kalkanı:** İşler ters giderse en fazla **-%1.4'te kol keser (`stop_loss_pct: 1.4`)**; asla -%5'e sarkmaz.
+    7. **Yeni Alımlar Aktif:** `new_buy_orders_enabled: True` olarak güncellendi.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-15 (10:00 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-15 (10:05 TSİ)*
