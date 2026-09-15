@@ -51,7 +51,7 @@
   "coin_dna_ambiguous_bar_threshold_pct": 0.1,
   "coin_dna_resistance_cluster_tolerance_pct": 0.8,
   "hybrid_micro_cut_enabled": false,
-  "updated_at": "2026-09-15T06:59:55Z",
+  "updated_at": "2026-09-15T07:01:57Z",
   "r_exit_enabled": true,
   "r_first_tp_at_r": 1.0,
   "r_trailing_at_r": 1.5,
@@ -59,12 +59,11 @@
   "r_final_target_r": 2.0,
   "use_atr_dynamic_r": true,
   "r_first_tp_qty_pct": 40.0,
+  "manual_exit_only_coins": [],
   "micro_cut_time_loss_pct": 0.4,
   "minimum_expected_net_rr": 1.2,
   "micro_cut_taker_sell_ratio": 65.0,
   "net_advantage_gate_enabled": true,
   "micro_cut_time_limit_minutes": 7,
-  "micro_cut_taker_window_minutes": 3,
-  "zero_loss_mode": false,
-  "manual_exit_only_coins": []
+  "micro_cut_taker_window_minutes": 3
 }
