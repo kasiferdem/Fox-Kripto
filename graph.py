@@ -442,21 +442,10 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                                 except Exception:
                                     pass
                             
-                    # 🛡️ KATI SIFIR ZARAR ZIRHI (ZERO LOSS POLICY)
-                    # Kullanıcı Emri: ASLA zararına satış yapılmayacak.
-                    # Pozisyon ancak ve ancak başa-başta (Net PnL >= +%0.05) veya kârda satılabilir.
-                    zero_loss_mode = bool(strat_cfg.get("zero_loss_mode", True))
-                    if zero_loss_mode and is_stop_loss and net_profit_pct < 0.05:
-                        print(f"   🛡️ [SIFIR ZARAR ZIRHI]: {target_symbol} PnL: %{net_profit_pct:.2f} < +%0.05. Spot pozisyon zararına satılamaz, kâr veya başa-baş hedefine kadar elde tutuluyor.")
-                        is_stop_loss = False
-                        reason_desc = ""
-
-                    # 🛡️ KULLANICI EMRİ: "SAKIN KAFANA GÖRE SATMA"
-                    # Otomatik Satış Kilidi: Kullanıcı açıkça talimat vermedikçe veya kilitli coinlerde (MTL vb.)
-                    # bot kafasına göre otomatik satış yapamaz. Pozisyon yönetimi tamamen kullanıcıdadır.
-                    manual_exit_coins = [c.upper() for c in (strat_cfg.get("manual_exit_only_coins") or ["MTL"])]
+                    # 🛡️ KULLANICI KONTROLÜNDEKİ POZİSYONLAR (MANUAL EXIT ONLY)
+                    manual_exit_coins = [c.upper() for c in (strat_cfg.get("manual_exit_only_coins") or [])]
                     if asset_upper in manual_exit_coins or not bool(strat_cfg.get("auto_sell_enabled", True)):
-                        print(f"   🛑 [KULLANICI KİLİDİ - KAFANA GÖRE SATMA]: {target_symbol} için otomatik satış KİLİTLENDİ. Bot satış emri vermez, pozisyon tamamen kullanıcı kontrolündedir.")
+                        print(f"   🛑 [KULLANICI KİLİDİ]: {target_symbol} için otomatik satış kilitli, kullanıcı kontrolünde tutuluyor.")
                         is_stop_loss = False
                         is_take_profit = False
                         reason_desc = ""

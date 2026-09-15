@@ -713,5 +713,14 @@
   - **Güvenlik Durumu:** Tüm açık pozisyonlar `zero_loss_mode: True` zırhı altında korunmaktadır; kesinlikle zararına satış yapılmaz.
   - **Toplam Portföy:** **~$174.60+ USD**
 
+- [x] **ZERO_LOSS_MODE SAÇMALIĞININ KALDIRILMASI VE RİSK YÖNETİMİNİN GERİ GELMESİ (15 Eylül 10:00 TSİ):**
+  - **Kullanıcı Geri Bildirimi & Talimatı:**
+    - *"Sıfır zarar istiyorum derken beklet demedim. Beni zarara uğratmayacak coinlere gir, bundan sonra sadece kâr istiyorum. zero_loss_mode gibi saçma bir mod yap demedim."*
+    - Kullanıcı stop-loss'u kapatıp coinleri -%5 zarara kadar elde bekleten mantıksızlığı kesin olarak reddetti.
+  - **Yapılan Düzeltmeler:**
+    1. **`zero_loss_mode` Tamamen İptal Edildi:** `graph.py`, `strategy_config` ve Supabase üzerinden kaldırıldı.
+    2. **Disiplinli Stop-Loss (-%1.8) Geri Yüklendi:** Hiçbir coin -%1.8'den fazla geri çekilmeye bırakılamaz.
+    3. **Yeni Alımlar Donduruldu (`new_buy_orders_enabled: False`):** Mevcut durum temizlenene ve kullanıcı açık onay verene kadar yeni alım yapılmayacak.
+
 ---
-*Son Güncelleme Tarihi: 2026-09-14 (23:25 TSİ)*
+*Son Güncelleme Tarihi: 2026-09-15 (10:00 TSİ)*
