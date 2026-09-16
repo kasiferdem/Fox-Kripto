@@ -52,8 +52,11 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
----
-
+- [x] **14 Eylül Kazandıran Strateji Parametreleri Canlıya Uygulandı (16 Eylül 10:55 TSİ):**
+  - Kullanıcının doğrudan talimatıyla `14_EYLUL_KAZANDIRAN_STRATEJI_AYARLARI.md` rehberindeki altın kasa profili (`whale_hunting_balanced`) Supabase ve yerel konfigürasyona uygulandı.
+  - **Parametreler:** `volume_spike_multiplier: 1.15`, `min_volume_usd: $2,500`, `take_profit_pct: %3.0` (Tenant %3.5), `stop_loss_pct: %1.2`, `break_even_trigger_pct: %1.2`, `trailing_callback_pct: %0.6`, `retest_required: False` (anında giriş), `first_pump_candle_entry_blocked: False` (erken ivme), `max_budget_percent: %33.3` (3 eşit slot).
+  - **İzinler & Mod:** `execution_mode = LIVE_TRADING`, `new_buy_orders_enabled = True`, `coin_dna_execution_authority = SMART_BLOCK_ONLY`.
+  - **Doğrulama:** Kullanıcı `S` (UUID & Chat ID) canlı moda senkronize edildi; devre kesiciler kontrol edildi (`passed: True`) ve tüm alım kapıları açıldı.
 - [x] **Kritik Paper Trading Senkronizasyon ve UI Kalıcılık Onarımı (P0 - 16 Eylül 10:48 TSİ):**
   - **Kök Neden 1 (Borsa İnfaz Kaçağı):** `exchange.py` satır 1337'de Binance Global spot alım/satım bloğunda `and not is_paper` kontrolünün eksik olması nedeniyle, kiracı veya sistem paper trading modunda olsa dahi `apiKey` varlığı yüzünden gerçek Binance borsasına canlı piyasa emri gönderiliyordu; bu açık kapatılarak tüm paper emirler %100 `VirtualPaperExchangeClient`'a kilitlendi.
   - **Kök Neden 2 (UI Kayıt Etmeme / Hardcode Bug):** `v2_dashboard_html.py` arayüzündeki `setExecutionMode('PAPER_TRADING')` butonunun yalnızca tarayıcıda geçici bir JS değişkeni değiştirdiği ve sunucuya hiçbir istek atmadığı (kaydetmediği) tespit edildi. FastAPI'ye `/api/execution-mode` ve `/api/tenants/{tenant_id}/trading-mode` endpoint'leri eklendi; buton tıklanır tıklanmaz anında Supabase'e kaydedilip onay rozeti verecek şekilde çift taraflı bağlandı.
