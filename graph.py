@@ -231,23 +231,28 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     # -------------------------------------------------------------
     # 1. AÇIK POZİSYONLARIN TP / SL VE 3 KADEMELİ DCA DENETİMİ
     # -------------------------------------------------------------
+    is_paper_trading = bool(tenant_config.get("is_paper_trading")) or bool(get_system_setting("execution_mode") == "PAPER_TRADING")
     bal_tr = portfolio_state.get("binance_tr")
     bal_gl = portfolio_state.get("binance_global")
     exchange_silos = []
     
-    if bal_tr and bal_tr.get("holdings_details"):
-        exchange_silos.append(("TRY", bal_tr.get("holdings_details", {}), "binancetr", True))
-    if bal_gl and bal_gl.get("holdings_details"):
-        exchange_silos.append(("USDT", bal_gl.get("holdings_details", {}), "binance", False))
-        
+    if is_paper_trading:
+        h = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
+        exchange_silos.append(("USDT", h, "paper", False))
+    else:
+        if bal_tr and bal_tr.get("holdings_details"):
+            exchange_silos.append(("TRY", bal_tr.get("holdings_details", {}), "binancetr", True))
+        if bal_gl and bal_gl.get("holdings_details"):
+            exchange_silos.append(("USDT", bal_gl.get("holdings_details", {}), "binance", False))
+            
     if not exchange_silos:
         pair_q = "TRY" if is_tr_user else "USDT"
-        exch_name = "binancetr" if is_tr_user else "binance"
+        exch_name = "paper" if is_paper_trading else ("binancetr" if is_tr_user else "binance")
         h = portfolio_state.get("holdings_details") or portfolio_state.get("crypto_holdings") or {}
         exchange_silos.append((pair_q, h, exch_name, is_tr_user))
         
     for pair_quote, holdings_map, exch_name, is_tr_silo in exchange_silos:
-        saved_positions = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch_name)
+        saved_positions = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch_name, is_simulated=is_paper_trading)
         if isinstance(holdings_map, dict):
             for coin_asset, details in holdings_map.items():
                 asset_upper = str(coin_asset).upper()
@@ -271,8 +276,8 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                     stage = str(entry_info.get("stage") or "INITIAL")
                     highest_p = float(entry_info.get("highest_price") or recorded_buy_p or curr_p)
 
-                    # Eğer DB'de alış fiyatı yoksa, doğrudan borsanın resmi işlem defterinden (/myTrades) çek:
-                    if recorded_buy_p <= 0.0:
+                    # Eğer DB'de alış fiyatı yoksa ve GERÇEK hesap ise, doğrudan borsanın resmi işlem defterinden (/myTrades) çek:
+                    if recorded_buy_p <= 0.0 and not is_paper_trading:
                         kd = tenant_config.get("keys_data") or {}
                         api_k = (kd.get("binancetr" if is_tr_silo else "binance", {}) or {}).get("api_key") or tenant_config.get("exchange_api_key")
                         sec_k = (kd.get("binancetr" if is_tr_silo else "binance", {}) or {}).get("secret_key") or tenant_config.get("exchange_secret_key")
@@ -297,7 +302,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                                             base_asset=asset_upper, quote_asset=pair_quote, amount=coin_amount,
                                             buy_price=recorded_buy_p, stop_loss_price=pos_sl_price,
                                             take_profit_price=pos_tp_price,
-                                            highest_price=highest_p, stage="INITIAL"
+                                            highest_price=highest_p, stage="INITIAL", is_simulated=is_paper_trading
                                         )
                                         print(f"📖 [Binance Defteri]: {asset_upper} son gerçek alış fiyatı borsadan senkronize edildi: ${recorded_buy_p:,.8f}")
                             except Exception as e_hist:
@@ -319,7 +324,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             tenant_id=tenant_id, exchange_id=exch_name, symbol=target_symbol,
                             base_asset=asset_upper, quote_asset=pair_quote, amount=coin_amount,
                             buy_price=recorded_buy_p, stop_loss_price=pos_sl_price, take_profit_price=pos_tp_price,
-                            highest_price=curr_p, stage=stage
+                            highest_price=curr_p, stage=stage, is_simulated=is_paper_trading
                         )
                         
                     is_stop_loss = False

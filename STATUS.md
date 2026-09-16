@@ -52,6 +52,9 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Sanal Modda Gerçek myTrades Karışması ve PnL Tutarsızlığı Onarıldı (16 Eylül 15:20 TSİ):**
+  - **Kök Neden:** `graph.py` içindeki pozisyon takip döngüsünde `is_paper_trading` durumunda dahi `exch_name="binance"` ve `is_simulated=False` olarak sorgu yapılıyordu. Bu nedenle DB'de sanal alış fiyatı bulunamıyor (`recorded_buy_p = 0.0`) ve kod **kullanıcının gerçek Binance geçmişine (`/myTrades`)** başvuruyordu! Örneğin sanalda $0.967'ye alınan DOT için, kullanıcının aylar önceki gerçek Binance alış fiyatı ($1.02) referans alınıyor; coin $0.994'e yükselip kâr ettiği halde bot -%2.72 zararda olduğunu sanarak Stop-Loss satışı yapıyordu. Kullanıcı Telegram'da "-%2.72 Zarar Satışı" görürken, sanal kasadaki bakiye fiilen artıyordu ($10,431).
+  - **Çözüm:** Sanal modda `exch_name = "paper"`, `is_simulated = True` yapıldı; `/myTrades` gerçek borsa sorgusu sanal modda tamamen engellendi ve pozisyon takip defteri doğrudan `pos_{tenant_id}_paper` ile senkronize edildi.
 - [x] **Paper Mod Ledger ve Bakiye Senkronizasyonu Onarıldı (16 Eylül 14:58 TSİ):**
   - **Kök Neden:** `graph.py` içindeki `node_execute_trade` fonksiyonunda simüle edilmiş işlem sonucunda borsa adı varsayılan olarak `"binance"` olarak atanıyor ve `pos_{tenant_id}_binance` oturumuna kaydediliyordu. Ancak `exchange.py`'ın sanal portföy motoru `pos_{tenant_id}_paper` oturumunu okuyordu. Ayrıca alım/satım işlemlerinde `update_virtual_balance` fonksiyonu çağrılmadığı için sanal kasa bakiyesi güncellenmiyordu.
   - **Çözüm:** `graph.py` üzerinde `is_simulated` durumunda `exch_name = "paper"` yapıldı, `is_simulated=is_simulated` parametresiyle pozisyon sorgusu bağlandı ve alım/satımlarda sanal USDT bakiyesini atomik güncelleyen mekanizma entegre edildi.
