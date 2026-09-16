@@ -52,6 +52,9 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Telegram Cüzdan Sorgusunda (`/durum`) Sanal Alış Fiyatları Onarıldı (17 Eylül 00:20 TSİ):**
+  - **Kök Neden:** `telegram_poller.py` içindeki portföy sorgusunda `exchange_id="binance"` sabit olarak sorgulanıyor ve kağıt pozisyonu bulunamadığında (`entry_p <= 0`) kullanıcının aylar önceki **gerçek Binance `/myTrades` geçmişi** okunuyordu. Bu yüzden sanalda $0.0511'den alınan HIVE, Telegram mesajında kullanıcının eski gerçek alış fiyatı olan `@ $0.0505` olarak görünüyordu. Toplam bakiye doğru olsa da parantez içindeki alış fiyatları ve kâr oranları yanıltıcı çıkıyordu.
+  - **Çözüm:** `telegram_poller.py` içine sanal mod kontrolü eklendi; artık doğrudan `pos_{tenant_id}_paper` tablosunu okuyor ve sanal modda `/myTrades` gerçek borsa sorgusu tamamen engellendi.
 - [x] **Paper Trading 7/24 Döngü Durumu ve Slot İncelemesi (17 Eylül 00:15 TSİ):**
   - **Kullanıcı Sorusu:** "Paper trading neden durdu?"
   - **Durum Tespiti:** Sistem kesinlikle durmamıştır. Sıfırlamadan (15:45 TSİ) bu yana **105 adet işlem** başarıyla gerçekleştirilmiştir (REZ +%4.06, TUT +%2.10, MUBARAK +%2.22, BOME +%1.89 vb. kâr realizasyonları).
