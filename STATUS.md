@@ -52,6 +52,9 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Sanal (Paper Trading) Cüzdan Sıfırdan Net $10,000.00 Nakite Sıfırlandı (16 Eylül 15:45 TSİ):**
+  - **Aksiyon:** Kullanıcının talebi üzerine sanal demo kasası tertemiz sıfırlandı. Tüm açık sanal pozisyonlar (`ATM`, `TUT`, `BANK`) cüzdandan silindi, soğuma kilitleri ve devre kesici sayaçları sıfırlandı.
+  - **Doğrulanan Durum:** Serbest USDT: `$10,000.00 USD`, Açık Pozisyon: `0`, Toplam Portföy: `$10,000.00 USD` (%100 nakit).
 - [x] **Sanal (Paper Trading) Kasa Defteri ve 400$ Farkın Matematiksel Denetimi (16 Eylül 15:35 TSİ):**
   - **Kullanıcı Şüphesi:** "Kasanın 400 dolar kazandığına inanmıyorum, sürekli eksi satış bildirimi gelirken kasa nasıl 10.431$ oldu?"
   - **Denetim Sonucu:** Kullanıcı şüphesinde %100 haklı çıktı. Gerçek trading kazancı 400$ değil, **+$62.50 USD**'dir (Kapanan işlemler: +$47.42 USD, Açık pozisyonlar: +$15.08 USD).
