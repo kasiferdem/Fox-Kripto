@@ -864,13 +864,21 @@ def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
     """
     Multi-Tenant Borsa İstemcisi (Binance Global REST, Binance TR REST, Çift Borsa ve Sanal Paper Destekli):
     """
+    from db import get_system_setting, get_tenant_trading_mode
+    exec_mode = str(get_system_setting("execution_mode", "LIVE")).upper()
+    is_global_paper = (exec_mode in ["SIGNAL_ONLY", "PAPER_TRADING"])
+
     if tenant_config:
-        if tenant_config.get("is_paper_trading") or tenant_config.get("exchange_id") == "paper":
-            return VirtualPaperExchangeClient(tenant_config.get("id") or tenant_config.get("telegram_chat_id", "paper_tenant"))
+        t_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id", "paper_tenant"))
+        t_is_paper = bool(tenant_config.get("is_paper_trading")) or (str(tenant_config.get("exchange_id", "")).lower() == "paper") or is_global_paper or get_tenant_trading_mode(t_id)
+        if t_is_paper:
+            return VirtualPaperExchangeClient(t_id)
         exchange_id = tenant_config.get("exchange_id", "binance").lower()
         api_key = tenant_config.get("exchange_api_key", "")
         secret_key = tenant_config.get("exchange_secret_key", "")
     else:
+        if is_global_paper:
+            return VirtualPaperExchangeClient("global_paper")
         exchange_id = os.environ.get("EXCHANGE_ID", "binance").lower()
         api_key = os.environ.get("EXCHANGE_API_KEY", "")
         secret_key = os.environ.get("EXCHANGE_SECRET_KEY", "")
@@ -1242,7 +1250,9 @@ def execute_spot_trade(
         return {"status": "BLOCKED_BY_SAFE_MODE", "error": "🛑 Yeni alımlar sistem güvenlik kilidiyle kapatılmıştır (new_buy_orders_enabled=False)."}
 
     # 🛡️ 2. PAPER / SIGNAL TRADING KONTROLÜ
-    is_paper = bool((tenant_config or {}).get("is_paper_trading")) or (tenant_mode == "paper") or (exec_mode in ["SIGNAL_ONLY", "PAPER_TRADING"])
+    from db import get_tenant_trading_mode
+    t_ident = (tenant_config or {}).get("id") or (tenant_config or {}).get("telegram_chat_id")
+    is_paper = bool((tenant_config or {}).get("is_paper_trading")) or (tenant_mode == "paper") or (exec_mode in ["SIGNAL_ONLY", "PAPER_TRADING"]) or (get_tenant_trading_mode(t_ident) if t_ident else False)
     is_testnet = os.environ.get("EXCHANGE_TESTNET", "false").lower() == "true"
 
     # TRY Çiftlerini Doğrudan Binance TR İstemcisine Yönlendir (Eğer canlı modda ise)
@@ -1299,7 +1309,7 @@ def execute_spot_trade(
         
     quantity = amount_usd / price if price > 0 else 0
     
-    if side.lower() in ["buy", "alim"] and exchange:
+    if side.lower() in ["buy", "alim"] and exchange and not is_paper:
         if hasattr(exchange, "fetch_balance"):
             try:
                 bal_check = exchange.fetch_balance()
@@ -1310,7 +1320,7 @@ def execute_spot_trade(
             except Exception:
                 pass
 
-    if side.lower() == "sell" and exchange:
+    if side.lower() == "sell" and exchange and not is_paper:
         base_asset = symbol.split("/")[0].split("_")[0].upper()
         clean_s = symbol.replace("/", "").replace("_", "").upper()
         # 🔓 1. Önce bu coine ait açık stop/limit emirlerini iptal et ki kilitli bakiye %100 serbest kalsın!
@@ -1334,7 +1344,35 @@ def execute_spot_trade(
             except Exception:
                 pass
 
-    if exchange and getattr(exchange, "apiKey", None) and not is_testnet:
+    # 🧪 SANAL TEST (PAPER TRADING) İNFAZI - GERÇEK BORSAYA ASLA EMİR GİTMEZ!
+    if is_paper or (exchange and getattr(exchange, "id", "") == "paper"):
+        paper_client = exchange if getattr(exchange, "id", "") == "paper" else VirtualPaperExchangeClient((tenant_config or {}).get("id") or (tenant_config or {}).get("telegram_chat_id", "paper_tenant"))
+        try:
+            order = paper_client.create_order(
+                symbol=symbol,
+                type='market',
+                side=side.lower(),
+                amount=quantity,
+                amount_usd=amount_usd
+            )
+            print(f"🧪 [SANAL PAPER EMİR İNFAZ EDİLDİ]: {symbol} {side.upper()} (${amount_usd:.2f}) -> Order ID #{order.get('id')}")
+            return {
+                "status": "success",
+                "order_id": str(order.get('id')),
+                "symbol": symbol,
+                "side": side,
+                "amount_usd": amount_usd,
+                "amount_coin": quantity,
+                "executed_price": order.get('price') or price,
+                "stop_loss_price": stop_loss_price,
+                "physical_stop": {"status": "success", "order_id": f"PAPER_STOP_{int(time.time())}", "stop_price": stop_loss_price},
+                "raw_order": order
+            }
+        except Exception as e_paper:
+            print(f"❌ [Sanal Paper Emir Hatası]: {e_paper}")
+            return {"status": "FAILED", "error": str(e_paper)}
+
+    if exchange and getattr(exchange, "apiKey", None) and not is_testnet and not is_paper:
         try:
             try:
                 order = exchange.create_order(

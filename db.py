@@ -58,37 +58,90 @@ def register_user_tenant(
         print(f"❌ [Multi-Tenant Kayıt Hatası]: {e}")
         return None
 
-def set_tenant_trading_mode(telegram_chat_id: int, is_paper: bool) -> bool:
-    """Kullanıcının çalışma modunu SANAL TEST (Paper) veya GERÇEK CANLI (Live) olarak ayarlar."""
+def set_tenant_trading_mode(identifier: Any, is_paper: bool) -> bool:
+    """Kullanıcının çalışma modunu SANAL TEST (Paper) veya GERÇEK CANLI (Live) olarak ayarlar (Hem Chat ID hem UUID senkronize)."""
+    global _tenant_cache
     client = get_supabase()
     if not client: return False
-    session_id = f"trading_mode_{str(telegram_chat_id)}"
+    
+    id_str = str(identifier).strip()
+    session_ids = [f"trading_mode_{id_str}"]
+    
     try:
-        payload = {
-            "session_id": session_id,
-            "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            "state_data": {"is_paper_trading": bool(is_paper)}
-        }
-        client.table("crypto_agent_states").upsert(payload).execute()
+        if id_str.isdigit():
+            res = client.table("user_tenants").select("id, telegram_chat_id").eq("telegram_chat_id", int(id_str)).execute()
+        else:
+            res = client.table("user_tenants").select("id, telegram_chat_id").eq("id", id_str).execute()
+        if res.data and len(res.data) > 0:
+            row = res.data[0]
+            uuid_val = str(row.get("id"))
+            tg_val = str(row.get("telegram_chat_id"))
+            if uuid_val: session_ids.append(f"trading_mode_{uuid_val}")
+            if tg_val: session_ids.append(f"trading_mode_{tg_val}")
+    except Exception:
+        pass
+        
+    session_ids = list(set(session_ids))
+    try:
+        for s_id in session_ids:
+            payload = {
+                "session_id": s_id,
+                "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                "state_data": {"is_paper_trading": bool(is_paper)}
+            }
+            client.table("crypto_agent_states").upsert(payload).execute()
+            
+        _tenant_cache.clear()
         mode_str = "SANAL TEST (Paper - $100)" if is_paper else "GERÇEK CANLI (Live)"
-        print(f"🎛️ [Çalışma Modu Değişti]: Chat ID {telegram_chat_id} -> {mode_str}")
+        print(f"🎛️ [Çalışma Modu Değişti]: {identifier} -> {mode_str}")
         return True
     except Exception as e:
         print(f"⚠️ [Trading Mode Güncelleme Hatası]: {e}")
         return False
 
-def get_tenant_trading_mode(telegram_chat_id: int) -> bool:
-    """Kullanıcının şu anda SANAL TEST modunda olup olmadığını döner."""
+def get_tenant_trading_mode(identifier: Any) -> bool:
+    """Kullanıcının şu anda SANAL TEST modunda olup olmadığını döner (Chat ID, UUID ve Global fallback)."""
     client = get_supabase()
     if not client: return False
-    session_id = f"trading_mode_{str(telegram_chat_id)}"
+    
+    # 1. Global sistem ayarı kontrolü (Eğer sistem genelinde PAPER_TRADING açıksa herkes sanal çalışır)
     try:
-        res = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute()
-        if res.data and len(res.data) > 0:
-            return bool(res.data[0].get("state_data", {}).get("is_paper_trading", False))
+        session_id_glob = "global_system_settings"
+        res_g = client.table("crypto_agent_states").select("state_data").eq("session_id", session_id_glob).execute()
+        if res_g.data and len(res_g.data) > 0:
+            g_mode = str(res_g.data[0].get("state_data", {}).get("execution_mode", "")).upper()
+            if g_mode in ["SIGNAL_ONLY", "PAPER_TRADING"]:
+                return True
     except Exception:
         pass
-    return False
+
+    id_str = str(identifier).strip()
+    session_ids = [f"trading_mode_{id_str}"]
+    try:
+        if id_str.isdigit():
+            res = client.table("user_tenants").select("id, telegram_chat_id").eq("telegram_chat_id", int(id_str)).execute()
+        else:
+            res = client.table("user_tenants").select("id, telegram_chat_id").eq("id", id_str).execute()
+        if res.data and len(res.data) > 0:
+            row = res.data[0]
+            uuid_val = str(row.get("id"))
+            tg_val = str(row.get("telegram_chat_id"))
+            if uuid_val: session_ids.append(f"trading_mode_{uuid_val}")
+            if tg_val: session_ids.append(f"trading_mode_{tg_val}")
+    except Exception:
+        pass
+        
+    session_ids = list(set(session_ids))
+    try:
+        for s_id in session_ids:
+            res = client.table("crypto_agent_states").select("state_data").eq("session_id", s_id).execute()
+            if res.data and len(res.data) > 0:
+                is_p = bool(res.data[0].get("state_data", {}).get("is_paper_trading", False))
+                if is_p:
+                    return True
+        return False
+    except Exception:
+        return False
 
 _tenant_cache: Dict[int, tuple] = {} # chat_id -> (tenant_data, expire_ts)
 

@@ -885,6 +885,8 @@ def list_tenants():
                     safe_t["preferred_language"] = str(kd.get("preferred_language") or safe_t.get("preferred_language") or "tr")
                 except Exception:
                     pass
+            from db import get_tenant_trading_mode
+            safe_t["is_paper_trading"] = get_tenant_trading_mode(t.get("id") or t.get("telegram_chat_id"))
             sanitized.append(safe_t)
         return {"status": "success", "count": len(sanitized), "tenants": sanitized}
     except Exception as e:
@@ -1004,6 +1006,57 @@ def toggle_tenant_active(tenant_id: str, req: ToggleTenantActiveRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+class ToggleTenantTradingModeRequest(BaseModel):
+    is_paper_trading: bool
+
+@app_api.post("/api/tenants/{tenant_id}/trading-mode", dependencies=[Depends(authenticate_admin)])
+def toggle_tenant_trading_mode_endpoint(tenant_id: str, req: ToggleTenantTradingModeRequest):
+    """Admin paneli veya arayüzden kullanıcının işlem modunu (Paper vs Live) anında günceller."""
+    from db import set_tenant_trading_mode, _tenant_cache
+    ok = set_tenant_trading_mode(tenant_id, req.is_paper_trading)
+    _tenant_cache.clear()
+    mode_str = "SANAL TEST (Paper - $100)" if req.is_paper_trading else "GERÇEK CANLI (Live)"
+    if ok:
+        return {
+            "status": "success",
+            "message": f"Kullanıcı işlem modu başarıyla {mode_str} yapıldı.",
+            "is_paper_trading": req.is_paper_trading
+        }
+    raise HTTPException(status_code=400, detail="İşlem modu güncellenemedi.")
+
+class ExecutionModeUpdateRequest(BaseModel):
+    execution_mode: str
+    tenant_id: Optional[str] = None
+
+@app_api.post("/api/execution-mode", dependencies=[Depends(authenticate_admin)])
+def set_execution_mode_endpoint(req: ExecutionModeUpdateRequest):
+    """V2 Dashboard üzerinden global ve tenant bazlı işlem modunu anında günceller ve kaydeder."""
+    from db import set_system_setting, set_tenant_trading_mode, get_all_active_tenants, _tenant_cache
+    m = str(req.execution_mode).upper()
+    valid_modes = ["SIGNAL_ONLY", "PAPER_TRADING", "SHADOW_TRADING", "APPROVAL_REQUIRED", "LIVE_CANARY", "LIVE_TRADING"]
+    if m not in valid_modes:
+        raise HTTPException(status_code=400, detail=f"Geçersiz işlem modu: {m}")
+
+    set_system_setting("execution_mode", m)
+    is_paper = (m in ["SIGNAL_ONLY", "PAPER_TRADING"])
+
+    if req.tenant_id:
+        set_tenant_trading_mode(req.tenant_id, is_paper)
+    else:
+        tenants = get_all_active_tenants()
+        for t in tenants:
+            set_tenant_trading_mode(t.get("id"), is_paper)
+            if t.get("telegram_chat_id"):
+                set_tenant_trading_mode(t.get("telegram_chat_id"), is_paper)
+
+    _tenant_cache.clear()
+    return {
+        "status": "success",
+        "execution_mode": m,
+        "is_paper_trading": is_paper,
+        "message": f"İşlem modu {m} olarak başarıyla kaydedildi."
+    }
 
 @app_api.delete("/api/tenants/{tenant_id}", dependencies=[Depends(authenticate_admin)])
 def delete_tenant(tenant_id: str):
@@ -1147,11 +1200,13 @@ def get_v2_dashboard_html():
     try:
         client = get_supabase()
         if client:
+            from db import get_tenant_trading_mode
             res = client.table("user_tenants").select("*").order("created_at", desc=False).execute()
             raw = res.data or []
             for t in raw:
                 st = dict(t)
                 st.pop("exchange_secret_key", None)
+                st["is_paper_trading"] = get_tenant_trading_mode(st.get("id") or st.get("telegram_chat_id"))
                 clean.append(st)
             for idx, user in enumerate(clean):
                 safe_name = str(user.get("tenant_name", "Kullanıcı")).replace("'", "\\'")
@@ -1216,13 +1271,15 @@ def get_v2_dashboard_html():
         "v21_security_shield_enabled": bool(get_system_setting("v21_security_shield_enabled", True))
     }
 
+    exec_mode_current = str(get_system_setting("execution_mode", "PAPER_TRADING")).upper()
     content = generate_v2_dashboard_html(
         tenants=clean,
         logs=logs_list,
         active_engine=active_engine,
         active_risk=active_risk,
         system_settings=sys_settings,
-        strategy_config=strat_cfg
+        strategy_config=strat_cfg,
+        execution_mode=exec_mode_current
     )
     return HTMLResponse(content=content)
 

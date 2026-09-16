@@ -36,6 +36,15 @@ def generate_v2_dashboard_html(
     pill_def_cls = "profile-btn active" if active_risk == "DEFENSIVE" else "profile-btn"
     pill_cus_cls = "profile-btn active" if active_risk == "CUSTOM" else "profile-btn"
 
+    # Dynamic Execution Mode States
+    current_execution_mode = str(kwargs.get("execution_mode") or system_settings.get("execution_mode") or strategy_config.get("execution_mode") or "PAPER_TRADING").upper()
+    mode_signal_cls = "profile-btn active" if current_execution_mode == "SIGNAL_ONLY" else "profile-btn"
+    mode_paper_cls = "profile-btn active" if current_execution_mode == "PAPER_TRADING" else "profile-btn"
+    mode_shadow_cls = "profile-btn active" if current_execution_mode == "SHADOW_TRADING" else "profile-btn"
+    mode_approval_cls = "profile-btn active" if current_execution_mode == "APPROVAL_REQUIRED" else "profile-btn"
+    mode_canary_cls = "profile-btn active" if current_execution_mode == "LIVE_CANARY" else "profile-btn"
+    mode_live_cls = "profile-btn active" if current_execution_mode == "LIVE_TRADING" else "profile-btn"
+
     # Strategy Config Defaults (True Dynamic Mapping)
     min_24h_vol = int(strategy_config.get("min_24h_quote_volume_usd", 1000000))
     min_vol = int(strategy_config.get("min_5m_volume_usd", strategy_config.get("min_volume_usd", 2500)))
@@ -128,6 +137,8 @@ def generate_v2_dashboard_html(
         sel_tr = "selected" if ulang == "tr" else ""
         sel_en = "selected" if ulang == "en" else ""
         
+        is_paper_t = bool(t.get("is_paper_trading"))
+        paper_toggle_btn = f"""<button class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: {'rgba(234, 179, 8, 0.18)' if is_paper_t else 'rgba(59, 130, 246, 0.18)'}; color: {'#eab308' if is_paper_t else '#60a5fa'}; border: 1px solid {'#eab308' if is_paper_t else '#60a5fa'};" onclick="toggleTenantTradingMode('{tid}', {str(not is_paper_t).lower()}, event)">{'🧪 Paper ($100)' if is_paper_t else '🚀 Canlı'}</button>"""
         active_toggle_btn = f"""<button class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: {'rgba(34, 197, 94, 0.15)' if is_active else 'rgba(239, 68, 68, 0.15)'}; color: {'#22c55e' if is_active else '#ef4444'}; border: 1px solid {'#22c55e' if is_active else '#ef4444'};" onclick="toggleTenantActive('{tid}', {str(not is_active).lower()}, event)">{'🟢 Aktif' if is_active else '🔴 Pasif'}</button>"""
 
         tenants_ssr_html += f"""
@@ -149,6 +160,7 @@ def generate_v2_dashboard_html(
                     <option value="en" {sel_en}>🇬🇧 EN</option>
                 </select>
             </td>
+            <td>{paper_toggle_btn}</td>
             <td>{active_toggle_btn}</td>
             <td>
                 <button class="btn btn-sm btn-ghost" onclick="updateTenantSettings('{tid}', event)" data-i18n="save_row">💾 Kaydet</button>
@@ -157,7 +169,7 @@ def generate_v2_dashboard_html(
         """
 
     if not tenants_ssr_html:
-        tenants_ssr_html = '<tr><td colspan="9" style="text-align: center; color: var(--ink-3); padding: 24px;" data-i18n="no_users">Henüz kayıtlı kullanıcı bulunmuyor.</td></tr>'
+        tenants_ssr_html = '<tr><td colspan="10" style="text-align: center; color: var(--ink-3); padding: 24px;" data-i18n="no_users">Henüz kayıtlı kullanıcı bulunmuyor.</td></tr>'
 
     # Canlı Karar Logları SSR HTML
     logs_ssr_html = ""
@@ -684,12 +696,12 @@ def generate_v2_dashboard_html(
       <!-- İşlem Modu ve Güvenlik Barı -->
       <div class="mode-bar" style="display: flex; gap: 6px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; padding: 10px 14px; background: var(--bg-2); border-radius: 8px; border: 1px solid var(--line);">
         <span style="font-size: 11.5px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; margin-right: 4px;">İşlem Modu:</span>
-        <button class="profile-btn" id="mode-signal" onclick="setExecutionMode('SIGNAL_ONLY')">📡 SIGNAL_ONLY</button>
-        <button class="profile-btn" id="mode-paper" onclick="setExecutionMode('PAPER_TRADING')">📝 PAPER_TRADING</button>
-        <button class="profile-btn" id="mode-shadow" onclick="setExecutionMode('SHADOW_TRADING')">👤 SHADOW_TRADING</button>
-        <button class="profile-btn" id="mode-approval" onclick="setExecutionMode('APPROVAL_REQUIRED')">⏳ APPROVAL_REQUIRED</button>
-        <button class="profile-btn" id="mode-canary" onclick="setExecutionMode('LIVE_CANARY')">🐥 LIVE_CANARY</button>
-        <button class="profile-btn active" id="mode-live" onclick="setExecutionMode('LIVE_TRADING')">🚀 LIVE_TRADING</button>
+        <button class="{mode_signal_cls}" id="mode-signal" onclick="setExecutionMode('SIGNAL_ONLY')">📡 SIGNAL_ONLY</button>
+        <button class="{mode_paper_cls}" id="mode-paper" onclick="setExecutionMode('PAPER_TRADING')">📝 PAPER_TRADING</button>
+        <button class="{mode_shadow_cls}" id="mode-shadow" onclick="setExecutionMode('SHADOW_TRADING')">👤 SHADOW_TRADING</button>
+        <button class="{mode_approval_cls}" id="mode-approval" onclick="setExecutionMode('APPROVAL_REQUIRED')">⏳ APPROVAL_REQUIRED</button>
+        <button class="{mode_canary_cls}" id="mode-canary" onclick="setExecutionMode('LIVE_CANARY')">🐥 LIVE_CANARY</button>
+        <button class="{mode_live_cls}" id="mode-live" onclick="setExecutionMode('LIVE_TRADING')">🚀 LIVE_TRADING</button>
       </div>
 
       <!-- Hazır Risk Profili -->
@@ -1095,6 +1107,7 @@ def generate_v2_dashboard_html(
               <th data-i18n="th_budget">Bütçe %</th>
               <th data-i18n="th_exch">Borsa</th>
               <th data-i18n="th_lang">Dil</th>
+              <th data-i18n="th_mode">İşlem Modu</th>
               <th data-i18n="th_status">Durum</th>
               <th data-i18n="th_action">İşlem</th>
             </tr>
@@ -1466,9 +1479,9 @@ def generate_v2_dashboard_html(
       }}
     }}
 
-    let executionMode = 'LIVE_TRADING';
+    let executionMode = '{current_execution_mode}';
 
-    function setExecutionMode(mode) {{
+    async function setExecutionMode(mode) {{
       executionMode = mode;
       const modes = ['mode-signal', 'mode-paper', 'mode-shadow', 'mode-approval', 'mode-canary', 'mode-live'];
       modes.forEach(m => {{
@@ -1486,7 +1499,22 @@ def generate_v2_dashboard_html(
       if (document.getElementById(map[mode])) {{
         document.getElementById(map[mode]).classList.add('active');
       }}
-      showToast('⚙️ İşlem Modu: ' + mode);
+      showToast('⏳ İşlem Modu kaydediliyor: ' + mode + '...');
+      try {{
+        const res = await fetch('/api/execution-mode', {{
+          method: 'POST',
+          headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ execution_mode: mode }})
+        }});
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {{
+          showToast('✅ İşlem Modu Kaydedildi: ' + mode);
+        }} else {{
+          showToast('❌ Hata: ' + (data.detail || data.error || 'Kaydedilemedi'));
+        }}
+      }} catch (err) {{
+        showToast('❌ Bağlantı hatası: ' + err.message);
+      }}
     }}
 
     function switchEngine(engine) {{
@@ -1807,6 +1835,27 @@ def generate_v2_dashboard_html(
           setTimeout(() => window.location.reload(), 700);
         }} else {{
           alert('Hata: ' + (data.detail || data.error || 'İşlem başarısız'));
+        }}
+      }} catch(e) {{
+        alert('Bağlantı Hatası: ' + e);
+      }}
+    }}
+
+    async function toggleTenantTradingMode(tenantId, newStatus, event) {{
+      if (event) event.stopPropagation();
+      try {{
+        showToast(newStatus ? (curLang === 'tr' ? '🧪 Kullanıcı Paper Moduna alınıyor...' : '🧪 Switching user to Paper Mode...') : (curLang === 'tr' ? '🚀 Kullanıcı Canlı Moda alınıyor...' : '🚀 Switching user to Live Mode...'));
+        const res = await fetch('/api/tenants/' + tenantId + '/trading-mode', {{
+          method: 'POST',
+          headers: {{ ...getAuthHeaders(), 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ is_paper_trading: newStatus }})
+        }});
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {{
+          showToast('✅ ' + (data.message || 'İşlem modu güncellendi!'));
+          setTimeout(() => window.location.reload(), 700);
+        }} else {{
+          alert('Hata: ' + (data.detail || data.error || 'İşlem modu güncellenemedi'));
         }}
       }} catch(e) {{
         alert('Bağlantı Hatası: ' + e);

@@ -54,8 +54,11 @@
 
 ---
 
-## 📋 Mevcut Yapılacaklar Listesi
-
+- [x] **Kritik Paper Trading Senkronizasyon ve UI Kalıcılık Onarımı (P0 - 16 Eylül 10:48 TSİ):**
+  - **Kök Neden 1 (Borsa İnfaz Kaçağı):** `exchange.py` satır 1337'de Binance Global spot alım/satım bloğunda `and not is_paper` kontrolünün eksik olması nedeniyle, kiracı veya sistem paper trading modunda olsa dahi `apiKey` varlığı yüzünden gerçek Binance borsasına canlı piyasa emri gönderiliyordu; bu açık kapatılarak tüm paper emirler %100 `VirtualPaperExchangeClient`'a kilitlendi.
+  - **Kök Neden 2 (UI Kayıt Etmeme / Hardcode Bug):** `v2_dashboard_html.py` arayüzündeki `setExecutionMode('PAPER_TRADING')` butonunun yalnızca tarayıcıda geçici bir JS değişkeni değiştirdiği ve sunucuya hiçbir istek atmadığı (kaydetmediği) tespit edildi. FastAPI'ye `/api/execution-mode` ve `/api/tenants/{tenant_id}/trading-mode` endpoint'leri eklendi; buton tıklanır tıklanmaz anında Supabase'e kaydedilip onay rozeti verecek şekilde çift taraflı bağlandı.
+  - **Kök Neden 3 (Kullanıcı Tablosu & UUID Senkronizasyonu):** `db.py` içinde `set_tenant_trading_mode` ve `get_tenant_trading_mode` fonksiyonları hem `id` (UUID) hem `telegram_chat_id` anahtarlarını çift yönlü senkronize edecek şekilde güncellendi. V2 Dashboard kullanıcı tablosuna tek tıkla `🧪 Paper ($100)` / `🚀 Canlı` geçiş butonları entegre edildi.
+  - **Doğrulama:** Canlı terminal üzerinden $10 BTC/USDT alım testi yapıldı; gerçek Binance borsasına 1 kuruş dahi dokunulmadığı, sanal kasanın $100 -> $89.99 olarak işlendiği ve test pozisyonunun temizlendiği doğrulandı.
 - [x] **G/USDT Manuel İnfaz & Serbest Nakit ($48.06 USDT) (16 Eylül 10:22 TSİ):** Kullanıcının doğrudan talimatıyla borsadaki stop limit emri iptal edilerek 11,255 G piyasa fiyatından ($0.00427) anında satıldı ve kasaya **+$48.06 USDT serbest nakit** eklendi.
 - [x] **4'te 4 Kâr Al Satış Dalgası (16 Eylül 10:08 TSİ):** Önceki turdaki tüm pozisyonlar (LDO, ZEN, DASH, XPL) kâr al seviyelerinde borsada satılarak kârlar kasaya kilitlendi (LDO +$0.68, ZEN +$0.62, DASH +$0.63, XPL +$0.28).
 - [x] **Yeni Balina Scalp Girişleri (COTI & ARK - 16 Eylül 10:15 TSİ):** Kasa $50.61 serbest nakitte olup, radarda erken hacim kırılımı yakalayan COTI ($53.33) ve ARK ($53.56) pozisyonları açıldı. Toplam portföy: **$160.22 USD**.
