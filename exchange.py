@@ -1047,7 +1047,7 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                                 elif asset == 'LDUSDT':
                                     free_usdt += tot_val
                                     total_usdt += tot_val
-                            elif asset.startswith('LD') and len(asset) > 2:
+                            elif asset.startswith('LD') and len(asset) > 2 and asset != 'LDO':
                                 clean_coin = asset[2:]
                                 crypto_holdings[f"{clean_coin} (Earn)"] = tot_val
                             else:
@@ -1068,7 +1068,7 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
                                 if asset == 'LDUSDT':
                                     free_usdt += amt
                                     total_usdt += amt
-                                elif asset.startswith('LD') and len(asset) > 2:
+                                elif asset.startswith('LD') and len(asset) > 2 and asset != 'LDO':
                                     clean_coin = asset[2:]
                                     crypto_holdings[f"{clean_coin} (Earn)"] = amt
                                 else:
