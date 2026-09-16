@@ -860,25 +860,19 @@ class VirtualPaperExchangeClient:
         print(f"🧪 [SANAL FİZİKSEL STOP KAYDI]: {symbol} için ${stop_price} sanal stop-loss kaydedildi.")
         return {"status": "success", "order_id": f"PAPER_STOP_{int(time.time())}", "stop_price": stop_price}
 
-def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None):
+def get_exchange_for_tenant(tenant_config: Optional[Dict[str, Any]] = None, force_paper: bool = False):
     """
     Multi-Tenant Borsa İstemcisi (Binance Global REST, Binance TR REST, Çift Borsa ve Sanal Paper Destekli):
     """
-    from db import get_system_setting, get_tenant_trading_mode
-    exec_mode = str(get_system_setting("execution_mode", "LIVE")).upper()
-    is_global_paper = (exec_mode in ["SIGNAL_ONLY", "PAPER_TRADING"])
+    if force_paper or (tenant_config and str(tenant_config.get("exchange_id", "")).lower() == "paper"):
+        t_id = str((tenant_config or {}).get("id") or (tenant_config or {}).get("telegram_chat_id", "paper_tenant"))
+        return VirtualPaperExchangeClient(t_id)
 
     if tenant_config:
-        t_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id", "paper_tenant"))
-        t_is_paper = bool(tenant_config.get("is_paper_trading")) or (str(tenant_config.get("exchange_id", "")).lower() == "paper") or is_global_paper or get_tenant_trading_mode(t_id)
-        if t_is_paper:
-            return VirtualPaperExchangeClient(t_id)
         exchange_id = tenant_config.get("exchange_id", "binance").lower()
         api_key = tenant_config.get("exchange_api_key", "")
         secret_key = tenant_config.get("exchange_secret_key", "")
     else:
-        if is_global_paper:
-            return VirtualPaperExchangeClient("global_paper")
         exchange_id = os.environ.get("EXCHANGE_ID", "binance").lower()
         api_key = os.environ.get("EXCHANGE_API_KEY", "")
         secret_key = os.environ.get("EXCHANGE_SECRET_KEY", "")

@@ -1161,6 +1161,10 @@ def handle_update(update: dict):
                 tr_section = ""
                 tot_line = f"💰 *Toplam Portföy Değeri:* *${tot_gl_usd:,.2f} USD* (~₺{tot_combined_try:,.2f} TL)"
 
+            from db import get_tenant_trading_mode
+            is_p = get_tenant_trading_mode(chat_id)
+            mode_str = "SANAL TEST (Paper - $100) 🧪\n🛡️ *Borsa Riski:* $0.00 (Gerçek paranıza asla dokunulmaz)" if is_p else "CANLI GERÇEK HESAP ✅"
+
             msg_text = (
                 f"{header_title}\n\n"
                 f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n\n"
@@ -1173,7 +1177,7 @@ def handle_update(update: dict):
                 f"💰 Toplam Global Portföyü: *${tot_gl_usd:,.2f} USD*\n\n"
                 f"{tot_line}\n"
                 f"🏢 Borsa: BINANCE GLOBAL 🌍\n"
-                f"🧪 Mod: CANLI GERÇEK HESAP ✅"
+                f"🧪 Mod: {mode_str}"
             )
 
             # Snapshot güncelle (Kasa Farkı için referans)
