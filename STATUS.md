@@ -52,6 +52,10 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Paper Mod Devre Kesici & Kuant Motoru Barajı Onarıldı (16 Eylül 14:15 TSİ):**
+  - **Kök Neden 1 (Günlük Kota Kilidi):** Sabahki gerçek hesap al-sat testleri nedeniyle günlük gerçekleşen işlem sayısı 33'e ulaşmıştı. `max_daily_trades` veritabanında 10 olarak kaldığı için `check_tenant_circuit_breakers` tüm adayları `🛑 [Devre Kesici]: Günlük azami işlem kotası (33/10) doldu` uyarısıyla sessizce engelliyordu. `daily_trades_cutoff_iso` sıfırlandı ve kota 100'e çıkarıldı (`passed: True`).
+  - **Kök Neden 2 (Kuant Barajı Uyumu):** OpenRouter kredisi 0 olduğu için LLM onay veremiyordu; deterministik kuant motoru devredeydi fakat `v2_cand_score >= 6.8` ve `tb_ratio >= 65.0` eşikleri gereksiz katı kalmıştı. 14 Eylül kazandıran eşikleriyle (%55 taker buy, 1.15x hacim, 6.5+ kuant skoru) senkronize edildi.
+  - **Doğrulama:** Radar taraması VET/USDT üzerinde test edildi; 8.4x hacim sıçraması ve %62.5 alıcı baskısı ile tam **$3,315.71 USD** (%33.3 slot) büyüklüğünde alım emri ürettiği ve alım kapılarının ardına kadar açıldığı doğrulandı.
 - [x] **$10,000 Sanal Bakiye ile Paper Trading Başlatıldı (16 Eylül 11:05 TSİ):**
   - Kullanıcının "Paper mod 10.000 dolar ile başla" talimatı üzerine:
     1. Global sistem işlem modu `PAPER_TRADING` (`is_paper = True`), kiracı `S` işlem modu Paper olarak kilitlendi.

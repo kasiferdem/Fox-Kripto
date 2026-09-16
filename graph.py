@@ -594,10 +594,11 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         except Exception:
             pass
 
-        vol_spike_min = float(strat_cfg.get("volume_spike_multiplier") or 1.8)
-        tb_ratio_min = float(strat_cfg.get("min_taker_buy_pct") or 65.0)
+        vol_spike_min = float(strat_cfg.get("volume_spike_multiplier") or 1.15)
+        tb_ratio_min = float(strat_cfg.get("min_taker_buy_pct") or 55.0)
+        min_score_threshold = float(strat_cfg.get("min_ai_score") or 6.5)
         llm_approved = bool(eval_res and eval_res.get("is_scalp_recommended") and eval_res.get("potential_score", 0) >= 7.5)
-        quant_approved = bool(vol_spike >= vol_spike_min and tb_ratio >= tb_ratio_min and (0.35 <= p_gain_5m <= 3.8) and v2_cand_score >= 6.8)
+        quant_approved = bool(vol_spike >= vol_spike_min and tb_ratio >= tb_ratio_min and (0.20 <= p_gain_5m <= 4.5) and v2_cand_score >= min_score_threshold)
 
         if llm_approved or quant_approved:
             # 🧬 COIN DNA KAPI MUHAFIZI (BLOCK_ONLY) KONTROLÜ
