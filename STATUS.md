@@ -52,6 +52,10 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Stop-Loss %2.2'ye Yükseltildi ve Paper Trading Modu Yeniden Kilitlendi (17 Eylül 00:38 TSİ):**
+  - **Tespit Edilen Kök Neden:** Veritabanındaki `stop_loss_percent` %1.2 gibi altcoinler için aşırı dar bir seviyedeydi; normal dalgalanmalarda coinler erkenden 23 kez stop-loss olmuştu. Ayrıca dashboard üzerinden execution_mode tetiklendiğinde `is_paper_trading` geçici olarak False'a kaymıştı.
+  - **Aksiyon:** `stop_loss_percent` 14 Eylül kazandıran strateji seviyesi olan **%2.2**'ye çıkarıldı. `set_tenant_trading_mode(8739367825, is_paper=True)` ve global `execution_mode: PAPER_TRADING` kilitlendi.
+  - **Sunucu Güncellemesi Bildirimi:** DigitalOcean'a yeni kodlar sevk edildiğinde (00:21 TSİ), sunucu 2-3 dakika boyunca yeni Docker konteynerini derleyip yayına alır. Bu esnada gelen Telegram `/durum` istekleri koruma amaçlı *"⏳ SİSTEM GÜNCELLENİYOR / 20 SANİYE SONRA TEKRAR DENEYİN"* yanıtı vermiştir. Güncelleme tamamlandıktan sonra bakiye ve durum sorguları tamamen aktiftir.
 - [x] **Sanal (Paper Trading) Telegram İşlem Bildirimleri Aktif Edildi (17 Eylül 00:25 TSİ):**
   - **Kök Neden:** `app.py` içindeki otonom döngüde `is_exec_success = status_str in ["SUCCESS", "EXECUTED"]` şartı aranıyordu. Sanal işlemlerde infaz statüsü `EXECUTED_SIMULATED` olduğu için `is_exec_success = False` kalıyor ve `if not is_exec_success: continue` satırı nedeniyle sanal alım ve satımlarda **Telegram'a hiçbir bildirim gönderilmiyordu!** Bot arka planda 105 işlem yaptığı halde kullanıcı Telegram'da sıfır bildirim görüyordu.
   - **Çözüm:** `app.py` içinde `EXECUTED_SIMULATED` statüsü başarı kabul edildi; Sanal Test rozetli (`🧪 [SANAL TEST]`) özel alım, kâr alma ve stop-loss Telegram bildirim şablonları bağlandı. Canlı test mesajıyla teslimat doğrulandı.
