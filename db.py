@@ -285,7 +285,8 @@ def save_graph_state(session_id: str, state_data: Dict[str, Any], tenant_id: Opt
     if not client: return False
     payload = {
         "session_id": str(session_id),
-        "state_data": state_data
+        "state_data": state_data,
+        "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     }
     try:
         client.table("crypto_agent_states").upsert(payload).execute()

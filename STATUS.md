@@ -52,6 +52,10 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Paper Trading 7/24 Döngü Durumu ve Slot İncelemesi (17 Eylül 00:15 TSİ):**
+  - **Kullanıcı Sorusu:** "Paper trading neden durdu?"
+  - **Durum Tespiti:** Sistem kesinlikle durmamıştır. Sıfırlamadan (15:45 TSİ) bu yana **105 adet işlem** başarıyla gerçekleştirilmiştir (REZ +%4.06, TUT +%2.10, MUBARAK +%2.22, BOME +%1.89 vb. kâr realizasyonları).
+  - **Mevcut Durum:** Kasanın 3 slotunun 3'ü de doludur: **HIVE** (+%0.59 kârda), **POWR** (-%0.31) ve **PROM** (+%2.04 kârda, TP hedefi %3.5). 3 slot dolu olduğu için yeni alım yapılmamakta, TP ve SL hedefleri beklenmektedir. PROM veya diğer coinler TP/SL vurduğu an pozisyon kapanacak ve yeni coinlere geçilecektir.
 - [x] **Sanal (Paper Trading) Cüzdan Sıfırdan Net $10,000.00 Nakite Sıfırlandı (16 Eylül 15:45 TSİ):**
   - **Aksiyon:** Kullanıcının talebi üzerine sanal demo kasası tertemiz sıfırlandı. Tüm açık sanal pozisyonlar (`ATM`, `TUT`, `BANK`) cüzdandan silindi, soğuma kilitleri ve devre kesici sayaçları sıfırlandı.
   - **Doğrulanan Durum:** Serbest USDT: `$10,000.00 USD`, Açık Pozisyon: `0`, Toplam Portföy: `$10,000.00 USD` (%100 nakit).
