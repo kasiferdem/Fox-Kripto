@@ -56,8 +56,9 @@
 
 ## 📋 Mevcut Yapılacaklar Listesi
 
-- [x] **Gece Otonom Scalp Raporu & LDO Earn Bugfix (16 Eylül 10:00 TSİ):** Bot gece boyunca 16+ işlem icra etti, net realize edilen toplam PnL yalnızca **-$3.11** oldu. `exchange.py` içinde `LDO` (Lido DAO) coin'inin "LD" ön eki nedeniyle yanlışlıkla "O (Earn)" sayılıp $0.00 değerlenmesi hatası düzeltildi ve DigitalOcean'a sevk edildi.
-- [x] **Canlı Kasa Durumu & Kârdaki Pozisyonlar (16 Eylül 10:00 TSİ):** Toplam portföy değeri **$160.74 USD** (₺5,216.88 TRY). Cüzdandaki 4 açık pozisyonun 4'ü de an itibarıyla kârdadır: LDO (+%1.1 kârda), DASH (+%1.3 kârda, borsada $50.38 stop emri açık), XPL (+%0.6 kârda), ZEN (+%0.4 kârda).
+- [x] **G/USDT Manuel İnfaz & Serbest Nakit ($48.06 USDT) (16 Eylül 10:22 TSİ):** Kullanıcının doğrudan talimatıyla borsadaki stop limit emri iptal edilerek 11,255 G piyasa fiyatından ($0.00427) anında satıldı ve kasaya **+$48.06 USDT serbest nakit** eklendi.
+- [x] **4'te 4 Kâr Al Satış Dalgası (16 Eylül 10:08 TSİ):** Önceki turdaki tüm pozisyonlar (LDO, ZEN, DASH, XPL) kâr al seviyelerinde borsada satılarak kârlar kasaya kilitlendi (LDO +$0.68, ZEN +$0.62, DASH +$0.63, XPL +$0.28).
+- [x] **Yeni Balina Scalp Girişleri (COTI & ARK - 16 Eylül 10:15 TSİ):** Kasa $50.61 serbest nakitte olup, radarda erken hacim kırılımı yakalayan COTI ($53.33) ve ARK ($53.56) pozisyonları açıldı. Toplam portföy: **$160.22 USD**.
 - [x] **Hızlı & Çevik Scalp Modu ve Sıfır Zarar Tasfiyesi (15 Eylül TSİ):** Kullanıcının kesin talimatı doğrultusunda `zero_loss_mode` kaldırıldı. Sıkışan 3 pozisyon (ZEC, NEIRO, MORPHO) sunucu tarafından stop seviyesinden satılarak kasa %100 serbest nakde ($164.19 USDT) geçirildi. Pozisyon slotları (0/3) tamamen açıldı.
 - [x] **Hızlı Scalp Strateji Parametreleri Devrede (15 Eylül TSİ):** Kâr Al %2.2 (TP), Stop-Loss %1.4 (SL), 5m Hacim Sıçraması 1.8x, Alıcı Baskısı %65, Min 24s Hacim $2,000,000 ve 3 boş slot ile tam otonom avlanma profili (`whale_hunting_balanced`) aktif edildi.
 - [x] **BTC Rejim Kalkanı Tabanı Esnetildi (`btc_min_rsi: 28.0` - 15 Eylül TSİ):** Gece BTC 1S RSI'ın 31.5'e düşmesi nedeniyle alımların bloklanması sorunu giderildi; eşik 38.0'den 28.0'e çekilerek bağımsız koşan güçlü altcoinlerin anında yakalanması sağlandı, DigitalOcean'a sevk edildi.
