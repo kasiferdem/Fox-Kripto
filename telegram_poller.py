@@ -1030,8 +1030,10 @@ def handle_update(update: dict):
 
             balance = fetch_portfolio_balance(tenant)
             t_id = str(tenant.get("id") or tenant.get("telegram_chat_id") or "default_tenant")
+            is_paper_trading = bool(tenant.get("is_paper_trading")) or bool(get_tenant_trading_mode(chat_id))
+            exch_gl = "paper" if is_paper_trading else "binance"
             saved_pos_tr = get_active_positions_from_db(tenant_id=t_id, exchange_id="binancetr")
-            saved_pos_gl = get_active_positions_from_db(tenant_id=t_id, exchange_id="binance")
+            saved_pos_gl = get_active_positions_from_db(tenant_id=t_id, exchange_id=exch_gl, is_simulated=is_paper_trading)
             usd_try_rate = get_live_usd_try_rate()
             if usd_try_rate <= 0:
                 usd_try_rate = 48.0
@@ -1103,8 +1105,8 @@ def handle_update(update: dict):
                         entry_info = saved_pos_gl.get(a) or saved_pos_gl.get(f"{a}/USDT") or {}
                         entry_p = float(entry_info.get("buy_price", 0.0)) if isinstance(entry_info, dict) else (float(entry_info or 0.0))
                         
-                        # Eğer DB'de yoksa, doğrudan Binance son alış işleminden gerçek maliyeti çek:
-                        if entry_p <= 0 and gl_api_k and gl_sec_k:
+                        # Eğer DB'de yoksa ve GERÇEK borsa ise, doğrudan Binance son alış işleminden gerçek maliyeti çek:
+                        if entry_p <= 0 and gl_api_k and gl_sec_k and not is_paper_trading:
                             try:
                                 ts_h = int(time.time() * 1000)
                                 q_h = f"symbol={a}USDT&timestamp={ts_h}&recvWindow=60000"
