@@ -52,6 +52,10 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Sanal (Paper Trading) Kasa Defteri ve 400$ Farkın Matematiksel Denetimi (16 Eylül 15:35 TSİ):**
+  - **Kullanıcı Şüphesi:** "Kasanın 400 dolar kazandığına inanmıyorum, sürekli eksi satış bildirimi gelirken kasa nasıl 10.431$ oldu?"
+  - **Denetim Sonucu:** Kullanıcı şüphesinde %100 haklı çıktı. Gerçek trading kazancı 400$ değil, **+$62.50 USD**'dir (Kapanan işlemler: +$47.42 USD, Açık pozisyonlar: +$15.08 USD).
+  - **Aradaki Farkın Nedeni:** 11:50'de kağıt moduna geçilirken önceki testten kalan TUT ve MINA pozisyonları varken serbest nakit olarak $3,317 tanımlanmış; 3 açık pozisyon maliyeti ($10,268) + serbest nakit ($167) ile baz sermaye baştan $10,435 olarak hesaplanmıştı. Ayrıca bot MINA'da %28 kârla satarken gerçek Binance geçmişindeki eski alış fiyatını baz alarak Telegram'a "-%22 Stop-Loss" basmış, bu da kasanın sürekli zararda olduğu algısına yol açmıştır.
 - [x] **Google Gemini Doğrudan API Entegrasyonu Tamamlandı (16 Eylül 15:25 TSİ):**
   - **Kök Neden:** OpenRouter hesabı kredi bitişlerinde HTTP 402 hatası veriyor, botu döngüde bekletiyor ve maliyet yaratıyordu.
   - **Çözüm:** Kullanıcının Google API anahtarı sisteme bağlandı. `openrouter_gateway.py` içine yerel Google Gemini adaptörü entegre edildi. Sistem artık birincil yapay zeka olarak doğrudan Google'ın **Gemini 3.6 Flash** ve **Gemini 3.5 Flash Lite** modellerini 100% ücretsiz ve sınırsız çağırıyor. Pydantic şema doğrulaması native `responseSchema` ile garanti altına alındı. OpenRouter tamamen yedek konuma çekildi.
