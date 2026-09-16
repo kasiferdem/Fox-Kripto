@@ -518,7 +518,8 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     # -------------------------------------------------------------
     # AI Yalnızca BLOCK_ONLY Yetkisine Sahiptir (Section 1 & 3.2)
     sentiment_score = float(state.get("sentiment_score", 5.0))
-    if sentiment_score < -4.0:
+    is_paper_trading = bool(tenant_config.get("is_paper_trading")) or bool(get_system_setting("execution_mode") == "PAPER_TRADING")
+    if sentiment_score < -4.0 and not is_paper_trading:
         print(f"   🛑 [Kritik Haber Kalkanı]: Makro/Haber risk skoru ({sentiment_score:.1f}) sebebiyle işlem durduruldu (BLOCK_ONLY).")
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
         

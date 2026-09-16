@@ -104,8 +104,8 @@ def analyze_crypto_news(news_data: str, portfolio_state: Optional[Dict[str, Any]
 
     # 🛡️ DETERMINISTIK FINANSAL NLP SENTIMENT MOTORU (Sıfır API Gecikmesi / Failover)
     lines = clean_news.split("\n")
-    high_risk_words = ["active hack", "major exploit", "sec sue", "fraud", "crackdown", "ban", "arrest", "insolvent", "liquidation", "market crash", "black swan", "rug pull", "halt trading"]
-    caution_words = ["investigation", "delay", "inflation", "dump", "lawsuit", "warning", "fed hike", "outflow", "rate hike"]
+    high_risk_words = ["active hack", "major exploit", "insolvent", "black swan", "rug pull", "binance halt", "halt trading", "catastrophic exploit"]
+    caution_words = ["investigation", "delay", "inflation", "dump", "lawsuit", "warning", "fed hike", "outflow", "rate hike", "crackdown", "ban", "arrest", "fraud", "sec sue", "liquidation", "market crash"]
     bullish_words = ["climbs", "outperforms", "etf", "rally", "surge", "bullish", "partnership", "record high", "approval", "adoption", "upgrade", "inflow", "gain", "breakout"]
     mitigating_words = ["recovered", "recovery", "bounty", "whitehat", "reimbursed", "mitigated", "resolved", "fake", "rumor"]
 

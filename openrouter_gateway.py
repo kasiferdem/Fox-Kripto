@@ -206,6 +206,7 @@ class OpenRouterGateway:
     """
     Tüm LLM çağrılarını yöneten tek ve merkezi servis.
     """
+    _last_402_ts: float = 0.0
     _in_memory_cache: Dict[str, Dict[str, Any]] = {}
     _cache_ttl_seconds: Dict[str, int] = {
         "ROUTINE_REPORTING": 300,        # 5 dk
@@ -295,6 +296,26 @@ class OpenRouterGateway:
         # 2. Model Çağrı Zinciri
         target_models = [role_cfg["primary_model"]] + role_cfg.get("fallback_models", [])
         clean_target_models = [m.replace(":batch", "") for m in target_models]
+
+        # ⚡ 402 Kredi Bittiğinde Hızlı Devre Kesici: Ücretli modelleri 5 dakika boyunca sorgulamadan atla
+        if cls._last_402_ts > 0 and (time.time() - cls._last_402_ts < 300):
+            clean_target_models = [m for m in clean_target_models if ":free" in m]
+            if not clean_target_models:
+                fail_fast_resp = {
+                    "status": "FAILED",
+                    "role": role,
+                    "error": "OpenRouter hesap kredisi tükendi (HTTP 402). Ücretsiz model yok, hızlı kuant geçişi yapıldı.",
+                    "execution_authority": role_cfg.get("execution_authority", "NONE"),
+                    "structured_data": None,
+                    "fallback_used": True,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+                if role == "CRITICAL_NEWS_ANALYSIS":
+                    fail_fast_resp["structured_data"] = {
+                        "severity": "NORMAL",
+                        "explanation": "Kuant yedek motor devrede."
+                    }
+                return fail_fast_resp
 
         headers = {
             "Authorization": f"Bearer {cls._get_api_key()}",
@@ -417,6 +438,7 @@ class OpenRouterGateway:
                     last_err = f"HTTP {res.status_code}: {res.text}"
                     print(f"⚠️ [OpenRouterGateway Failover]: {model_name} HTTP {res.status_code} verdi, sıradaki yedeğe geçiliyor...")
                     if res.status_code == 402:
+                        cls._last_402_ts = time.time()
                         remaining_free = any(":free" in m for m in clean_target_models[model_idx+1:])
                         if not remaining_free:
                             print("⚠️ [OpenRouterGateway]: OpenRouter hesap kredisi tükendi (HTTP 402). Ücretsiz yedek model bulunamadı.")
