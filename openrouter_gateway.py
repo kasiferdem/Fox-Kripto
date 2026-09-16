@@ -227,6 +227,102 @@ class OpenRouterGateway:
         raise ValueError("CRITICAL: OPENROUTER_API_KEY ortam değişkeni tanımlı değil.")
 
     @classmethod
+    def _get_gemini_api_key(cls) -> Optional[str]:
+        key = os.environ.get("GEMINI_API_KEY")
+        if key and not key.startswith("your_"):
+            return key
+        try:
+            from db import get_system_setting
+            db_k = get_system_setting("gemini_api_key")
+            if db_k and not str(db_k).startswith("your_"):
+                return str(db_k)
+        except Exception:
+            pass
+        return None
+
+    @classmethod
+    def _call_gemini_direct(
+        cls,
+        gemini_key: str,
+        role: str,
+        role_cfg: Dict[str, Any],
+        system_prompt: str,
+        user_content: str,
+        schema_model: Optional[Type[BaseModel]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Google Gemini API'sini doğrudan çağırır (100% Ücretsiz, Sınırsız & Ultra-Hızlı)."""
+        gemini_models = ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
+        sanitized_sys = sanitize_payload(system_prompt)
+        sanitized_usr = sanitize_payload(user_content)
+        prompt_text = f"{sanitized_sys}\n\n{sanitized_usr}"
+
+        gen_config: Dict[str, Any] = {
+            "temperature": role_cfg.get("temperature", 0.2),
+            "maxOutputTokens": role_cfg.get("max_output_tokens", 800)
+        }
+        if schema_model:
+            gen_config["responseMimeType"] = "application/json"
+            try:
+                gen_config["responseSchema"] = schema_model.model_json_schema()
+            except Exception:
+                pass
+
+        for m_name in gemini_models:
+            start_t = time.time()
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={gemini_key}"
+                payload = {
+                    "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
+                    "generationConfig": gen_config
+                }
+                timeout_val = role_cfg.get("timeout_seconds", 12)
+                res = requests.post(url, json=payload, timeout=timeout_val)
+                latency_ms = int((time.time() - start_t) * 1000)
+
+                if res.status_code == 200:
+                    data = res.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        raw_text = "".join(str(p.get("text", "")) for p in parts if p.get("text")).strip()
+                        if raw_text:
+                            struct_data = None
+                            if schema_model:
+                                try:
+                                    clean_j = raw_text
+                                    import re
+                                    if "```" in clean_j:
+                                        clean_j = re.sub(r"^```(?:json)?\s*", "", clean_j, flags=re.MULTILINE)
+                                        clean_j = re.sub(r"\s*```$", "", clean_j, flags=re.MULTILINE).strip()
+                                    parsed_j = json.loads(clean_j)
+                                    validated = schema_model(**parsed_j)
+                                    struct_data = validated.model_dump() if hasattr(validated, "model_dump") else validated.dict()
+                                except Exception as e_v:
+                                    print(f"⚠️ [Gemini Schema Doğrulama ({m_name})]: {e_v}")
+                                    continue
+                            print(f"⚡ [Google Gemini Direct ({m_name})]: {role} yanıt verdi ({latency_ms}ms, $0 maliyet).")
+                            return {
+                                "status": "SUCCESS",
+                                "role": role,
+                                "model_used": f"google/{m_name}",
+                                "raw_text": raw_text,
+                                "structured_data": struct_data,
+                                "execution_authority": role_cfg.get("execution_authority", "NONE"),
+                                "latency_ms": latency_ms,
+                                "fallback_used": (m_name != gemini_models[0]),
+                                "timestamp": datetime.now(timezone.utc).isoformat()
+                            }
+                elif res.status_code in [429, 503]:
+                    print(f"⚠️ [Gemini Failover]: {m_name} HTTP {res.status_code} verdi, sıradaki Google modeline geçiliyor...")
+                    continue
+                else:
+                    print(f"⚠️ [Gemini API Hatası ({m_name})]: HTTP {res.status_code}")
+            except Exception as e_g:
+                print(f"⚠️ [Gemini İstek Hatası ({m_name})]: {e_g}")
+                continue
+        return None
+
+    @classmethod
     def _compute_dedup_key(cls, role: str, tenant_id: str, symbol: str, prompt_version: str, payload: Any) -> str:
         clean_p = sanitize_payload(payload)
         raw_json = json.dumps(clean_p, sort_keys=True)
@@ -271,10 +367,9 @@ class OpenRouterGateway:
     ) -> Dict[str, Any]:
         """
         Merkezi LLM Çağrı Metodu:
-        - Rolü doğrular
-        - Failover zincirini yönetir
-        - Pydantic doğrulamasını yapar
-        - Asla doğrudan BUY/SELL yetkisi vermez (Section 1)
+        - 1. Öncelik: Doğrudan Google Gemini API (100% Ücretsiz, Sınırsız & Ultra-Hızlı)
+        - 2. Öncelik: OpenRouter Failover Havuzu
+        - 3. Öncelik: Deterministik Kuant Motoru (Fail-Safe)
         """
         role_cfg = ROLE_ROUTES_CONFIG.get(role)
         if not role_cfg:
@@ -292,6 +387,21 @@ class OpenRouterGateway:
         cached_result = cls._check_cache(dedup_key, role)
         if cached_result:
             return cached_result
+
+        # ⚡ 0. GOOGLE GEMINI RESMİ API (1. Öncelikli Ücretsiz Motor)
+        gemini_key = cls._get_gemini_api_key()
+        if gemini_key:
+            gemini_res = cls._call_gemini_direct(
+                gemini_key=gemini_key,
+                role=role,
+                role_cfg=role_cfg,
+                system_prompt=system_prompt,
+                user_content=user_content,
+                schema_model=schema_model
+            )
+            if gemini_res and gemini_res.get("status") == "SUCCESS":
+                cls._set_cache(dedup_key, gemini_res)
+                return gemini_res
 
         # 2. Model Çağrı Zinciri
         target_models = [role_cfg["primary_model"]] + role_cfg.get("fallback_models", [])
