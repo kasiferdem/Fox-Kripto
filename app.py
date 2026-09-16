@@ -246,7 +246,8 @@ def run_autonomous_trading_loop():
                         
                     if exec_res and chat_id:
                         status_str = str(exec_res.get("status", "")).upper()
-                        is_exec_success = status_str in ["SUCCESS", "EXECUTED"]
+                        is_exec_success = status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]
+                        is_sim = (status_str == "EXECUTED_SIMULATED") or bool(tenant.get("is_paper_trading"))
                         
                         # 🚨 GERÇEK BORSA HATALARINI TELEGRAM İLE KULLANICIYA BİLDİR:
                         if not is_exec_success and proposal and proposal.get("should_trade") and exec_res.get("error"):
@@ -257,7 +258,7 @@ def run_autonomous_trading_loop():
                             handle_autonomous_error_alert(tenant_name, sym_target, action_name, exch_name, exec_res.get("error"), chat_id)
                             continue
                         
-                        # 🛑 YALNIZCA VE YALNIZCA GERÇEK BİR İŞLEM TEKLİFİ VARSA VE BAŞARIYLA İNFAZ EDİLDİYSE BİLDİRİM GÖNDER!
+                        # 🛑 YALNIZCA VE YALNIZCA GERÇEK VEYA SANAL BİR İŞLEM TEKLİFİ VARSA VE BAŞARIYLA İNFAZ EDİLDİYSE BİLDİRİM GÖNDER!
                         if not is_exec_success or not proposal or not proposal.get("should_trade"):
                             continue
                         
@@ -278,11 +279,22 @@ def run_autonomous_trading_loop():
                         is_executed = is_exec_success
                         
                         if raw_action in ["BUY", "ALIM"]:
-                            action_title = "🛒 BUY SPOT ORDER" if is_en_user else "🛒 ALIM (BUY)"
-                            status_title = f"✅ Live Buy Executed Successfully ({wallet_label} Wallet)" if is_en_user else f"✅ Canlı Alım Başarıyla Gerçekleştirildi ({wallet_label} Cüzdanı)"
+                            if is_sim:
+                                action_title = "🛒 ALIM (SANAL TEST 🧪)"
+                                status_title = f"🧪 Sanal Demo Alımı Gerçekleştirildi ($10,000 Demo Kasa)"
+                            else:
+                                action_title = "🛒 BUY SPOT ORDER" if is_en_user else "🛒 ALIM (BUY)"
+                                status_title = f"✅ Live Buy Executed Successfully ({wallet_label} Wallet)" if is_en_user else f"✅ Canlı Alım Başarıyla Gerçekleştirildi ({wallet_label} Cüzdanı)"
                         else:
                             r_type = str(proposal.get("reason_type", "")).lower()
-                            if r_type == "partial_take_profit":
+                            if is_sim:
+                                if is_take_profit:
+                                    action_title = "🎯 KÂR ALMA (SANAL TEST 🧪)"
+                                    status_title = f"🎉 Sanal Kâr Kasaya Kilitlendi ($10,000 Demo Kasa)"
+                                else:
+                                    action_title = "🛡️ ZARAR KES (SANAL TEST 🧪)"
+                                    status_title = f"🛡️ Sanal Stop-Loss Gerçekleşti ($10,000 Demo Kasa)"
+                            elif r_type == "partial_take_profit":
                                 action_title = "🎯 PARTIAL TP (%50 SOLD)" if is_en_user else "🎯 KADEMELİ KÂR ALMA (%50 SATILDI)"
                                 status_title = f"🚀 %50 Profit Locked & Remaining %50 Set to Breakeven Trailing Mode!" if is_en_user else f"🚀 %50 Kâr Kasaya Kilitlendi, Kalan %50 Sıfır Risk İz Süren Moda Alındı!"
                             elif r_type == "trailing_stop_exit":
@@ -497,11 +509,12 @@ def run_autonomous_trading_loop():
                                 )
                             
                         from telegram_poller import send_message
-                        exch_display = "BINANCE.TR 🇹🇷" if is_tr_tenant else "BINANCE GLOBAL 🌍"
+                        exch_display = "BINANCE GLOBAL (SANAL DEMO 🧪)" if is_sim else ("BINANCE.TR 🇹🇷" if is_tr_tenant else "BINANCE GLOBAL 🌍")
+                        header_tag = "🧪 *7/24 SANAL DEMO BİLDİRİMİ* 🧪" if is_sim else "🤖 *7/24 OTONOM YAPAY ZEKA BİLDİRİMİ*"
                         
                         if is_en_user:
                             msg = (
-                                f"🤖 *24/7 AUTONOMOUS AI TRADING NOTIFICATION*\n\n"
+                                f"{header_tag}\n\n"
                                 f"👤 User: {tenant_name}\n"
                                 f"⚡ Action: *{action_title}*\n"
                                 f"🪙 Symbol: `{symbol}`\n"
@@ -511,7 +524,7 @@ def run_autonomous_trading_loop():
                             )
                         else:
                             msg = (
-                                f"🤖 *7/24 OTONOM YAPAY ZEKA BİLDİRİMİ*\n\n"
+                                f"{header_tag}\n\n"
                                 f"👤 Kullanıcı: {tenant_name}\n"
                                 f"⚡ İşlem Tipi: *{action_title}*\n"
                                 f"🪙 Sembol: `{symbol}`\n"
