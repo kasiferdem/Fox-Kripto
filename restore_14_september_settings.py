@@ -46,21 +46,44 @@ SEPTEMBER_14_CONFIG = {
     "coin_dna_execution_authority": "SMART_BLOCK_ONLY"
 }
 
-def apply_14_september_profile():
+def apply_14_september_profile(is_paper_mode: bool = True):
     print("🚀 [14 Eylül Kazandıran Profil]: Ayarlar uygulanıyor...")
     
     # 1. Supabase ve Bellek Güncellemesi
     save_strategy_config(SEPTEMBER_14_CONFIG)
     
-    # 2. Sistem İzinlerini Aç
+    # 2. Sistem İzinlerini Aç (Kullanıcı talimatıyla PAPER TRADING korunur)
     set_system_setting("new_buy_orders_enabled", True)
-    set_system_setting("execution_mode", "LIVE_TRADING")
+    exec_mode = "PAPER_TRADING" if is_paper_mode else "LIVE_TRADING"
+    set_system_setting("execution_mode", exec_mode)
     
-    # 3. Yerel Yedek Dosyasına Kaydet
+    # 3. Tenant Trading Modlarını Paper Olarak Kilitle
+    from db import get_all_active_tenants, set_tenant_trading_mode, get_supabase
+    tenants = get_all_active_tenants()
+    for t in tenants:
+        t_id = t.get("id")
+        tg_id = t.get("telegram_chat_id")
+        if t_id:
+            set_tenant_trading_mode(t_id, is_paper=is_paper_mode)
+        if tg_id:
+            set_tenant_trading_mode(tg_id, is_paper=is_paper_mode)
+            
+    # 4. user_tenants Tablosunu 14 Eylül Parametrelerine Senkronize Et
+    client = get_supabase()
+    if client:
+        try:
+            client.table("user_tenants").update({
+                "stop_loss_percent": 1.2,
+                "max_budget_percent": 33.3
+            }).eq("telegram_chat_id", 8739367825).execute()
+        except Exception as e_ut:
+            print(f"⚠️ [user_tenants update]: {e_ut}")
+            
+    # 5. Yerel Yedek Dosyasına Kaydet
     with open("strategy_config_local.json", "w", encoding="utf-8") as f:
         json.dump(SEPTEMBER_14_CONFIG, f, indent=2, ensure_ascii=False)
         
-    print("✅ [BAŞARILI]: 14 Eylül Kazandıran Strateji Parametreleri Supabase ve yerel sisteme başarıyla uygulandı!")
+    print(f"✅ [BAŞARILI]: 14 Eylül Stratejisi uygulandı! İşlem Modu: {exec_mode} 🧪")
 
 if __name__ == "__main__":
-    apply_14_september_profile()
+    apply_14_september_profile(is_paper_mode=True)

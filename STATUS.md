@@ -52,6 +52,10 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **14 Eylül Kazandıran Strateji Parametreleri Paper Modda Yeniden Uygulandı (17 Eylül 00:52 TSİ):**
+  - **Aksiyon:** Kullanıcının talimatıyla `14_EYLUL_KAZANDIRAN_STRATEJI_AYARLARI.md` rehberindeki orijinal altın profil (`whale_hunting_balanced`) Supabase `strategy_config` ve `strategy_config_local.json` dosyalarına mühürlendi.
+  - **Uygulanan Parametreler:** `volume_spike_multiplier: 1.15`, `min_5m_volume_usd: $2,500`, `min_24h_quote_volume_usd: $1,000,000`, `take_profit_pct: %3.0`, `stop_loss_pct: %1.2`, `break_even_trigger_pct: %1.2`, `trailing_callback_pct: %0.6`, `max_concurrent_positions: 3`, `max_budget_percent: %33.3`, `btc_trend_filter_enabled: True`, `btc_min_rsi: 35.0`, `retest_required: False`, `first_pump_candle_entry_blocked: False`.
+  - **Paper Trading Güvencesi:** Sistem çalışma modu kesin olarak `PAPER_TRADING` olarak kilitlendi. Kullanıcı `S` (UUID `1528ef43-d699-4f35-8cf6-3ef27c653f7c` ve Telegram Chat ID `8739367825`) için `is_paper_trading: True` teyit edildi. Gerçek cüzdana dokunulmazlık garantilendi.
 - [x] **Stop-Loss %2.2'ye Yükseltildi ve Paper Trading Modu Yeniden Kilitlendi (17 Eylül 00:38 TSİ):**
   - **Tespit Edilen Kök Neden:** Veritabanındaki `stop_loss_percent` %1.2 gibi altcoinler için aşırı dar bir seviyedeydi; normal dalgalanmalarda coinler erkenden 23 kez stop-loss olmuştu. Ayrıca dashboard üzerinden execution_mode tetiklendiğinde `is_paper_trading` geçici olarak False'a kaymıştı.
   - **Aksiyon:** `stop_loss_percent` 14 Eylül kazandıran strateji seviyesi olan **%2.2**'ye çıkarıldı. `set_tenant_trading_mode(8739367825, is_paper=True)` ve global `execution_mode: PAPER_TRADING` kilitlendi.
