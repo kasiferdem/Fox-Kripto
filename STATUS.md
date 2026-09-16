@@ -14,7 +14,7 @@
   - 🛑 **Fiziksel Stop:** Borsa emir defterine doğrudan `STOP_LOSS_LIMIT` emri.
   - ⚡ **Devre Kesici (Circuit Breaker):** Maks 3 eşzamanlı pozisyon, 3 ardışık stop kilidi, günlük %3 azami zarar sınırı (Tenant yalıtımlı).
   - 🌐 **Piyasa Rejimi:** BTC 1s EMA(200) trend filtresi ve Fail-Closed sermaye koruması.
-  - 🧪 **Tek Tuş Test / Canlı Mod:** `/test` (Paper Trading $100) ve `/canli` (Real Binance).
+  - 🧪 **Tek Tuş Test / Canlı Mod:** `/test` (Paper Trading $10,000) ve `/canli` (Real Binance).
 
 ---
 
@@ -52,6 +52,13 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **$10,000 Sanal Bakiye ile Paper Trading Başlatıldı (16 Eylül 11:05 TSİ):**
+  - Kullanıcının "Paper mod 10.000 dolar ile başla" talimatı üzerine:
+    1. Global sistem işlem modu `PAPER_TRADING` (`is_paper = True`), kiracı `S` işlem modu Paper olarak kilitlendi.
+    2. Supabase sanal kasa bakiyesi hem UUID (`1528ef43-d699-4f35-8cf6-3ef27c653f7c`) hem Telegram Chat ID (`8739367825`) için **$10,000.00 USDT** olarak güncellendi ve açık tüm simüle pozisyonlar sıfırlandı.
+    3. `db.py`, `exchange.py`, `app.py`, `telegram_poller.py` ve `v2_dashboard_html.py` dosyalarında varsayılan Paper bakiye ve buton/mesaj etiketleri $100'den **$10,000 (10K)** değerine çekildi.
+    4. Telegram `/bakiye` başlığı ve açıklaması sanal demo parası olduğunu açıkça belirtecek şekilde netleştirildi (`[SANAL TEST (PAPER TRADING) CÜZDANI] - Borsa Riski: $0.00`); kullanıcının gerçek Binance Global hesabındaki fonlarının ($103.62 USDT nakit + 3,228 COTI = ~$157 USD) %100 güvende ve dokunulmaz olduğu teyit edildi.
+    5. 14 Eylül kazandıran strateji parametreleri paper modda sıfır borsa riskiyle canlı piyasa tahtası üzerinde sanal alım-satım yapmaya devam edecek şekilde devrede bırakıldı.
 - [x] **14 Eylül Kazandıran Strateji Parametreleri Canlıya Uygulandı (16 Eylül 10:55 TSİ):**
   - Kullanıcının doğrudan talimatıyla `14_EYLUL_KAZANDIRAN_STRATEJI_AYARLARI.md` rehberindeki altın kasa profili (`whale_hunting_balanced`) Supabase ve yerel konfigürasyona uygulandı.
   - **Parametreler:** `volume_spike_multiplier: 1.15`, `min_volume_usd: $2,500`, `take_profit_pct: %3.0` (Tenant %3.5), `stop_loss_pct: %1.2`, `break_even_trigger_pct: %1.2`, `trailing_callback_pct: %0.6`, `retest_required: False` (anında giriş), `first_pump_candle_entry_blocked: False` (erken ivme), `max_budget_percent: %33.3` (3 eşit slot).

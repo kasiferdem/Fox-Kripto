@@ -138,7 +138,7 @@ def generate_v2_dashboard_html(
         sel_en = "selected" if ulang == "en" else ""
         
         is_paper_t = bool(t.get("is_paper_trading"))
-        paper_toggle_btn = f"""<button class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: {'rgba(234, 179, 8, 0.18)' if is_paper_t else 'rgba(59, 130, 246, 0.18)'}; color: {'#eab308' if is_paper_t else '#60a5fa'}; border: 1px solid {'#eab308' if is_paper_t else '#60a5fa'};" onclick="toggleTenantTradingMode('{tid}', {str(not is_paper_t).lower()}, event)">{'🧪 Paper ($100)' if is_paper_t else '🚀 Canlı'}</button>"""
+        paper_toggle_btn = f"""<button class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: {'rgba(234, 179, 8, 0.18)' if is_paper_t else 'rgba(59, 130, 246, 0.18)'}; color: {'#eab308' if is_paper_t else '#60a5fa'}; border: 1px solid {'#eab308' if is_paper_t else '#60a5fa'};" onclick="toggleTenantTradingMode('{tid}', {str(not is_paper_t).lower()}, event)">{'🧪 Paper ($10K)' if is_paper_t else '🚀 Canlı'}</button>"""
         active_toggle_btn = f"""<button class="btn btn-sm" style="padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: {'rgba(34, 197, 94, 0.15)' if is_active else 'rgba(239, 68, 68, 0.15)'}; color: {'#22c55e' if is_active else '#ef4444'}; border: 1px solid {'#22c55e' if is_active else '#ef4444'};" onclick="toggleTenantActive('{tid}', {str(not is_active).lower()}, event)">{'🟢 Aktif' if is_active else '🔴 Pasif'}</button>"""
 
         tenants_ssr_html += f"""

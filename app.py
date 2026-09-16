@@ -1016,7 +1016,7 @@ def toggle_tenant_trading_mode_endpoint(tenant_id: str, req: ToggleTenantTrading
     from db import set_tenant_trading_mode, _tenant_cache
     ok = set_tenant_trading_mode(tenant_id, req.is_paper_trading)
     _tenant_cache.clear()
-    mode_str = "SANAL TEST (Paper - $100)" if req.is_paper_trading else "GERÇEK CANLI (Live)"
+    mode_str = "SANAL TEST (Paper - $10,000)" if req.is_paper_trading else "GERÇEK CANLI (Live)"
     if ok:
         return {
             "status": "success",

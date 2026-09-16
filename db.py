@@ -92,7 +92,7 @@ def set_tenant_trading_mode(identifier: Any, is_paper: bool) -> bool:
             client.table("crypto_agent_states").upsert(payload).execute()
             
         _tenant_cache.clear()
-        mode_str = "SANAL TEST (Paper - $100)" if is_paper else "GERÇEK CANLI (Live)"
+        mode_str = "SANAL TEST (Paper - $10,000)" if is_paper else "GERÇEK CANLI (Live)"
         print(f"🎛️ [Çalışma Modu Değişti]: {identifier} -> {mode_str}")
         return True
     except Exception as e:
@@ -437,7 +437,7 @@ def get_coin_historical_performance(tenant_id: str, base_asset: str) -> Dict[str
         print(f"⚠️ [Coin Geçmişi Sorgu Uyarısı]: {e}")
         return default_stats
 
-def get_virtual_balance(tenant_id: str, default_balance: float = 100.0) -> float:
+def get_virtual_balance(tenant_id: str, default_balance: float = 10000.0) -> float:
     """Sanal test hesabı için Supabase'deki güncel serbest USDT bakiyesini döner."""
     client = get_supabase()
     if not client: return default_balance

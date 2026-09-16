@@ -792,7 +792,7 @@ def convert_dust_to_bnb(tenant_config: Optional[Dict[str, Any]] = None, assets: 
 
 class VirtualPaperExchangeClient:
     """Sanal Test (Paper Trading) Borsa İstemcisi: 0 Borsa Riski, Gerçek Canlı Veri."""
-    def __init__(self, tenant_id: str, initial_balance: float = 100.0):
+    def __init__(self, tenant_id: str, initial_balance: float = 10000.0):
         self.tenant_id = str(tenant_id)
         self.id = "paper"
         self.apiKey = "VIRTUAL_PAPER_API_KEY"
@@ -926,7 +926,7 @@ def fetch_portfolio_balance(tenant_config: Optional[Dict[str, Any]] = None) -> D
     if tenant_config and (tenant_config.get("is_paper_trading") or tenant_config.get("exchange_id") == "paper"):
         from db import get_virtual_balance, get_active_positions_from_db
         t_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id", "paper_tenant"))
-        free_usdt = get_virtual_balance(t_id, 100.0)
+        free_usdt = get_virtual_balance(t_id, 10000.0)
         positions = get_active_positions_from_db(t_id, "paper", is_simulated=True)
         price_map = get_all_prices_map()
         usdt_try_price = get_live_usd_try_rate()

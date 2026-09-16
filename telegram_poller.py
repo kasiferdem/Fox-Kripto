@@ -382,7 +382,7 @@ def handle_update(update: dict):
         if text_clean in ["start", "/start", "help", "/help", "yardim", "yardım", "merhaba", "selam", "hello", "hi", "menu", "menü", "komutlar", "bilgi", "info", "❓ yardım"]:
             welcome_kb = {
                 "keyboard": [
-                    [{"text": "🔑 Hesap Bağla"}, {"text": "🧪 Demo Modu ($100)"}],
+                    [{"text": "🔑 Hesap Bağla"}, {"text": "🧪 Demo Modu ($10K)"}],
                     [{"text": "📊 Piyasa Analizi"}, {"text": "📰 Kripto Haberleri"}],
                     [{"text": "🆔 Chat ID Öğren"}, {"text": "ℹ️ Sistem Bilgisi"}]
                 ],
@@ -395,7 +395,7 @@ def handle_update(update: dict):
                 f"Fox-Kripto; Binance Global ve Binance TR üzerinde 7/24 otonom çalışan, yapay zeka destekli kurumsal bir kantitatif analiz ve ticaret botudur.\n\n"
                 f"📌 *Nasıl Başlayabilirsiniz?*\n"
                 f"• 🔑 *Hesap Bağla:* Binance API anahtarınızı girerek hesabınızı saniyeler içinde bağlayın (`baglan` yazabilirsiniz).\n"
-                f"• 🧪 *Demo Modu ($100):* Sıfır riskle sanal bakiye üzerinden sistemi deneyin.\n"
+                f"• 🧪 *Demo Modu ($10K):* Sıfır riskle $10,000 sanal bakiye üzerinden sistemi deneyin.\n"
                 f"• 📊 *Piyasa Analizi:* Canlı balina kırılımlarını ve ivme puanlarını görün.\n"
                 f"• 📰 *Kripto Haberleri:* Anlık küresel piyasa gelişmelerini okuyun.\n\n"
                 f"Aşağıdaki menü butonlarını kullanarak hemen başlayabilirsiniz 👇"
@@ -428,12 +428,12 @@ def handle_update(update: dict):
             return
 
         # 3. Demo Modu
-        elif text_clean in ["demo", "test", "sanal", "paper", "🧪 demo modu ($100)", "/demo", "/test"]:
+        elif text_clean in ["demo", "test", "sanal", "paper", "🧪 demo modu ($10k)", "🧪 demo modu ($100)", "/demo", "/test"]:
             set_tenant_trading_mode(chat_id, is_paper=True)
             send_message(
                 chat_id,
                 f"🧪 *SANAL DEMO TEST MODU AKTİF!* ✅\n\n"
-                f"💰 *Sanal Bakiye:* $100.00 USDT (Monopoly Parası)\n"
+                f"💰 *Sanal Bakiye:* $10,000.00 USDT (Demo Bakiye)\n"
                 f"🛡️ *Borsa Riski:* 0 TL / 0 USD (Tamamen Güvenli)\n"
                 f"📈 *Çalışma:* Binance canlı tahtasındaki gerçek zamanlı fiyatlarla sinyalleri izleyebilirsiniz.\n\n"
                 f"💡 _'analiz' veya 'haberler' yazabilir, canlıya geçmek için `baglan` yazabilirsiniz._"
@@ -482,7 +482,7 @@ def handle_update(update: dict):
         else:
             unauth_kb = {
                 "keyboard": [
-                    [{"text": "🔑 Hesap Bağla"}, {"text": "🧪 Demo Modu ($100)"}],
+                    [{"text": "🔑 Hesap Bağla"}, {"text": "🧪 Demo Modu ($10K)"}],
                     [{"text": "📊 Piyasa Analizi"}, {"text": "📰 Kripto Haberleri"}]
                 ],
                 "resize_keyboard": True
@@ -645,7 +645,7 @@ def handle_update(update: dict):
         send_message(
             chat_id,
             f"🧪 *SİSTEM SANAL TEST (PAPER TRADING) MODUNA ALINDI!* ✅\n\n"
-            f"💰 *Sanal Kasa:* $100.00 USDT (Monopoly Parası)\n"
+            f"💰 *Sanal Kasa:* $10,000.00 USDT (Demo Bakiye)\n"
             f"🛡️ *Borsa Riski:* 0 TL / 0 USD (Gerçek hesabınıza dokunulmaz)\n"
             f"📈 *Çalışma:* Binance canlı tahtasından anlık fiyatlarla sanal al-sat yapılır.\n\n"
             f"_(İstediğiniz zaman `/canli` yazarak gerçek borsa hesabınıza geçebilirsiniz.)_"
@@ -667,7 +667,7 @@ def handle_update(update: dict):
     if text_clean in ["mod", "mode", "/mod", "durum mod", "hangi moddayım", "hangi moddayim"]:
         current_is_paper = get_tenant_trading_mode(chat_id)
         if current_is_paper:
-            send_message(chat_id, "🧪 *ŞU ANKİ ÇALIŞMA MODUNUZ:* `SANAL TEST (Paper Trading - $100)`\nBorsa Riski: $0.00. Gerçek canlıya geçmek için `/canli` yazabilirsiniz.")
+            send_message(chat_id, "🧪 *ŞU ANKİ ÇALIŞMA MODUNUZ:* `SANAL TEST (Paper Trading - $10,000)`\nBorsa Riski: $0.00. Gerçek canlıya geçmek için `/canli` yazabilirsiniz.")
         else:
             send_message(chat_id, "🚀 *ŞU ANKİ ÇALIŞMA MODUNUZ:* `GERÇEK CANLI (Live Binance)`\nİşlemler gerçek cüzdanınızla yapılıyor. Teste geçmek için `/test` yazabilirsiniz.")
         return
@@ -1165,8 +1165,8 @@ def handle_update(update: dict):
             is_p = get_tenant_trading_mode(chat_id) or bool(bal_gl.get("is_paper_trading"))
             
             if is_p:
-                account_title = "🧪 *[SANAL TEST (PAPER TRADING) CÜZDANI]*\n⚠️ _Bu bakiye $100 sanal test parasıdır, gerçek paranız değildir._"
-                mode_str = "SANAL TEST (Paper - $100) 🧪\n🛡️ *Borsa Riski:* $0.00 (Gerçek paranız cüzdanda güvendedir)"
+                account_title = "🧪 *[SANAL TEST (PAPER TRADING) CÜZDANI]*\n⚠️ _Bu bakiye sanal demo parasıdır, gerçek paranız cüzdanda güvendedir._"
+                mode_str = "SANAL TEST (Paper Trading - $10,000) 🧪\n🛡️ *Borsa Riski:* $0.00 (Gerçek paranız cüzdanda güvendedir)"
             else:
                 account_title = "🌍 *[BİNANCE GLOBAL GERÇEK HESABINIZ]*"
                 mode_str = "CANLI GERÇEK HESAP ✅"
