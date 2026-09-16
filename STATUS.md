@@ -52,6 +52,9 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Paper Mod Ledger ve Bakiye Senkronizasyonu Onarıldı (16 Eylül 14:58 TSİ):**
+  - **Kök Neden:** `graph.py` içindeki `node_execute_trade` fonksiyonunda simüle edilmiş işlem sonucunda borsa adı varsayılan olarak `"binance"` olarak atanıyor ve `pos_{tenant_id}_binance` oturumuna kaydediliyordu. Ancak `exchange.py`'ın sanal portföy motoru `pos_{tenant_id}_paper` oturumunu okuyordu. Ayrıca alım/satım işlemlerinde `update_virtual_balance` fonksiyonu çağrılmadığı için sanal kasa bakiyesi güncellenmiyordu.
+  - **Çözüm:** `graph.py` üzerinde `is_simulated` durumunda `exch_name = "paper"` yapıldı, `is_simulated=is_simulated` parametresiyle pozisyon sorgusu bağlandı ve alım/satımlarda sanal USDT bakiyesini atomik güncelleyen mekanizma entegre edildi.
 - [x] **Haber Duyarlılık Kilidi & OpenRouter 402 Hızlı Kuant Geçişi Onarıldı (16 Eylül 14:45 TSİ):**
   - **Kök Neden 1 (Aşırı Duyarlı Haber Kilidi):** `prompts.py` içindeki deterministik NLP duyarlılık motorunda `"crackdown", "ban", "arrest"` gibi genel düzenleme kelimeleri yanlışlıkla `high_risk_words` listesinde yer aldığı için, CoinDesk'teki *"UK Backs Money Laundering Crackdown"* haberi yüzünden sistem `sentiment_score = -5.0` üretip `🛑 [Kritik Haber Kalkanı]: Makro/Haber risk skoru (-5.0)` ile tüm işlemleri kilitliyordu. Bu kelimeler `caution_words`'e taşındı ve Paper mod için haber kilidi baypası eklendi.
   - **Kök Neden 2 (OpenRouter 402 Zaman Aşımı Darboğazı):** OpenRouter API kredisi bittiğinde her döngüde 5 ücretli model deneniyor, her aday için 20'şer saniye timeout bekleniyor ve döngü 2-3 dakika kilitleniyordu. `openrouter_gateway.py`'a 402 hızlı devre kesicisi eklendi; kredi bittiğinde anında deterministik hızlı kuant motoruna devredildi.

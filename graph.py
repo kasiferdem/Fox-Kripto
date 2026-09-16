@@ -851,20 +851,33 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
     
     # Supabase Atomik DB Ledger Güncellemesi
     try:
-        is_try_order = proposal["symbol"].upper().endswith("TRY") or proposal["symbol"].upper().endswith("_TRY")
-        exch_name = "binancetr" if is_try_order else "binance"
-        base_sym = proposal["symbol"].split("/")[0].split("_")[0].upper()
-        quote_c = "TRY" if is_try_order else "USDT"
         status_str = str(result.get("status", "")).upper()
         tenant_id = str((tenant_config or {}).get("id") or (tenant_config or {}).get("telegram_chat_id") or "default_tenant")
         is_simulated = (status_str == "EXECUTED_SIMULATED")
+        is_try_order = proposal["symbol"].upper().endswith("TRY") or proposal["symbol"].upper().endswith("_TRY")
+        exch_name = "paper" if is_simulated else ("binancetr" if is_try_order else "binance")
+        base_sym = proposal["symbol"].split("/")[0].split("_")[0].upper()
+        quote_c = "TRY" if is_try_order else "USDT"
 
         if status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]:
+            # Sanal Test (Paper Trading) Bakiye Güncellemesi
+            if is_simulated:
+                from db import get_virtual_balance, update_virtual_balance
+                curr_vb = get_virtual_balance(tenant_id, 10000.0)
+                if proposal["direction"].upper() in ["BUY", "ALIM"]:
+                    spend_val = float(proposal.get("amount_usd") or 0.0)
+                    update_virtual_balance(tenant_id, max(0.0, curr_vb - (spend_val * 1.001)))
+                else:
+                    p_usd = float(result.get("executed_price") or proposal.get("entry_price") or 0.0)
+                    coin_amt = float(proposal.get("amount_coin") or (proposal.get("amount_usd", 0.0) / p_usd if p_usd > 0 else 0.0))
+                    proceeds = coin_amt * p_usd * 0.999
+                    update_virtual_balance(tenant_id, curr_vb + proceeds)
+
             if proposal["direction"].upper() in ["BUY", "ALIM"]:
                 exec_p = float(result.get("executed_price") or proposal.get("entry_price") or 0.0)
                 new_coin_amt = float(proposal.get("amount_coin") or (proposal["amount_usd"] / exec_p if exec_p > 0 else 0))
                 is_dca = bool(proposal.get("is_dca_entry"))
-                existing_pos = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch_name) or {}
+                existing_pos = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch_name, is_simulated=is_simulated) or {}
                 prev_info = existing_pos.get(base_sym) or existing_pos.get(proposal["symbol"]) or {}
                 
                 if is_dca and prev_info:
