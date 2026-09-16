@@ -1162,14 +1162,20 @@ def handle_update(update: dict):
                 tot_line = f"💰 *Toplam Portföy Değeri:* *${tot_gl_usd:,.2f} USD* (~₺{tot_combined_try:,.2f} TL)"
 
             from db import get_tenant_trading_mode
-            is_p = get_tenant_trading_mode(chat_id)
-            mode_str = "SANAL TEST (Paper - $100) 🧪\n🛡️ *Borsa Riski:* $0.00 (Gerçek paranıza asla dokunulmaz)" if is_p else "CANLI GERÇEK HESAP ✅"
+            is_p = get_tenant_trading_mode(chat_id) or bool(bal_gl.get("is_paper_trading"))
+            
+            if is_p:
+                account_title = "🧪 *[SANAL TEST (PAPER TRADING) CÜZDANI]*\n⚠️ _Bu bakiye $100 sanal test parasıdır, gerçek paranız değildir._"
+                mode_str = "SANAL TEST (Paper - $100) 🧪\n🛡️ *Borsa Riski:* $0.00 (Gerçek paranız cüzdanda güvendedir)"
+            else:
+                account_title = "🌍 *[BİNANCE GLOBAL GERÇEK HESABINIZ]*"
+                mode_str = "CANLI GERÇEK HESAP ✅"
 
             msg_text = (
                 f"{header_title}\n\n"
                 f"👤 Kullanıcı: {tenant.get('tenant_name', 'Kullanıcı')}\n\n"
                 f"{tr_section}"
-                f"🌍 *[BİNANCE GLOBAL HESABINIZ]*\n"
+                f"{account_title}\n"
                 f"💵 Serbest USDT: *${free_usdt:,.2f} USD*\n"
                 f"{bnb_line}"
                 f"📦 *Açık Pozisyonlar:*\n"
