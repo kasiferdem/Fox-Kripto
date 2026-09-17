@@ -52,6 +52,11 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Kağıt/Canlı Çift Alım Kalkanı & Matematiksel Portföy Mutabakatı (17 Eylül 23:05 TSİ):**
+  - **Kök Neden:** `graph.py` içindeki `already_held_coins` ve `active_coins_set` kontrollerinde `is_simulated=False` sorgulandığı için sanal moddaki `paper` pozisyonları filtrelenemiyordu. Bu durum, 5 saniye arayla mükerrer alım yapılmasına ve sanal bakiyenin çift düşmesine yol açıyordu.
+  - **Düzeltme:** `graph.py` içinde `is_simulated` hem `False` hem `True` olarak taranacak şekilde güncellendi. Toplam açık slot sayısı hem bellek hem veritabanı pozisyonları taranarak kilitlendi.
+  - **Portföy Mutabakatı:** $10,000 başlangıç sermayesi, kapatılan işlemler neticesinde net -$41.28 gerçekleşen kâr/zarar, mevcut açık pozisyonlar maliyeti $9,846.26, serbest nakit tam olarak $112.46 USD olarak eşitlendi. Anlık piyasa değeriyle açık pozisyonlar kârda (+$20.76) olup toplam net portföy $9,979.48 USD seviyesindedir.
+
 - [x] **Kullanıcı Formülü: "Çevik Kâr Kilitleme (Lock-In Profit v3.3)" Canlıya Alındı (17 Eylül 21:55 TSİ):**
   - **Kullanıcı Stratejisi:** *"Bir coin zaten gün içinde %1.5 ile %2.3 yapar. Bu seviyeye ulaştığında geri çekilme payı (callback) %0.40 olsun, böylece minimum +%1.10 net kârı kasaya kilitleyelim."*
   - **Uygulanan Parametreler:** `trailing_activation_pct: 1.5%` (Alarm çalma ve iz sürme başlangıcı), `trailing_callback_pct: 0.40%` (Zirveden %0.40 sarkmada anında satış), `break_even_trigger_pct: 1.20%` (+%1.20 kârda stop maliyete çekilir, sıfır zarar).

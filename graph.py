@@ -67,9 +67,10 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
     # Cüzdanda veya DB'de açık pozisyonu bulunan coinleri tespit et (Çift Alım / Duplicate Slot Kalkanı)
     already_held_coins = set()
     for exch in ["binance", "binancetr", "paper"]:
-        db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=False) or {}
-        for sym_k in db_p.keys():
-            already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
+        for sim_flag in [False, True]:
+            db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=sim_flag) or {}
+            for sym_k in db_p.keys():
+                already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
             
     if isinstance(existing_holdings, dict):
         for k, v in existing_holdings.items():
@@ -547,9 +548,10 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     # 🛡️ Çift Alım & Çift Slot Engelleme Zırhı (Anti-Duplicate / Single Slot Shield)
     already_held_coins = set()
     for exch in ["binance", "binancetr", "paper"]:
-        db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=False) or {}
-        for sym_k in db_p.keys():
-            already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
+        for sim_flag in [False, True]:
+            db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=sim_flag) or {}
+            for sym_k in db_p.keys():
+                already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
             
     if isinstance(existing_holdings, dict):
         for k, v in existing_holdings.items():
@@ -690,12 +692,19 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     cfg_slots = int(strat_cfg.get("max_concurrent_positions", 2))
     target_slots = min(cfg_slots, max(calculated_slots, 1)) if shield_active else cfg_slots
     
-    # Aktif açık pozisyon sayısını say ve slot doluluğunu denetle
+    # Aktif açık pozisyon sayısını say ve slot doluluğunu denetle (Hem memory hem DB açık pozisyonları)
+    active_coins_set = set(already_held_coins)
     if isinstance(existing_holdings, dict):
-        active_coins = [k for k, v in existing_holdings.items() if str(k).upper() not in ["USDT", "TRY", "BNB", "USDC", "FDUSD"] and (isinstance(v, dict) and (v.get("val_usd", 0) > 5.0 or v.get("val_try", 0) > 150))]
-        if len(active_coins) >= target_slots:
-            print(f"   🛑 [Maksimum Slot Dolu]: Açık pozisyon sayısı ({len(active_coins)}) hedef slotu ({target_slots}) doldurdu. Yeni alım kapalı.")
-            return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
+        for k, v in existing_holdings.items():
+            base_clean = str(k).split(" ")[0].split("/")[0].split("_")[0].upper()
+            if base_clean not in ["USDT", "TRY", "BNB", "USDC", "FDUSD"]:
+                val = v.get("val_usd", 0.0) if isinstance(v, dict) else 0.0
+                val_t = v.get("val_try", 0.0) if isinstance(v, dict) else 0.0
+                if val > 5.0 or val_t > 150.0:
+                    active_coins_set.add(base_clean)
+    if len(active_coins_set) >= target_slots:
+        print(f"   🛑 [Maksimum Slot Dolu]: Açık pozisyon sayısı ({len(active_coins_set)}: {list(active_coins_set)}) hedef slotu ({target_slots}) doldurdu. Yeni alım kapalı.")
+        return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
     
     is_quote_try = c_sym.endswith("TRY")
     cand_quote = "TRY" if is_quote_try else "USDT"
