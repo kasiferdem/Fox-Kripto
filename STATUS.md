@@ -52,6 +52,11 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Kullanıcı Formülü: "Çevik Kâr Kilitleme (Lock-In Profit v3.3)" Canlıya Alındı (17 Eylül 21:55 TSİ):**
+  - **Kullanıcı Stratejisi:** *"Bir coin zaten gün içinde %1.5 ile %2.3 yapar. Bu seviyeye ulaştığında geri çekilme payı (callback) %0.40 olsun, böylece minimum +%1.10 net kârı kasaya kilitleyelim."*
+  - **Uygulanan Parametreler:** `trailing_activation_pct: 1.5%` (Alarm çalma ve iz sürme başlangıcı), `trailing_callback_pct: 0.40%` (Zirveden %0.40 sarkmada anında satış), `break_even_trigger_pct: 1.20%` (+%1.20 kârda stop maliyete çekilir, sıfır zarar).
+  - **Matematiksel Getiri Güvencesi:** %1.5 dalgada asgari +%1.10 (+35$), %2.3 dalgada +%1.90 (+60$), %4.5 dalgada +%4.10 (+135$) net kazanç mühürlenir.
+
 - [x] **Sanal (Paper Trading) Satış İnfaz Fiyatı ve "Sahte Maliyet Koruma" Hatası Giderildi (17 Eylül 21:05 TSİ):**
   - **Kök Neden:** `binance_execution_service.py` ve `graph.py` içinde satış emirleri simüle edilirken, `entry_price` parametresine pozisyonun ilk alış fiyatı (`0.1789`) aktarılıyordu. Kod bu fiyatı canlı borsa satış fiyatı sanarak simüle satışı alış fiyatından (`0.1789`) kapatıyordu. Bu nedenle kâr eden işlemler (örn. ARB ve daha önce KITE) Telegram'a *"🛡️ MALİYET KORUMA (BREAKEVEN ÇIKIŞ) Alış: $0.1789, Satış: $0.1789 -%0.20"* şeklinde yanlış basılıyordu; oysa bütçe fiilen kârla ($3,218 -> $3,293) kasaya dönüyordu.
   - **Çözüm:** `binance_execution_service.py` içinde `side == "SELL"` durumunda satış fiyatının kesin olarak anlık tahta satış fiyatı (`fetch_ticker_price`) olması kuralı getirildi. `graph.py` içindeki `sell_proposal` ve `OrderIntent`'e `exit_price: curr_p` parametresi bağlandı. Artık Telegram bildirimlerinde gerçek satış fiyatı ve kâr rozeti (`🎯 KÂR ALMA`) eksiksiz görünecek.
