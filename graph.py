@@ -485,6 +485,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             "amount_coin": coin_amount * sell_fraction,
                             "remaining_coin": coin_amount * (1.0 - sell_fraction),
                             "entry_price": recorded_buy_p,
+                            "exit_price": curr_p,
                             "highest_price": highest_p,
                             "stage": stage,
                             "sell_fraction": sell_fraction,
@@ -847,7 +848,7 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
         spread_ok=True,
         slippage_ok=True,
         stop_can_be_created=True,
-        entry_price=float(proposal.get("entry_price") or 0.0),
+        entry_price=float((proposal.get("exit_price") if proposal.get("direction") == "SELL" else proposal.get("entry_price")) or 0.0),
         stop_loss_price=proposal.get("stop_loss_price"),
         take_profit_price=proposal.get("take_profit_price"),
         metadata={

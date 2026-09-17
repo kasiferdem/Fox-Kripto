@@ -52,6 +52,10 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Sanal (Paper Trading) Satış İnfaz Fiyatı ve "Sahte Maliyet Koruma" Hatası Giderildi (17 Eylül 21:05 TSİ):**
+  - **Kök Neden:** `binance_execution_service.py` ve `graph.py` içinde satış emirleri simüle edilirken, `entry_price` parametresine pozisyonun ilk alış fiyatı (`0.1789`) aktarılıyordu. Kod bu fiyatı canlı borsa satış fiyatı sanarak simüle satışı alış fiyatından (`0.1789`) kapatıyordu. Bu nedenle kâr eden işlemler (örn. ARB ve daha önce KITE) Telegram'a *"🛡️ MALİYET KORUMA (BREAKEVEN ÇIKIŞ) Alış: $0.1789, Satış: $0.1789 -%0.20"* şeklinde yanlış basılıyordu; oysa bütçe fiilen kârla ($3,218 -> $3,293) kasaya dönüyordu.
+  - **Çözüm:** `binance_execution_service.py` içinde `side == "SELL"` durumunda satış fiyatının kesin olarak anlık tahta satış fiyatı (`fetch_ticker_price`) olması kuralı getirildi. `graph.py` içindeki `sell_proposal` ve `OrderIntent`'e `exit_price: curr_p` parametresi bağlandı. Artık Telegram bildirimlerinde gerçek satış fiyatı ve kâr rozeti (`🎯 KÂR ALMA`) eksiksiz görünecek.
+
 - [x] **"Balanced Alpha v3.2" (Seçenek B) Canlıya Alındı ve İnfaz Kapısı Sinyal Hatası Onarıldı (17 Eylül 20:45 TSİ):**
   - **Kullanıcı Sorusu:** "Bugün sıfır al sat var" ve "Seçenek A mı Seçenek B mi daha ideal? Güvenlikten ödün vermek mi?"
   - **Tespit Edilen Çıkmaz:** 17 Eylül sabahı uygulanan 2.5x hacim, ilk mum engeli ve retest zorunluluğu piyasada günde 0 işlem üretiyordu (örneğin SYN/USDT %79 alıcı baskısıyla fırlamasına rağmen tepe engeline takıldı). Ayrıca `graph.py` içindeki `sig_state = "AI_CONFIRMED_BREAKOUT"` hardcoded etiketi, `entry_safety_policy.py`'ın `RETEST_CONFIRMED` araması nedeniyle teknik adayları (örn. ATOM) kapıda blokluyordu.

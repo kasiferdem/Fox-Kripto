@@ -47,13 +47,24 @@ class BinanceExecutionService:
 
         # 1. Simülasyon / Paper Trading Modu
         if is_simulated:
-            sim_price = float(entry_price or 0.0)
-            if sim_price <= 0:
+            # Satış (SELL) emirlerinde infaz fiyatı kesinlikle güncel tahta satış fiyatı (ticker) olmalıdır!
+            if side_clean == "SELL":
+                sim_price = 0.0
                 try:
                     ticker = fetch_ticker_price(clean_sym)
                     sim_price = float(ticker.get("last_price") or 0.0)
                 except Exception:
                     sim_price = 0.0
+                if sim_price <= 0:
+                    sim_price = float(entry_price or 0.0)
+            else:
+                sim_price = float(entry_price or 0.0)
+                if sim_price <= 0:
+                    try:
+                        ticker = fetch_ticker_price(clean_sym)
+                        sim_price = float(ticker.get("last_price") or 0.0)
+                    except Exception:
+                        sim_price = 0.0
             if sim_price <= 0:
                 sim_price = 95.50
                 
