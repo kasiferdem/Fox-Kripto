@@ -52,6 +52,13 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **"Balanced Alpha v3.2" (Seçenek B) Canlıya Alındı ve İnfaz Kapısı Sinyal Hatası Onarıldı (17 Eylül 20:45 TSİ):**
+  - **Kullanıcı Sorusu:** "Bugün sıfır al sat var" ve "Seçenek A mı Seçenek B mi daha ideal? Güvenlikten ödün vermek mi?"
+  - **Tespit Edilen Çıkmaz:** 17 Eylül sabahı uygulanan 2.5x hacim, ilk mum engeli ve retest zorunluluğu piyasada günde 0 işlem üretiyordu (örneğin SYN/USDT %79 alıcı baskısıyla fırlamasına rağmen tepe engeline takıldı). Ayrıca `graph.py` içindeki `sig_state = "AI_CONFIRMED_BREAKOUT"` hardcoded etiketi, `entry_safety_policy.py`'ın `RETEST_CONFIRMED` araması nedeniyle teknik adayları (örn. ATOM) kapıda blokluyordu.
+  - **Heyet Kararı (Codex & Claude):** Güvenlik zırhından (%2.2 stop, +%1.8 başa-baş, 1:2.05 R:R, 3 slot) ödün vermeden yapay ilk mum ve retest kelepçesi kaldırıldı; hacim eşiği 1.8x'e optimize edildi.
+  - **Uygulanan Parametreler (`balanced_alpha_v3`):** `volume_spike_multiplier: 1.8x`, `min_taker_buy_pct: %58.0`, `min_5m_volume_usd: $20,000`, `min_24h_quote_volume_usd: $5,000,000`, `max_daily_trades: 5`, `max_recent_gain_24h: %25.0`, `min_ai_score: 7.0`, `retest_required: False`, `first_pump_candle_entry_blocked: False`, `stop_loss_percent: 2.2%`, `take_profit_percent: 4.5%`, `break_even_trigger_pct: 1.8%`, `trailing_activation_pct: 2.2%`, `trailing_callback_pct: 0.8%`, `cooldown_minutes: 120 dk`, `post_stop_cooldown_minutes: 180 dk`, `max_concurrent_positions: 3`, `max_budget_percent: %33.3`, `execution_mode: PAPER_TRADING`.
+  - **Kod Düzeltmesi:** `graph.py` içindeki sinyal durumu dinamikleştirildi (`RETEST_CONFIRMED`); kapı uyuşmazlığı giderildi.
+
 - [x] **Codex CLI ve Claude CLI Onaylı "High Conviction Quant v3" Profili Uygulandı (17 Eylül 12:25 TSİ):**
   - **Kullanıcı Talebi:** Günde aşırı al-sat yapmayan (saatte 6 işlem yerine günde 3-5 adet garantici işlem), piyasa gürültüsünü filtreleyen profesyonel bir ayar oluşturulması ve bu ayarın hem OpenAI Codex CLI hem Anthropic Claude CLI modellerine teknik incelemeye sunulup onay alınarak uygulanması.
   - **Codex CLI (GPT-5.5) Değerlendirmesi:** *"Kararım net: ONAYLIYORUM (APPROVED). Bu set 14 Eylül profilindeki ana ölümcül hataları (1.15x gürültüsü, retest yokluğu, tepeden alım) doğru yerden kapatıyor. Günde 3-5 işlem hedefi çok uygun. Stop-loss %2.2 ve kâr %4.5 ile 1:2.05 R:R oranı komisyonu rahatlıkla taşıyor."*

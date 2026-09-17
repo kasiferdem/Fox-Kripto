@@ -745,8 +745,12 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     
     # Kullanıcının tablodaki net Bütçe % oranı doğrudan işleme alınır
     exec_amount_usd = safe_budget_usd
-    first_pump_detected = False
-    sig_state = "AI_CONFIRMED_BREAKOUT"
+    first_pump_detected = bool(chosen_scalp_eval.get("is_first_pump_blocked", False)) or bool(chosen_scalp_eval.get("action_state") == "WAITING_PULLBACK")
+    # Retest veya Whale/Momentum teyidine göre dinamik sinyal durumu (Kapı kilidini önler)
+    if chosen_scalp_eval.get("state_machine_stage") == "READY" or chosen_scalp_eval.get("is_whale_confirmed") or not strat_cfg.get("retest_required", False):
+        sig_state = "RETEST_CONFIRMED"
+    else:
+        sig_state = "MOMENTUM_BREAKOUT"
 
     # 🧬 COIN BEHAVIORAL PROBABILITY ENGINE (COIN DNA) KONTROLÜ
     coin_dna_analysis = chosen_cand_dna
