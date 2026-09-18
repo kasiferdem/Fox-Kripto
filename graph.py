@@ -66,11 +66,19 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
 
     # Cüzdanda veya DB'de açık pozisyonu bulunan coinleri tespit et (Çift Alım / Duplicate Slot Kalkanı)
     already_held_coins = set()
-    for exch in ["binance", "binancetr", "paper"]:
-        for sim_flag in [False, True]:
-            db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=sim_flag) or {}
-            for sym_k in db_p.keys():
-                already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
+    is_paper_trading = bool(tenant_config.get("is_paper_trading")) or bool(get_system_setting("execution_mode") == "PAPER_TRADING")
+    if is_paper_trading:
+        target_exchanges = [("paper", True)]
+    else:
+        user_exch = str(tenant_config.get("exchange_id") or "binancetr").lower()
+        target_exchanges = [(user_exch, False)]
+        if user_exch in ["binance", "binancetr"]:
+            target_exchanges.append(("binance" if user_exch == "binancetr" else "binancetr", False))
+
+    for exch, sim_flag in target_exchanges:
+        db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=sim_flag) or {}
+        for sym_k in db_p.keys():
+            already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
             
     if isinstance(existing_holdings, dict):
         for k, v in existing_holdings.items():
@@ -547,11 +555,18 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
 
     # 🛡️ Çift Alım & Çift Slot Engelleme Zırhı (Anti-Duplicate / Single Slot Shield)
     already_held_coins = set()
-    for exch in ["binance", "binancetr", "paper"]:
-        for sim_flag in [False, True]:
-            db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=sim_flag) or {}
-            for sym_k in db_p.keys():
-                already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
+    if is_paper_trading:
+        target_exchanges = [("paper", True)]
+    else:
+        user_exch = str(tenant_config.get("exchange_id") or "binancetr").lower()
+        target_exchanges = [(user_exch, False)]
+        if user_exch in ["binance", "binancetr"]:
+            target_exchanges.append(("binance" if user_exch == "binancetr" else "binancetr", False))
+
+    for exch, sim_flag in target_exchanges:
+        db_p = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch, is_simulated=sim_flag) or {}
+        for sym_k in db_p.keys():
+            already_held_coins.add(sym_k.split("/")[0].split("_")[0].upper())
             
     if isinstance(existing_holdings, dict):
         for k, v in existing_holdings.items():

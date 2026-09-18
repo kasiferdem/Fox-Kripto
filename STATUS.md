@@ -52,6 +52,15 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Hayalet Pozisyon Yuva Kilidi Onarıldı & İşlem Döngüsü Açıldı (18 Eylül 16:55 TSİ):**
+  - **Sorun:** Kullanıcı gün boyu hem kripto hem borsa tarafında yeni işlem açılmadığını bildirdi.
+  - **Kök Neden 1 (Kripto):** Ağustos 2026'dan kalma 3 adet eski test simülasyon kaydı (`G`, `KAVA`, `STEEM`) `pos_{tenant_id}_binance` tablosunda kalmıştı. Dün akşam eklenen çift alım koruması mod ayrımı yapmaksızın tüm borsa anahtarlarını taradığı için, sanal modda olunduğu halde bu 3 hayalet pozisyon aktif slot olarak sayıldı (`3 >= 3`). Sistem yuvaları dolu sanarak yeni alımları kilitledi.
+  - **Kök Neden 2 (Borsa - Alpaca):** ABD hisse senedi piyasası (NYSE/NASDAQ) hafta sonu ve sabah saatlerinde kapalıdır; Türkiye saatiyle tam **16:30'da** açılır. Ayrıca portföydeki 7 ana hisse (AAPL, AMZN, META, MSFT, NVDA, QQQ, TSLA) zaten açık olup toplamda **+$3,464 USD kârdadır**. TP (+%3.0) veya SL (-%1.5) seviyelerine henüz ulaşmadıkları için satış gerçekleşmemiştir.
+  - **Düzeltme & Sonuç:**
+    1. Supabase'deki eski hayalet `pos_..._binance` verileri temizlendi.
+    2. `graph.py` içindeki `already_held_coins` kalkanı sadece kullanıcının aktif modunu (`is_paper_trading` ise yalnızca `paper`, canlı ise ilgili canlı borsa) tarayacak şekilde yalıtıldı.
+    3. Yuvalar açılır açılmaz DigitalOcean botu Tenant S için derhal **BTC/USDT** ($3,178) ve **REZ/USDT** ($3,357) alımlarını başarıyla gerçekleştirdi.
+
 - [x] **Kağıt/Canlı Çift Alım Kalkanı & Matematiksel Portföy Mutabakatı (17 Eylül 23:05 TSİ):**
   - **Kök Neden:** `graph.py` içindeki `already_held_coins` ve `active_coins_set` kontrollerinde `is_simulated=False` sorgulandığı için sanal moddaki `paper` pozisyonları filtrelenemiyordu. Bu durum, 5 saniye arayla mükerrer alım yapılmasına ve sanal bakiyenin çift düşmesine yol açıyordu.
   - **Düzeltme:** `graph.py` içinde `is_simulated` hem `False` hem `True` olarak taranacak şekilde güncellendi. Toplam açık slot sayısı hem bellek hem veritabanı pozisyonları taranarak kilitlendi.
