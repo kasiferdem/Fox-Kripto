@@ -15,10 +15,14 @@
   "take_profit_percent": 4.5,
   "stop_loss_pct": 2.2,
   "stop_loss_percent": 2.2,
-  "break_even_trigger_pct": 1.2,
-  "trailing_activation_pct": 1.5,
+  "break_even_trigger_pct": 0.8,
+  "break_even_buffer_pct": 0.22,
+  "time_decay_be_minutes": 10.0,
+  "time_decay_gain_threshold": 0.8,
+  "time_decay_callback_pct": 0.35,
+  "trailing_activation_pct": 1.0,
   "trailing_callback_pct": 0.4,
-  "micro_trailing_activation_pct": 1.5,
+  "micro_trailing_activation_pct": 1.0,
   "micro_trailing_callback_pct": 0.4,
   "true_trailing_run": true,
   "daily_max_loss_usd": 150.0,
@@ -37,5 +41,5 @@
   "existing_position_protection_enabled": true,
   "coin_dna_enabled": true,
   "coin_dna_execution_authority": "SMART_BLOCK_ONLY",
-  "updated_at": "2026-09-17T18:54:58Z"
+  "updated_at": "2026-09-18T16:54:03Z"
 }

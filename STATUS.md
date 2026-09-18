@@ -52,6 +52,19 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Zaman Aşımı Kâr Zırhı & Komisyon Korumalı Başa-Baş Motoru Canlıya Alındı (18 Eylül 19:55 TSİ):**
+  - **Kullanıcı Formülü:** *"Bir coin +%0.80 veya +%0.90 yaptı ama orada 10-15 dakika oyalandıysa başa-başa çek. Eğer henüz 5-10 dakika içindeyse ve in-çık yapıyorsa bekle, piyasaya nefes payı bırak."*
+  - **Yapay Zeka Heyeti Onayı (Claude Fable 5.1 & GPT-6 Astra):**
+    - *Claude Masası:* "Momentumda zaman çürümesi (time-decay) kârın düşmanıdır. Başa-baş seviyesi tam maliyete değil, %0.22 komisyon tamponuyla çekilmelidir (sıfır net zarar)."
+    - *GPT Astra Masası:* "İlk 5-10 dk whipsaw filtresi mükemmel. 10 dk oyalanma sonrası zirveden %0.35 sarkarsa doğrudan kâr realizasyonu yapılmalıdır."
+  - **Uygulanan Değişiklikler:**
+    1. `graph.py`: `time_decay_be_minutes = 10.0`, `time_decay_gain_threshold = 0.80%`, `time_decay_callback_pct = 0.35%` ve `break_even_buffer_pct = 0.22%` eklendi.
+    2. 10 dakika boyunca yeni tepe yapamayan coinlerde: Zirveden %0.35 sarkarsa kâr kasaya alınır; maliyet + komisyon seviyesine sarkarsa sıfır zararla kapatılır.
+    3. İlk 5-10 dakika içindeyken coinlerin normal dalgalanmasına (in-çık) izin verilir; erken başa-baş silkelenmesi (whipsaw) önlenir.
+    4. `trailing_activation_pct` %1.5'ten **%1.0**'e, `break_even_trigger_pct` %1.2'den **%0.8**'e çekildi.
+    5. `graph.py` satır 63'teki `:w` sözdizimi yazım hatası temizlendi.
+    6. `strategy_config_local.json`, `db.py` ve Supabase bulut veritabanı senkronize edildi.
+
 - [x] **Hayalet Pozisyon Yuva Kilidi Onarıldı & İşlem Döngüsü Açıldı (18 Eylül 16:55 TSİ):**
   - **Sorun:** Kullanıcı gün boyu hem kripto hem borsa tarafında yeni işlem açılmadığını bildirdi.
   - **Kök Neden 1 (Kripto):** Ağustos 2026'dan kalma 3 adet eski test simülasyon kaydı (`G`, `KAVA`, `STEEM`) `pos_{tenant_id}_binance` tablosunda kalmıştı. Dün akşam eklenen çift alım koruması mod ayrımı yapmaksızın tüm borsa anahtarlarını taradığı için, sanal modda olunduğu halde bu 3 hayalet pozisyon aktif slot olarak sayıldı (`3 >= 3`). Sistem yuvaları dolu sanarak yeni alımları kilitledi.

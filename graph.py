@@ -379,14 +379,41 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             true_trailing_mode = bool(strat_cfg.get("true_trailing_run", True))
                             
                             # 🛡️ 3. MASA: BAŞA-BAŞ (BREAK-EVEN) VE ASİMETRİK DALGA ÇIKIŞ ZIRHI
-                            # 1. Başa-Baş Koruması: Pozisyon en az +%1.00 kâr gördüyse, stop seviyesi anında maliyete çekilir.
-                            # Fiyat giriş fiyatının altına sarkar veya başa-başa değerse zararsız kapatılır!
-                            be_thresh = float(strat_cfg.get("break_even_trigger_pct") or 1.0)
+                            be_thresh = float(strat_cfg.get("break_even_trigger_pct") or 0.8)
+                            be_buffer_pct = float(strat_cfg.get("break_even_buffer_pct") or 0.22)
                             breakeven_triggered = (peak_gain_pct >= be_thresh)
 
-                            if breakeven_triggered and net_profit_pct <= 0.05 and curr_p <= recorded_buy_p:
+                            # Pozisyon süresi (Dakika)
+                            pos_open_time = float(entry_info.get("time") or 0.0)
+                            pos_age_min = ((time.time() - pos_open_time) / 60.0) if pos_open_time > 0 else 0.0
+
+                            # ⏳ ZAMAN AŞIMI VE MOMENTUM YORGUNLUĞU ZIRHI (TIME-DECAY ALPHA SHIELD)
+                            # Kural: Coin +%0.80 gördü ama 10-15 dk boyunca oyalandıysa korumaya al.
+                            # Eğer henüz 5-10 dk içindeyse normal dalgalanmaya (in-çık) izin ver, erken silkeleme!
+                            time_decay_be_minutes = float(strat_cfg.get("time_decay_be_minutes") or 10.0)
+                            time_decay_gain_threshold = float(strat_cfg.get("time_decay_gain_threshold") or 0.80)
+                            time_decay_callback_pct = float(strat_cfg.get("time_decay_callback_pct") or 0.35)
+                            time_decay_mult = 1.0 - (time_decay_callback_pct / 100.0)
+
+                            # Başa-baş seviyesi: Komisyonu kurtaran net sıfır seviyesi (Maliyet + %0.22)
+                            be_protected_price = recorded_buy_p * (1.0 + (be_buffer_pct / 100.0))
+
+                            is_stagnant_in_profit = (pos_age_min >= time_decay_be_minutes and peak_gain_pct >= time_decay_gain_threshold)
+
+                            if is_stagnant_in_profit and curr_p <= (highest_p * time_decay_mult):
+                                # 1. 10+ dk oyalanma sonrası zirveden %0.35 sarktığı an kârı kasaya kilitle:
                                 is_take_profit = True
-                                reason_desc = f"🛡️ Başa-Baş (Break-Even) Zırhı (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f} - Sıfır Zararla Korundu)"
+                                reason_desc = f"⏳ Zaman Aşımı Kâr Kilidi ({pos_age_min:.0f}dk Oyalanma | Net: +%{net_profit_pct:.2f} / Zirve: +%{peak_gain_pct:.2f} | Kâr Kasaya Alındı)"
+                                sell_fraction = 1.0
+                            elif is_stagnant_in_profit and curr_p <= be_protected_price:
+                                # 2. 10+ dk oyalanma sonrası maliyet + komisyon seviyesine sarkarsa sıfır zararla çık:
+                                is_take_profit = True
+                                reason_desc = f"⏳ Zaman Aşımı Başa-Baş Zırhı ({pos_age_min:.0f}dk Oyalanma | Net: +%{net_profit_pct:.2f} - Komisyon Korumalı Çıkış)"
+                                sell_fraction = 1.0
+                            elif breakeven_triggered and pos_age_min >= time_decay_be_minutes and curr_p <= be_protected_price:
+                                # 3. Başa-Baş tetiklenmiş ve 10 dk dolmuşsa maliyet altına izin verme (İlk 5-10 dk in-çık dalgalanmasına izin verilir):
+                                is_take_profit = True
+                                reason_desc = f"🛡️ Başa-Baş (Break-Even) Zırhı (+%{net_profit_pct:.2f} Net / Zirve: +%{peak_gain_pct:.2f} - Komisyon Korumalı)"
                                 sell_fraction = 1.0
                             elif peak_gain_pct >= trail_activation and curr_p <= (highest_p * callback_mult):
                                 # 🚀 AÇIK UÇLU ZİRVE KÂR REALİZASYONU (TRUE TRAILING RUN)
