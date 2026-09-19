@@ -1837,6 +1837,12 @@ def handle_update(update: dict):
 def start_poller():
     """Telegram Poller Döngüsü (Non-blocking Fast Polling)."""
     print(f"🤖 [Telegram Poller Başlatıldı]: @FoxKriptoBot 7/24 dinleniyor...")
+    # Başlangıçta webhook çakışması varsa temizle (Long polling garantisi)
+    try:
+        requests.post(f"{BASE_URL}/deleteWebhook?drop_pending_updates=False", timeout=5)
+    except Exception:
+        pass
+
     offset = None
     while True:
         try:
@@ -1849,8 +1855,20 @@ def start_poller():
                     # Her mesajı paralel arka plan iş parçacığında (Thread) çalıştır - Sıfır Bloklanma!
                     threading.Thread(target=handle_update, args=(update,), daemon=True).start()
             elif res.status_code == 409:
-                print("⚠️ [Telegram Poller 409 Conflict]: Başka bir bot örneği/container dinlemede. 5 sn bekleniyor...")
-                time.sleep(5)
+                err_desc = ""
+                try:
+                    err_desc = res.json().get("description", "")
+                except Exception:
+                    pass
+                if "webhook" in err_desc.lower():
+                    print("⚠️ [Telegram Poller 409]: Çakışan harici webhook tespit edildi, siliniyor...")
+                    try:
+                        requests.post(f"{BASE_URL}/deleteWebhook?drop_pending_updates=False", timeout=5)
+                    except Exception:
+                        pass
+                else:
+                    print("⚠️ [Telegram Poller 409 Conflict]: Başka bir bot örneği/container dinlemede. 5 sn bekleniyor...")
+                time.sleep(3)
             time.sleep(0.5)
         except Exception as e:
             time.sleep(1)

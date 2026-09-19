@@ -321,6 +321,12 @@ def _run_stock_poller_loop():
     global _poller_running
     offset = 0
     print("[@FoxBorsaBot]: Telegram Dinleyicisi Aktif Edildi!", flush=True)
+    try:
+        base_u = _get_base_url()
+        if base_u and "bot" != base_u.split("/")[-1]:
+            requests.post(f"{base_u}/deleteWebhook?drop_pending_updates=False", timeout=5)
+    except Exception:
+        pass
     while _poller_running:
         try:
             base_url = _get_base_url()
@@ -341,7 +347,11 @@ def _run_stock_poller_loop():
                         except Exception as msg_err:
                             pass
             elif res.status_code == 409:
-                time.sleep(5)
+                try:
+                    requests.post(f"{base_url}/deleteWebhook?drop_pending_updates=False", timeout=5)
+                except Exception:
+                    pass
+                time.sleep(3)
             else:
                 time.sleep(2)
         except Exception:

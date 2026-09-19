@@ -363,7 +363,11 @@ def start_dev_poller():
     """Mobil Geliştirici Köprüsünü başlatır."""
     global CURRENT_PROJECT
     print(f"🚀 [Fox 3-Tier Multi-Agent]: @FoxSystemBot dinlemede! (Gemini 3.7 Flash • GPT-5.6 Sol • GLM-5.3)")
-    
+    try:
+        if DEV_BOT_TOKEN:
+            requests.post(f"{BASE_TELEGRAM_URL}/deleteWebhook?drop_pending_updates=False", timeout=5)
+    except Exception:
+        pass
     offset = 0
     while True:
         try:

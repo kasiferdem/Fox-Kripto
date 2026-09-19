@@ -52,6 +52,14 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Telegram Botlarının Cevap Vermeme Sorunu (Harici Webhook 409 Çakışması) Çözüldü (20 Eylül 00:15 TSİ):**
+  - **Sorun:** Kullanıcı Telegram botunun (@FoxKriptoBot) mesajlara yanıt vermediğini bildirdi.
+  - **Kök Neden:** Harici bir servis/entegrasyon tarafından Telegram bot token'ı üzerine harici bir webhook (`https://tele.goldenherd.com/tg/webhook/...`) atanmıştı. Bu harici sunucu `HTTP 530` hatası verdiği için Telegram tüm güncellemeleri düşürüyor ve DigitalOcean üzerindeki long-polling dinleyicisinin (`getUpdates`) `HTTP 409 Conflict: can't use getUpdates while webhook is active` hatasıyla kilitlenmesine neden oluyordu.
+  - **Uygulanan Çözüm:**
+    1. Telegram API üzerinden tüm çakışan harici webhooklar (`CryptoBot`, `StockBot`, `DevBot`) anında silindi (`deleteWebhook`), bekleyen mesajlar tahliye edildi.
+    2. `telegram_poller.py`, `stock_telegram_bot.py` ve `dev_agent_bridge.py` dosyalarına başlangıçta ve `409 Conflict` durumunda çakışan webhook'ları otomatik temizleyen `auto-deleteWebhook` kalkanı entegre edildi.
+    3. Kod DigitalOcean'a push edildi; botlar kesintisiz yanıt vermeye devam ediyor.
+
 - [x] **Zaman Aşımı Kâr Zırhı & Komisyon Korumalı Başa-Baş Motoru Canlıya Alındı (18 Eylül 19:55 TSİ):**
   - **Kullanıcı Formülü:** *"Bir coin +%0.80 veya +%0.90 yaptı ama orada 10-15 dakika oyalandıysa başa-başa çek. Eğer henüz 5-10 dakika içindeyse ve in-çık yapıyorsa bekle, piyasaya nefes payı bırak."*
   - **Yapay Zeka Heyeti Onayı (Claude Fable 5.1 & GPT-6 Astra):**
