@@ -52,6 +52,14 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Telegram Bot Tokenı Yenilendi & Dinamik Supabase Çözücü Devreye Alındı (21 Eylül 10:05 TSİ):**
+  - **Aksiyon:** Kullanıcı BotFather üzerinden ele geçirilen eski tokenı iptal edip yeni güvenli token üretti (`8938326996:AAEX...`).
+  - **Uygulanan Değişiklikler:**
+    1. Yeni token Supabase `crypto_agent_states` (`global_system_settings -> telegram_bot_token`) tablosuna atomik olarak kaydedildi.
+    2. Yerel `.env` dosyası güncellendi.
+    3. `telegram_poller.py` ve `telegram_bot.py` içine dinamik token çekme mekanizması entegre edildi: Token öncelikle Supabase bulut ayarlarından okunur, 401 Unauthorized durumunda otomatik olarak Supabase'den yenilenir. Böylece DigitalOcean ortam değişkenleri güncellenmese dahi bot yeni tokenla anında çalışır.
+    4. Telegram API üzerinden `getMe` ve `getWebhookInfo` doğrulaması yapıldı; kullanıcıya test mesajı iletildi (200 OK).
+
 - [x] **Telegram Botlarının Cevap Vermeme Sorunu (Harici Webhook 409 Çakışması) Çözüldü (20 Eylül 00:15 TSİ):**
   - **Sorun:** Kullanıcı Telegram botunun (@FoxKriptoBot) mesajlara yanıt vermediğini bildirdi.
   - **Kök Neden:** Harici bir servis/entegrasyon tarafından Telegram bot token'ı üzerine harici bir webhook (`https://tele.goldenherd.com/tg/webhook/...`) atanmıştı. Bu harici sunucu `HTTP 530` hatası verdiği için Telegram tüm güncellemeleri düşürüyor ve DigitalOcean üzerindeki long-polling dinleyicisinin (`getUpdates`) `HTTP 409 Conflict: can't use getUpdates while webhook is active` hatasıyla kilitlenmesine neden oluyordu.

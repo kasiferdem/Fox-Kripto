@@ -25,8 +25,23 @@ from surge_detector import detect_early_volume_breakouts
 from prompts import call_gpt4o
 
 load_dotenv()
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
+
+def get_bot_token() -> str:
+    """Telegram Crypto Bot Tokenini okur (Öncelik: Supabase global_system_settings -> .env)."""
+    try:
+        from db import get_system_setting
+        db_token = str(get_system_setting("telegram_bot_token") or "").strip()
+        if db_token and not db_token.startswith("your_"):
+            return db_token
+    except Exception:
+        pass
+    return str(os.environ.get("TELEGRAM_BOT_TOKEN", "")).strip()
+
+def get_base_url() -> str:
+    return f"https://api.telegram.org/bot{get_bot_token()}"
+
+TOKEN = get_bot_token()
+BASE_URL = get_base_url()
 
 # Kullanıcı oturum durumları (Registration Wizards)
 user_states = {}
@@ -123,14 +138,15 @@ def send_message(chat_id: int, text: str, reply_markup=None):
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
 
+    base_url = get_base_url()
     try:
-        res = requests.post(f"{BASE_URL}/sendMessage", json=payload, timeout=10)
+        res = requests.post(f"{base_url}/sendMessage", json=payload, timeout=10)
         if res.status_code != 200:
             # Fallback: Markdown formatını kaldırıp tekrar dene
             payload_fallback = {"chat_id": chat_id, "text": text}
             if reply_markup is not None:
                 payload_fallback["reply_markup"] = reply_markup
-            res_retry = requests.post(f"{BASE_URL}/sendMessage", json=payload_fallback, timeout=10)
+            res_retry = requests.post(f"{base_url}/sendMessage", json=payload_fallback, timeout=10)
             print(f"📩 Telegram Send Retry (Plain): {res_retry.status_code} - {res_retry.text}")
         else:
             print(f"✅ Telegram Send Success: Chat ID={chat_id}")
@@ -153,7 +169,7 @@ def handle_update(update: dict):
         chat_id = callback["message"]["chat"]["id"]
         
         # Telegram loading simgesini kaldır
-        try: requests.post(f"{BASE_URL}/answerCallbackQuery", json={"callback_query_id": cb_id})
+        try: requests.post(f"{get_base_url()}/answerCallbackQuery", json={"callback_query_id": cb_id})
         except: pass
         
         # Borsa Seçim Butonları (Hesap Bağlama Sihirbazı)
@@ -1836,24 +1852,40 @@ def handle_update(update: dict):
 
 def start_poller():
     """Telegram Poller Döngüsü (Non-blocking Fast Polling)."""
+    global TOKEN, BASE_URL
+    TOKEN = get_bot_token()
+    BASE_URL = get_base_url()
     print(f"🤖 [Telegram Poller Başlatıldı]: @FoxKriptoBot 7/24 dinleniyor...")
     # Başlangıçta webhook çakışması varsa temizle (Long polling garantisi)
     try:
-        requests.post(f"{BASE_URL}/deleteWebhook?drop_pending_updates=False", timeout=5)
+        requests.post(f"{get_base_url()}/deleteWebhook?drop_pending_updates=False", timeout=5)
     except Exception:
         pass
 
     offset = None
     while True:
         try:
+            current_url = get_base_url()
             params = {"timeout": 1, "offset": offset}
-            res = requests.get(f"{BASE_URL}/getUpdates", params=params, timeout=6)
+            res = requests.get(f"{current_url}/getUpdates", params=params, timeout=6)
             if res.status_code == 200:
                 results = res.json().get("result", [])
                 for update in results:
                     offset = update["update_id"] + 1
                     # Her mesajı paralel arka plan iş parçacığında (Thread) çalıştır - Sıfır Bloklanma!
                     threading.Thread(target=handle_update, args=(update,), daemon=True).start()
+            elif res.status_code == 401:
+                print("⚠️ [Telegram Poller 401 Unauthorized]: Token geçersiz veya iptal edilmiş! Supabase üzerinden yenileniyor...")
+                try:
+                    from db import get_system_setting
+                    sb_token = str(get_system_setting("telegram_bot_token") or "").strip()
+                    if sb_token and sb_token != TOKEN:
+                        TOKEN = sb_token
+                        BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
+                        print("✅ [Telegram Poller]: Yeni token Supabase üzerinden başarıyla yüklendi!")
+                except Exception as ex:
+                    print(f"Token yenileme hatası: {ex}")
+                time.sleep(5)
             elif res.status_code == 409:
                 err_desc = ""
                 try:
@@ -1863,7 +1895,7 @@ def start_poller():
                 if "webhook" in err_desc.lower():
                     print("⚠️ [Telegram Poller 409]: Çakışan harici webhook tespit edildi, siliniyor...")
                     try:
-                        requests.post(f"{BASE_URL}/deleteWebhook?drop_pending_updates=False", timeout=5)
+                        requests.post(f"{current_url}/deleteWebhook?drop_pending_updates=False", timeout=5)
                     except Exception:
                         pass
                 else:

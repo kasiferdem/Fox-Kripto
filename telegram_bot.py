@@ -5,16 +5,27 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+def get_bot_token() -> str:
+    """Telegram Crypto Bot Tokenini okur (Öncelik: Supabase global_system_settings -> .env)."""
+    try:
+        from db import get_system_setting
+        db_token = str(get_system_setting("telegram_bot_token") or "").strip()
+        if db_token and not db_token.startswith("your_"):
+            return db_token
+    except Exception:
+        pass
+    return str(os.environ.get("TELEGRAM_BOT_TOKEN", "")).strip()
+
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 def send_telegram_message(text: str, reply_markup: Optional[Dict[str, Any]] = None) -> bool:
     """Telegram Bot API üzerinden mesaj ve buton gönderir."""
-    if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN.startswith("your_"):
+    token = get_bot_token()
+    if not token or token.startswith("your_"):
         print(f"   [Telegram Simulation]: {text}")
         return True
         
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
