@@ -247,7 +247,7 @@ def handle_update(update: dict):
     chat_id = message["chat"]["id"]
     raw_text = (message.get("text") or "").strip()
     first_name = message["chat"].get("first_name", "Kullanıcı")
-    text_clean = raw_text.lower().lstrip("/").strip()
+    text_clean = raw_text.lower().lstrip("/").strip().strip(".,?!:;~ ")
 
     # -------------------------------------------------------------
     # 🧙 1. AKTİF HESAP BAĞLAMA SİHİRBAZI OTURUMU (REGISTRATION WIZARD)
@@ -1022,7 +1022,7 @@ def handle_update(update: dict):
             send_message(chat_id, f"❌ Error: {de}")
         return
 
-    if text_clean in ["durum", "bakiye", "portfoy", "bakiye nedir", "durum nedir", "status", "balance", "portfolio"]:
+    if text_clean in ["durum", "bakiye", "portfoy", "portföy", "bakiye nedir", "durum nedir", "status", "balance", "portfolio", "kasa", "cuzdan", "cüzdan"]:
         now_ts = time.time()
         if (now_ts - _last_status_debounce.get(chat_id, 0)) < 6.0:
             return  # 6 saniye içindeki mükerrer istekleri sessizce yut

@@ -52,6 +52,10 @@
 - Sistemin tamamı 7/24 kesintisiz olarak **DigitalOcean Bulut Sunucusunda** (`https://fox-kripto-m7n46.ondigitalocean.app`) çalışır.
 - Tüm geliştirmeler `git push origin main` ile DigitalOcean'a sevk edilir.
 
+- [x] **Telegram Komut Noktalama Toleransı Eklendi (`durum,` Sorunu) (21 Eylül 10:38 TSİ):**
+  - **Sorun:** Kullanıcı Telegram'da `durum,` (sonunda virgül ile) yazdığında, komut tam eşleşme filtresinden geçemediği için genel sohbet modeline düşmüş; bot da portföy yerine *"Durumlar gayet iyi! Kripto piyasasını yakından takip ediyorum..."* şeklinde neşeli bir sohbet yanıtı vermiştir.
+  - **Düzeltme:** `telegram_poller.py` içindeki `text_clean` normalizasyonuna `strip(".,?!:;~ ")` eklendi; `portföy`, `kasa`, `cüzdan` gibi alternatif kelimeler listeye dahil edildi. Artık `durum,`, `durum?`, `bakiye.` gibi noktalama içeren mesajlar da kusursuz portföy raporunu açar.
+
 - [x] **Telegram Bot Tokenı Yenilendi & Dinamik Supabase Çözücü Devreye Alındı (21 Eylül 10:05 TSİ):**
   - **Aksiyon:** Kullanıcı BotFather üzerinden ele geçirilen eski tokenı iptal edip yeni güvenli token üretti (`8938326996:AAEX...`).
   - **Uygulanan Değişiklikler:**
