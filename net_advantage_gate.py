@@ -8,6 +8,7 @@ Komisyona çalışmayı ve negatif beklentili girişleri kökünden engeller.
 """
 
 import requests
+import math
 from typing import Dict, Any, Tuple, Optional
 
 # Canlı Komisyon Önbelleği
@@ -70,8 +71,10 @@ def evaluate_net_advantage_gate(
     if not gate_enabled:
         return True, 2.0, "NET_ADVANTAGE_GATE_DISABLED"
         
-    if entry_price <= 0 or target_price <= 0 or stop_price <= 0 or position_usd <= 0:
-        return True, 1.5, "BYPASS_INVALID_PRICES"
+    if (not all(math.isfinite(v) for v in (entry_price, target_price, stop_price, position_usd, spread_pct, estimated_slippage_pct))
+            or not 0 < stop_price < entry_price < target_price or position_usd <= 0
+            or spread_pct < 0 or estimated_slippage_pct < 0):
+        return False, 0.0, "INVALID_PRICE_OR_COST_INPUT"
         
     comm_rate = get_live_binance_commission(symbol)
     

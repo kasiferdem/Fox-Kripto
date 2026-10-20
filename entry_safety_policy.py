@@ -10,6 +10,7 @@ ExecutionGate'den geçmek zorundadır.
 import time
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any, Optional, List, Tuple
 from db import get_system_setting, get_strategy_config
@@ -96,15 +97,7 @@ def get_recent_shadow_decisions(limit: int = 20) -> List[Dict[str, Any]]:
 def compute_runtime_config_hash() -> str:
     """Veritabanındaki aktif strateji ve sistem ayarlarının değişmez hash imzasını üretir."""
     strat_cfg = get_strategy_config(use_cache=True) or {}
-    payload = {
-        "active_preset": strat_cfg.get("active_preset"),
-        "tp": strat_cfg.get("take_profit_pct"),
-        "sl": strat_cfg.get("stop_loss_pct"),
-        "max_gain": strat_cfg.get("max_recent_gain_24h"),
-        "vol_mult": strat_cfg.get("volume_spike_multiplier"),
-        "retest_req": strat_cfg.get("retest_required", True),
-        "first_pump_blocked": strat_cfg.get("first_pump_candle_entry_blocked", True)
-    }
+    payload = {key: value for key, value in strat_cfg.items() if key != "updated_at"}
     raw = json.dumps(payload, sort_keys=True)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
@@ -116,6 +109,15 @@ class EntrySafetyPolicy:
     @staticmethod
     def evaluate_intent(intent: OrderIntent, custom_strat_cfg: Optional[Dict[str, Any]] = None) -> Tuple[bool, str, List[str]]:
         reasons = []
+
+        if not math.isfinite(intent.amount_usd) or intent.amount_usd <= 0:
+            reasons.append("Geçersiz emir tutarı")
+        if not math.isfinite(intent.entry_price) or intent.entry_price <= 0:
+            reasons.append("Geçersiz giriş/çıkış fiyatı")
+        if intent.direction.upper() == "BUY":
+            stop = intent.stop_loss_price
+            if stop is None or not math.isfinite(stop) or not 0 < stop < intent.entry_price:
+                reasons.append("Geçerli bir koruyucu stop fiyatı zorunludur")
         
         # 1. Kaynak Motor Doğrulaması (Deterministik Motorlar)
         valid_engines = ["SCALPING", "WHALE_HUNTING", "V2_SCALPING", "V2_WHALE_HUNTING", "ASYMMETRIC_WAVE_ANALYST", "SURGE_DETECTOR", "QUANT_MOMENTUM", "COIN_DNA_QUANT"]
@@ -126,6 +128,11 @@ class EntrySafetyPolicy:
         strat_cfg = custom_strat_cfg if custom_strat_cfg is not None else (get_strategy_config(use_cache=True) or {})
         retest_req = bool(strat_cfg.get("retest_required", False))
         first_pump_blocked = bool(strat_cfg.get("first_pump_candle_entry_blocked", False))
+        if intent.direction.upper() == "BUY" and intent.entry_price > 0 and intent.stop_loss_price:
+            hard_stop = strat_cfg.get("hard_stop_loss_pct")
+            distance = (intent.entry_price - intent.stop_loss_price) / intent.entry_price * 100.0
+            if hard_stop is not None and distance > float(hard_stop) + 1e-6:
+                reasons.append("Koruyucu stop mesafesi profilin azami riskini aşıyor")
 
         # 2. Retest Teyidi Doğrulaması (Dinamik Ayara Bağlı)
         if retest_req and intent.direction.upper() == "BUY" and intent.signal_state != "RETEST_CONFIRMED":
@@ -147,7 +154,7 @@ class EntrySafetyPolicy:
         # 6. Zaman Aşımı Kontrolü (<90s)
         now_ts = time.time()
         age = now_ts - intent.created_at_ts
-        if intent.is_expired or age > 90.0:
+        if intent.is_expired or not math.isfinite(age) or age < -5.0 or age > 90.0:
             reasons.append(f"Sinyal zaman aşımına uğradı (Yaş: {age:.1f}s > 90s)")
 
         # 7. Idempotency (Mükerrer Emir) Kontrolü
@@ -225,7 +232,9 @@ class EntrySafetyPolicy:
                 stop_price=stop_p,
                 position_usd=intent.amount_usd or 50.0,
                 symbol=intent.symbol,
-                strat_cfg=strat_cfg_gate
+                strat_cfg=strat_cfg_gate,
+                spread_pct=float(intent.metadata.get("spread_pct", 0.05)),
+                estimated_slippage_pct=float(intent.metadata.get("slippage_pct", 0.08))
             )
             if not gate_pass:
                 reasons.append(gate_msg)
@@ -265,6 +274,24 @@ class ExecutionGate:
     """
     @staticmethod
     def execute(intent: OrderIntent, tenant_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        cfg = get_strategy_config(use_cache=True) or {}
+        if intent.direction.upper() == "BUY" and cfg.get("require_market_preflight", False):
+            try:
+                from circuit_breaker import check_entry_account_risk
+                from exchange import fetch_entry_market_quality
+                risk = check_entry_account_risk(tenant_config or {})
+                if not risk.get("passed"):
+                    return {"status": "NO_TRADE", "reason": risk.get("circuit_breaker"), "violations": [risk.get("message")], "order_id": None}
+                if intent.amount_usd > risk["max_entry_budget_usd"] + 0.01:
+                    raise ValueError("Position allocation/exposure limit exceeded")
+                quality = fetch_entry_market_quality(intent.symbol, intent.amount_usd)
+                intent.metadata.update(quality)
+                intent.spread_ok = quality["spread_pct"] <= float(cfg.get("max_spread_pct", 0.15))
+                intent.slippage_ok = quality["slippage_pct"] <= float(cfg.get("max_one_way_slippage_pct", 0.15))
+                if intent.entry_price <= 0 or abs(quality["best_ask"] / intent.entry_price - 1) > 0.004:
+                    raise ValueError("Entry price moved beyond 0.4 percent")
+            except Exception as exc:
+                return {"status": "NO_TRADE", "reason": "ENTRY_PREFLIGHT_FAILED", "violations": [type(exc).__name__], "order_id": None}
         # 1. Merkezi Güvenlik Politikası Denetimi
         passed, status, violations = EntrySafetyPolicy.evaluate_intent(intent)
         if not passed:
@@ -283,8 +310,8 @@ class ExecutionGate:
 
         # 3. Güvenli Mod Kontrolü (Canlı Alımlar İçin)
         new_buys = bool(get_system_setting("new_buy_orders_enabled", True))
-        is_paper = bool(tenant_config and tenant_config.get("is_paper_trading"))
-        if intent.direction.upper() == "BUY" and not new_buys and not is_paper:
+        is_paper = bool(tenant_config and tenant_config.get("is_paper_trading")) or get_system_setting("execution_mode", "PAPER_TRADING") in {"SIGNAL_ONLY", "PAPER_TRADING", "SHADOW_TRADING"}
+        if intent.direction.upper() == "BUY" and not new_buys:
             return {
                 "status": "NO_TRADE",
                 "symbol": intent.symbol,

@@ -44,7 +44,6 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
     tenant_config = state.get("tenant_config") or {}
     exch_id = str(tenant_config.get("exchange_id", "")).lower()
     is_tr_user = bool(exch_id in ["binancetr", "binance.tr", "trbinance"])
-    raw_candidates = detect_early_volume_breakouts(quote="TRY" if is_tr_user else "USDT")
     tenant_id = str(tenant_config.get("id") or tenant_config.get("telegram_chat_id") or "default_tenant")
     active_cooldowns = get_active_cooldowns_from_db(tenant_id=tenant_id)
     
@@ -59,10 +58,19 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
     # Devre Kesici Kontrolü (Circuit Breaker Gate)
     existing_holdings = state.get("portfolio_state", {}).get("holdings_details") or {}
     active_coins_count = len([k for k, v in existing_holdings.items() if str(k).upper() not in ["USDT", "TRY", "BNB", "USDC", "FDUSD"] and (isinstance(v, dict) and v.get("val_usd", 0) > 5.0)]) if isinstance(existing_holdings, dict) else 0
-    cb_check = check_tenant_circuit_breakers(tenant_id=tenant_id, current_active_positions_count=active_coins_count)
+    portfolio = state.get("portfolio_state") or {}
+    if portfolio.get("api_error"):
+        return {"filtered_candidates": []}
+    is_paper_trading = bool(tenant_config.get("is_paper_trading")) or get_system_setting("execution_mode") == "PAPER_TRADING"
+    cb_check = check_tenant_circuit_breakers(
+        tenant_id=tenant_id, exchange_id="paper" if is_paper_trading else ("binancetr" if is_tr_user else "binance"),
+        current_active_positions_count=active_coins_count, is_simulated=is_paper_trading,
+        current_equity_usd=float(portfolio.get("total_usdt") or portfolio.get("total_usd") or 0.0))
     if not cb_check.get("passed"):
         print(f"   {cb_check.get('message')}")
         return {"filtered_candidates": []}
+
+    raw_candidates = detect_early_volume_breakouts(quote="TRY" if is_tr_user else "USDT")
 
     # Cüzdanda veya DB'de açık pozisyonu bulunan coinleri tespit et (Çift Alım / Duplicate Slot Kalkanı)
     already_held_coins = set()
@@ -110,7 +118,7 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
             ticker_dict = {
                 "symbol": c_sym,
                 "lastPrice": p_val,
-                "quoteVolume": v5m_val * 288.0,
+                "quoteVolume": float(c.get("quote_volume_24h") or 0.0),
                 "recent_5m_volume_usd": v5m_val,
                 "priceChangePercent": g24_val,
                 "volume_spike_ratio": float(c.get("volume_spike_ratio", 2.0) or 2.0),
@@ -120,7 +128,10 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
             # Canlı Mum Verilerini Çek (Retest ve İlk Mum Kontrolü İçin)
             clean_s = c_sym.replace("/", "").replace("_", "").upper()
             sess = requests.Session()
-            r_k = sess.get(f"https://api.binance.com/api/v3/klines?symbol={clean_s}&interval=5m&limit=6", timeout=3)
+            interval = str(strat_cfg.get("signal_interval", "5m"))
+            if interval not in {"1m", "5m", "15m", "1h"}:
+                raise ValueError("Invalid signal interval")
+            r_k = sess.get(f"https://api.binance.com/api/v3/klines?symbol={clean_s}&interval={interval}&limit=6", timeout=3)
             klines_5m_data = r_k.json() if r_k.status_code == 200 else None
 
             first_pump_blocked_cfg = bool(strat_cfg.get("first_pump_candle_entry_blocked", False))
@@ -140,7 +151,9 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
                 else:
                     is_candidate_ok = (stage_str == "READY") and (c["v2_score"] >= min_score_req)
             else:
-                eval_res = whale_engine.evaluate_whale_evidence(ticker_dict, klines_5m=klines_5m_data)
+                eval_res = whale_engine.evaluate_whale_evidence(
+                    ticker_dict, klines_5m=klines_5m_data,
+                    user_tp=float(strat_cfg.get("take_profit_pct", 4.5)), user_sl=float(strat_cfg.get("stop_loss_pct", 2.2)))
                 c["v2_score"] = float(eval_res.get("total_evidence_score") or 8.0)
                 stage_str = str(eval_res.get("action_state") or "")
                 tech_ev = eval_res.get("evidence_groups", {}).get("TechnicalStructureEvidence", {})
@@ -155,6 +168,9 @@ def node_deterministic_prefilter(state: CryptoAgentState) -> Dict[str, Any]:
             
             c["v2_evaluation"] = eval_res
             if is_candidate_ok:
+                from entry_safety_policy import compute_runtime_config_hash
+                c["signal_created_at"] = time.time()
+                c["config_hash"] = compute_runtime_config_hash()
                 clean_candidates.append(c)
                 print(f"   🐋 [V2.3 Hacim & Momentum Onaylı]: {c_sym} -> Skor: {c['v2_score']:.1f}/10 (Durum: READY)")
             else:
@@ -398,7 +414,9 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             # Başa-baş seviyesi: Komisyonu kurtaran net sıfır seviyesi (Maliyet + %0.22)
                             be_protected_price = recorded_buy_p * (1.0 + (be_buffer_pct / 100.0))
 
-                            is_stagnant_in_profit = (pos_age_min >= time_decay_be_minutes and peak_gain_pct >= time_decay_gain_threshold)
+                            last_peak_at = float(entry_info.get("last_peak_at") or entry_info.get("time") or time.time())
+                            stagnant_minutes = (time.time() - last_peak_at) / 60.0
+                            is_stagnant_in_profit = (stagnant_minutes >= time_decay_be_minutes and peak_gain_pct >= time_decay_gain_threshold)
 
                             if is_stagnant_in_profit and curr_p <= (highest_p * time_decay_mult):
                                 # 1. 10+ dk oyalanma sonrası zirveden %0.35 sarktığı an kârı kasaya kilitle:
@@ -515,7 +533,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                             "symbol": target_symbol,
                             "direction": "SELL",
                             "is_stop_loss": is_stop_loss,
-                            "reason_type": "stop-loss" if is_stop_loss else "take-profit",
+                            "reason_type": "partial_take_profit" if sell_fraction < 1.0 else ("stop-loss" if is_stop_loss else "take-profit"),
                             "exit_reason": formal_exit.value,
                             "amount_usd": round(val_fiat * sell_fraction / (live_fx if is_tr_silo else 1.0), 2),
                             "amount_coin": coin_amount * sell_fraction,
@@ -534,7 +552,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
                         # 3 Kademeli DCA 2. Kademe Dip Ekleme
                         free_usdt = float(bal_gl.get("free_usdt", 0.0)) if bal_gl else 0.0
                         free_try = float(bal_tr.get("free_try", 0.0)) if bal_tr else 0.0
-                        can_dca = (shield_active and stage == "INITIAL" and (-2.2 <= net_profit_pct <= -1.0) and val_fiat < 22.0)
+                        can_dca = (bool(strat_cfg.get("dca_enabled", False)) and shield_active and stage == "INITIAL" and (-2.2 <= net_profit_pct <= -1.0) and val_fiat < 22.0)
                         if can_dca:
                             dca_budget = 10.0 if not is_tr_silo else 350.0
                             has_cash = (free_usdt >= dca_budget) if not is_tr_silo else (free_try >= dca_budget)
@@ -651,7 +669,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         llm_approved = bool(eval_res and eval_res.get("is_scalp_recommended") and eval_res.get("potential_score", 0) >= 7.5)
         quant_approved = bool(vol_spike >= vol_spike_min and tb_ratio >= tb_ratio_min and (0.20 <= p_gain_5m <= 4.5) and v2_cand_score >= min_score_threshold)
 
-        if llm_approved or quant_approved:
+        if (llm_approved or quant_approved) and (quant_approved or not strat_cfg.get("deterministic_entry_required", False)):
             # 🧬 COIN DNA KAPI MUHAFIZI (BLOCK_ONLY) KONTROLÜ
             cand_dna = None
             if strat_cfg.get("coin_dna_enabled", True):
@@ -727,7 +745,7 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     from db import get_strategy_config
     strat_cfg = get_strategy_config(use_cache=True)
     cfg_max_pct = float(strat_cfg.get("max_budget_percent") or 25.0)
-    user_max_pct = float(tenant_config.get("max_budget_percent") or cfg_max_pct)
+    user_max_pct = min(float(tenant_config.get("max_budget_percent") or cfg_max_pct), cfg_max_pct)
     
     # Hedef slot sayısı bütçe yüzdesine ve paneldeki slot ayarına göre belirlenir
     calculated_slots = max(1, int(100.0 / user_max_pct))
@@ -765,12 +783,15 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         max_cap_usd = round(tot_val_usd * (user_max_pct / 100.0), 2)
         slot_budget_usd = min(round(tot_val_usd / target_slots, 2), max_cap_usd) if shield_active else round(tot_val_usd / target_slots, 2)
         safe_budget_usd = round(min(slot_budget_usd, free_usdt * 0.95), 2)
+        from balanced_spot_profile import capped_entry_budget
+        safe_budget_usd = min(safe_budget_usd, capped_entry_budget(
+            tot_val_usd, free_usdt, max(0.0, tot_val_usd - free_usdt), user_max_pct, strat_cfg))
         if free_usdt < 10.0 or safe_budget_usd < 10.0:
             print(f"   ⏳ [Bütçe Yetersiz]: Serbest USDT (${free_usdt:.2f}) slot (${slot_budget_usd:.2f}) için yetersiz.")
             return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
             
     real_ticker = fetch_ticker_price(fresh_coin)
-    real_entry_price = float(real_ticker.get("last_price") or 1.0)
+    real_entry_price = float(real_ticker.get("last_price") or 0.0)
     if real_entry_price <= 0:
         return {"trade_proposal": None, "policy_check_passed": False, "human_approval": "Rejected"}
         
@@ -792,17 +813,19 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
     else:
         dynamic_tp_pct = max(ai_tp, 3.5)
 
+    if strat_cfg.get("hard_stop_loss_pct") is not None:
+        dynamic_sl_pct = min(dynamic_sl_pct, float(strat_cfg["hard_stop_loss_pct"]))
+    if strat_cfg.get("active_preset") == "balanced_spot_v1":
+        dynamic_tp_pct = float(strat_cfg["take_profit_pct"])
+
     tp_price = round(real_entry_price * (1.0 + (dynamic_tp_pct / 100.0)), 6)
     sl_price = round(real_entry_price * (1.0 - (dynamic_sl_pct / 100.0)), 6)
     
     # Kullanıcının tablodaki net Bütçe % oranı doğrudan işleme alınır
     exec_amount_usd = safe_budget_usd
-    first_pump_detected = bool(chosen_scalp_eval.get("is_first_pump_blocked", False)) or bool(chosen_scalp_eval.get("action_state") == "WAITING_PULLBACK")
-    # Retest veya Whale/Momentum teyidine göre dinamik sinyal durumu (Kapı kilidini önler)
-    if chosen_scalp_eval.get("state_machine_stage") == "READY" or chosen_scalp_eval.get("is_whale_confirmed") or not strat_cfg.get("retest_required", False):
-        sig_state = "RETEST_CONFIRMED"
-    else:
-        sig_state = "MOMENTUM_BREAKOUT"
+    from balanced_spot_profile import candidate_entry_flags
+    sig_state, first_pump_detected = candidate_entry_flags(
+        chosen_cand.get("v2_evaluation") or {}, bool(strat_cfg.get("retest_required", False)))
 
     # 🧬 COIN BEHAVIORAL PROBABILITY ENGINE (COIN DNA) KONTROLÜ
     coin_dna_analysis = chosen_cand_dna
@@ -854,6 +877,8 @@ def node_deterministic_risk_policy(state: CryptoAgentState) -> Dict[str, Any]:
         "signal_state": sig_state,
         "first_pump_entry": first_pump_detected,
         "source_engine": "ASYMMETRIC_WAVE_ANALYST",
+        "signal_created_at": chosen_cand.get("signal_created_at", time.time()),
+        "config_hash": chosen_cand.get("config_hash"),
         "coin_dna_decision": coin_dna_analysis.get("decision_class") if coin_dna_analysis else None,
         "coin_dna_analysis": coin_dna_analysis,
         "risk_justification": f"🎯 Akıllı Dalga Analisti ({chosen_scalp_eval.get('potential_score')}/10): {chosen_scalp_eval.get('thesis_tr')}"
@@ -892,9 +917,9 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
         signal_state=str(proposal.get("signal_state") or ("RETEST_CONFIRMED" if proposal.get("direction") == "BUY" else "EXIT_SIGNAL")),
         first_pump_entry=bool(proposal.get("first_pump_entry", False)),
         risk_decision="APPROVED",
-        config_hash=runtime_hash,
+        config_hash=proposal.get("config_hash") or runtime_hash,
         is_expired=False,
-        idempotency_key=f"{proposal['symbol']}_{proposal['direction']}_{int(time.time() // 30)}",
+        idempotency_key=f"{(tenant_config or {}).get('id')}_{bool((tenant_config or {}).get('is_paper_trading'))}_{proposal['symbol']}_{proposal['direction']}_{int(time.time() // 30)}",
         idempotency_key_unused=True,
         spread_ok=True,
         slippage_ok=True,
@@ -902,6 +927,7 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
         entry_price=float((proposal.get("exit_price") if proposal.get("direction") == "SELL" else proposal.get("entry_price")) or 0.0),
         stop_loss_price=proposal.get("stop_loss_price"),
         take_profit_price=proposal.get("take_profit_price"),
+        created_at_ts=float(proposal.get("signal_created_at") or time.time()),
         metadata={
             "coin_dna_analysis": state.get("coin_dna_analysis") or proposal.get("coin_dna_analysis"),
             "coin_dna_decision": proposal.get("coin_dna_decision")
@@ -920,7 +946,7 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
         base_sym = proposal["symbol"].split("/")[0].split("_")[0].upper()
         quote_c = "TRY" if is_try_order else "USDT"
 
-        if status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"]:
+        if status_str in ["SUCCESS", "EXECUTED", "EXECUTED_SIMULATED", "UNPROTECTED_POSITION"]:
             # Sanal Test (Paper Trading) Bakiye Güncellemesi
             if is_simulated:
                 from db import get_virtual_balance, update_virtual_balance
@@ -936,7 +962,7 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
 
             if proposal["direction"].upper() in ["BUY", "ALIM"]:
                 exec_p = float(result.get("executed_price") or proposal.get("entry_price") or 0.0)
-                new_coin_amt = float(proposal.get("amount_coin") or (proposal["amount_usd"] / exec_p if exec_p > 0 else 0))
+                new_coin_amt = float(result.get("amount_coin") or proposal.get("amount_coin") or (result.get("amount_usd", proposal["amount_usd"]) / exec_p if exec_p > 0 else 0))
                 is_dca = bool(proposal.get("is_dca_entry"))
                 existing_pos = get_active_positions_from_db(tenant_id=tenant_id, exchange_id=exch_name, is_simulated=is_simulated) or {}
                 prev_info = existing_pos.get(base_sym) or existing_pos.get(proposal["symbol"]) or {}
@@ -980,8 +1006,8 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
                     # Soğuma Süresi (Cooldown): Dinamik strateji ayarından okunur (Varsayılan 30 dk)
                     from db import get_strategy_config
                     dyn_cfg = get_strategy_config(use_cache=True) or {}
-                    configured_cd_min = int(dyn_cfg.get("cooldown_minutes") or dyn_cfg.get("post_stop_cooldown_minutes") or 30)
-                    cd_secs = max(configured_cd_min, 30) * 60 if r_type == "stop-loss" else configured_cd_min * 60
+                    configured_cd_min = int(dyn_cfg.get("post_stop_cooldown_minutes" if r_type == "stop-loss" else "cooldown_minutes") or 60)
+                    cd_secs = configured_cd_min * 60
                     set_cooldown_in_db(
                         tenant_id=tenant_id,
                         symbol=proposal["symbol"],
@@ -1004,6 +1030,20 @@ def node_execute_trade(state: CryptoAgentState) -> Dict[str, Any]:
         "stop_loss_price": proposal.get("stop_loss_price"),
         "take_profit_price": proposal.get("take_profit_price")
     }
+    if proposal["direction"].upper() == "SELL" and str(result.get("status", "")).upper() in {"SUCCESS", "EXECUTED", "EXECUTED_SIMULATED"}:
+        exit_price = float(result.get("executed_price") or 0.0)
+        entry_price = float(proposal.get("entry_price") or 0.0)
+        sold_quantity = float(result.get("amount_coin") or proposal.get("amount_coin") or 0.0)
+        quote_fx = get_live_usd_try_rate() if proposal["symbol"].upper().endswith("TRY") else 1.0
+        if entry_price > 0 and exit_price > 0 and sold_quantity > 0 and quote_fx > 0:
+            entry_cost = sold_quantity * entry_price / quote_fx
+            exit_value = sold_quantity * exit_price / quote_fx
+            realized_pnl = exit_value - entry_cost - (entry_cost + exit_value) * 0.001
+            log_details.update(realized_pnl_usd=round(realized_pnl, 6), cost_basis_usd=entry_cost,
+                               realized_pnl_pct=realized_pnl / entry_cost * 100.0,
+                               pnl_fee_rate_assumption=0.001)
+    log_details["is_simulated"] = str(result.get("status", "")).upper() == "EXECUTED_SIMULATED"
+    log_details["exchange_id"] = "paper" if log_details["is_simulated"] else ("binancetr" if proposal["symbol"].upper().endswith("TRY") else "binance")
     log_payload = {
         **proposal,
         "sentiment_score": state.get("sentiment_score"),

@@ -7,160 +7,178 @@ kesintisiz denetler. Eşik aşıldığında sistemi güvenli SIGNAL_ONLY moduna 
 """
 
 import time
+import math
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
+
+def _blocked(code: str, message: str) -> Dict[str, Any]:
+    return {"passed": False, "circuit_breaker": code, "message": f"🛑 [Devre Kesici]: {message}"}
+
+
+def _is_paper_trade(trade: Dict[str, Any]) -> bool:
+    details = trade.get("execution_details") or {}
+    raw = details.get("raw_order") or {}
+    return (str(trade.get("status", "")).upper() == "EXECUTED_SIMULATED"
+            or str(trade.get("order_id") or "").startswith(("SIM_", "PAPER_"))
+            or bool(details.get("is_simulated") or (raw.get("info") or {}).get("is_paper")))
+
+
+def realized_pnl_usd(trade: Dict[str, Any]) -> float:
+    details = trade.get("execution_details") or {}
+    for key in ("realized_pnl_usd", "net_profit_usd"):
+        if details.get(key) is not None:
+            value = float(details[key])
+            break
+    else:
+        pct = details.get("realized_pnl_pct", details.get("net_profit_pct"))
+        amount = details.get("cost_basis_usd", trade.get("amount_usd"))
+        if pct is None or amount is None:
+            raise ValueError("Missing realized PnL")
+        value = float(amount) * float(pct) / 100.0
+    if not math.isfinite(value):
+        raise ValueError("Invalid realized PnL")
+    return value
+
+
+def _daily_equity_reference(client, tenant_id, exchange_id, is_simulated, day, equity):
+    session_id = f"risk_day_{tenant_id}_{exchange_id}_{'paper' if is_simulated else 'live'}_{day}"
+    query = lambda: client.table("crypto_agent_states").select("state_data").eq("session_id", session_id).execute().data
+    rows = query()
+    if not rows:
+        if equity is None or not math.isfinite(float(equity)) or float(equity) <= 0:
+            raise ValueError("Missing equity reference")
+        try:
+            client.table("crypto_agent_states").insert({
+                "session_id": session_id,
+                "state_data": {"equity_usd": float(equity), "captured_at": datetime.now(timezone.utc).isoformat()}
+            }).execute()
+        except Exception:
+            # A concurrent worker may have created the same daily reference.
+            if not query():
+                raise
+        rows = query()
+    reference = float(rows[0]["state_data"]["equity_usd"])
+    if not math.isfinite(reference) or reference <= 0:
+        raise ValueError("Invalid equity reference")
+    return reference
+
 
 def check_tenant_circuit_breakers(
     tenant_id: str,
     exchange_id: str = "binance",
-    daily_loss_limit_pct: float = 10.0,
-    max_consecutive_losses: int = 5,
-    post_stop_cooldown_minutes: int = 30,
-    max_daily_trades: int = 300,
+    daily_loss_limit_pct: float = 2.0,
+    max_consecutive_losses: int = 3,
+    post_stop_cooldown_minutes: int = 180,
+    max_daily_trades: int = 5,
     max_concurrent_positions: int = 3,
-    current_active_positions_count: int = 0
+    current_active_positions_count: int = 0,
+    is_simulated: bool = False,
+    current_equity_usd: Optional[float] = None
 ) -> Dict[str, Any]:
-    """
-    Kullanıcının canlı işlem geçmişini ve açık risklerini tarayarak
-    tüm devre kesicileri kontrol eder.
-    """
-    # 🇹🇷 Türkiye Saati (TSİ / UTC+3) gün başlangıcı (00:00 TSİ)
-    # Evrensel UTC gece yarısı yerine yerel takvim gününü baz alır (gece seansı sıfırlanır)
-    tz_tr = timezone(timedelta(hours=3))
-    now_tr = datetime.now(tz_tr)
-    today_start_tr = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_start = today_start_tr.astimezone(timezone.utc).isoformat()
+    """Block new entries if tenant/mode-specific risk cannot be verified."""
     now = datetime.now(timezone.utc)
-    
+    now_tr = now.astimezone(timezone(timedelta(hours=3)))
+    today_start = now_tr.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
     try:
         from db import get_supabase, get_strategy_config
-        strat_cfg = get_strategy_config(use_cache=True)
-        if strat_cfg:
-            if "max_concurrent_positions" in strat_cfg or "slots" in strat_cfg:
-                max_concurrent_positions = int(strat_cfg.get("max_concurrent_positions") or strat_cfg.get("slots") or max_concurrent_positions)
-            if "max_daily_trades" in strat_cfg or "daily" in strat_cfg:
-                max_daily_trades = int(strat_cfg.get("max_daily_trades") or strat_cfg.get("daily") or max_daily_trades)
-            if "max_consecutive_losses" in strat_cfg:
-                max_consecutive_losses = int(strat_cfg.get("max_consecutive_losses") or max_consecutive_losses)
-            if "post_stop_cooldown_minutes" in strat_cfg or "cooldown_minutes" in strat_cfg:
-                post_stop_cooldown_minutes = int(strat_cfg.get("post_stop_cooldown_minutes") or strat_cfg.get("cooldown_minutes") or post_stop_cooldown_minutes)
-            if "daily_loss_limit_pct" in strat_cfg or "cb" in strat_cfg:
-                daily_loss_limit_pct = float(strat_cfg.get("daily_loss_limit_pct") or strat_cfg.get("cb") or daily_loss_limit_pct)
-            
+        if not str(tenant_id or "").strip():
+            raise ValueError("Missing tenant")
+        cfg = get_strategy_config(use_cache=True)
+        if not isinstance(cfg, dict) or not cfg:
+            raise ValueError("Missing risk configuration")
         client = get_supabase()
-        if not client:
-            return {"passed": True, "reason": "DB_UNAVAILABLE_FALLBACK"}
-            
-        # 1. Bugünün işlemlerini çek (Yeni model geçiş kesim zamanı destekli)
-        cutoff_iso = str(strat_cfg.get("daily_trades_cutoff_iso") or "")
-        start_filter = max(cutoff_iso, today_start) if cutoff_iso else today_start
-        trades_res = client.table("crypto_trade_logs")\
-            .select("*")\
-            .gte("created_at", start_filter)\
-            .order("created_at", desc=True)\
-            .execute()
-            
-        all_today_trades = trades_res.data or []
-        
-        # 🛡️ MULTI-TENANT İZOLASYON: Başka kullanıcıların işlemlerinin bu kullanıcının kotasını doldurmasını engelle
-        tenant_str = str(tenant_id or "").strip()
-        if tenant_str:
-            today_trades = []
-            for t in all_today_trades:
-                det = t.get("execution_details") or {}
-                t_tid = str(det.get("tenant_id") or "")
-                t_cid = str(det.get("telegram_chat_id") or "")
-                t_name = str(det.get("tenant_name") or "")
-                if tenant_str in [t_tid, t_cid, t_name]:
-                    today_trades.append(t)
+        if client is None:
+            raise ValueError("Database unavailable")
+        max_concurrent_positions = int(cfg.get("max_concurrent_positions", max_concurrent_positions))
+        max_daily_trades = int(cfg.get("max_daily_trades", max_daily_trades))
+        max_consecutive_losses = int(cfg.get("max_consecutive_losses", max_consecutive_losses))
+        post_stop_cooldown_minutes = int(cfg.get("post_stop_cooldown_minutes", post_stop_cooldown_minutes))
+        daily_loss_limit_pct = float(cfg.get("daily_loss_limit_pct", daily_loss_limit_pct))
+        if min(max_concurrent_positions, max_daily_trades, max_consecutive_losses) <= 0 or post_stop_cooldown_minutes < 0:
+            raise ValueError("Invalid risk limits")
+        if not math.isfinite(daily_loss_limit_pct) or not 0 < daily_loss_limit_pct <= 100:
+            raise ValueError("Invalid percentage limit")
+        reference = _daily_equity_reference(client, str(tenant_id), exchange_id, is_simulated, now_tr.date().isoformat(), current_equity_usd)
+        limit_usd = reference * daily_loss_limit_pct / 100.0
+        if cfg.get("daily_max_loss_usd") is not None:
+            absolute_limit = float(cfg["daily_max_loss_usd"])
+            if not math.isfinite(absolute_limit) or absolute_limit <= 0:
+                raise ValueError("Invalid dollar limit")
+            limit_usd = min(limit_usd, absolute_limit)
+
+        trades = []
+        for offset in range(0, 100000, 500):
+            rows = client.table("crypto_trade_logs").select("*").gte("created_at", today_start).order("created_at", desc=True).order("id", desc=True).range(offset, offset + 499).execute().data
+            if rows is None:
+                raise ValueError("Missing trade response")
+            trades.extend(rows)
+            if len(rows) < 500:
+                break
         else:
-            today_trades = all_today_trades
-        
-        # 2. Günlük Toplam Gerçekleşen İşlem Sayısı Denetimi (Yalnızca başarılı emirler sayılır, NO_TRADE/FAILED hariç)
-        daily_executed_count = len([
-            t for t in today_trades 
-            if t.get("direction") == "BUY" and str(t.get("status", "")).lower() in ["success", "executed", "filled"]
-        ])
-        if daily_executed_count >= max_daily_trades:
-            return {
-                "passed": False,
-                "circuit_breaker": "MAX_DAILY_TRADES_EXCEEDED",
-                "message": f"🛑 [Devre Kesici]: Günlük azami işlem kotası ({daily_executed_count}/{max_daily_trades}) doldu."
-            }
-            
-        # 3. Maksimum Eşzamanlı Açık Pozisyon Denetimi
+            raise ValueError("Trade history incomplete")
+        successful = []
+        for trade in trades:
+            details = trade.get("execution_details") or {}
+            owner = str(trade.get("tenant_id") or details.get("tenant_id") or "")
+            if owner != str(tenant_id):
+                continue
+            if _is_paper_trade(trade) != is_simulated:
+                continue
+            trade_exchange = details.get("exchange_id") or ("binancetr" if str(trade.get("symbol", "")).endswith("TRY") else "binance")
+            if not is_simulated and trade_exchange != exchange_id:
+                continue
+            if str(trade.get("status", "")).upper() in {"SUCCESS", "EXECUTED", "FILLED", "EXECUTED_SIMULATED", "UNPROTECTED_POSITION"}:
+                successful.append(trade)
+        buys = sum(str(t.get("direction", "")).upper() == "BUY" for t in successful)
+        sells = [t for t in successful if str(t.get("direction", "")).upper() == "SELL"]
+        pnl = sum(realized_pnl_usd(t) for t in sells)
+        if pnl <= -limit_usd:
+            return _blocked("DAILY_LOSS_LIMIT_EXCEEDED", f"Günlük net zarar ${abs(pnl):.2f}; %{daily_loss_limit_pct:g} eşik ${limit_usd:.2f}.")
+        if buys >= max_daily_trades:
+            return _blocked("MAX_DAILY_TRADES_EXCEEDED", f"Günlük alım kotası dolu ({buys}/{max_daily_trades}).")
         if current_active_positions_count >= max_concurrent_positions:
-            return {
-                "passed": False,
-                "circuit_breaker": "MAX_CONCURRENT_POSITIONS_FULL",
-                "message": f"🛑 [Devre Kesici]: Eşzamanlı açık pozisyon slotları dolu ({current_active_positions_count}/{max_concurrent_positions})."
-            }
-            
-        # 4. Günlük Kümülatif Net Zarar Denetimi (Cumulative Daily Realized Loss Shield)
-        # 🔒 Bugün gerçekleşen tüm başarılı kâr ve zararların net USD toplamı hesaplanır
-        today_sells = [
-            t for t in today_trades 
-            if t.get("direction") == "SELL" and str(t.get("status", "")).lower() in ["success", "executed", "filled"]
-        ]
-        total_realized_pnl_usd = 0.0
-        
-        for s in today_sells:
-            det = s.get("execution_details") or {}
-            pnl_usd = float(det.get("realized_pnl_usd") or det.get("net_profit_usd") or 0.0)
-            pnl_pct = float(det.get("realized_pnl_pct", 0.0)) or float(det.get("net_profit_pct", 0.0))
-            amount_usd = float(s.get("amount_usd") or 47.0)
-            if pnl_usd == 0.0 and pnl_pct != 0.0:
-                pnl_usd = amount_usd * (pnl_pct / 100.0)
-            total_realized_pnl_usd += pnl_usd
+            return _blocked("MAX_CONCURRENT_POSITIONS_FULL", f"Pozisyon slotları dolu ({current_active_positions_count}/{max_concurrent_positions}).")
+        losses = 0
+        for sell in sells:
+            if realized_pnl_usd(sell) >= 0:
+                break
+            losses += 1
+        if losses >= max_consecutive_losses:
+            last_exit = datetime.fromisoformat(sells[0]["created_at"].replace("Z", "+00:00"))
+            elapsed = (now - last_exit).total_seconds() / 60.0
+            if elapsed < post_stop_cooldown_minutes:
+                return _blocked("CONSECUTIVE_LOSS_COOLDOWN_ACTIVE", f"{losses} ardışık zarar sonrası soğuma aktif.")
+        return {"passed": True, "circuit_breaker": "NONE", "message": "Risk kontrolleri geçti.",
+                "daily_realized_pnl_usd": round(pnl, 4), "daily_loss_limit_usd": round(limit_usd, 2), "reference_equity_usd": reference}
+    except Exception as exc:
+        return _blocked("RISK_DATA_UNAVAILABLE", f"Risk verisi doğrulanamadı ({type(exc).__name__}); yeni alım kapalı.")
 
-        max_loss_usd_limit = float(strat_cfg.get("daily_max_loss_usd") or 6.0)
-        if total_realized_pnl_usd <= -abs(max_loss_usd_limit):
-            return {
-                "passed": False,
-                "circuit_breaker": "DAILY_LOSS_LIMIT_EXCEEDED",
-                "message": f"🛑 [Devre Kesici]: Bugünün kümülatif net zararı (-${abs(total_realized_pnl_usd):.2f}) günlük azami zarar sınırını (-${abs(max_loss_usd_limit):.2f}) aştı. Sermaye koruması kilitlendi."
-            }
+def check_entry_account_risk(tenant_config: Dict[str, Any]) -> Dict[str, Any]:
+    from db import get_strategy_config, get_system_setting
+    from exchange import fetch_portfolio_balance
+    from balanced_spot_profile import capped_entry_budget
+    try:
+        tenant = dict(tenant_config or {})
+        is_paper = bool(tenant.get("is_paper_trading")) or get_system_setting("execution_mode", "PAPER_TRADING") in {"PAPER_TRADING", "SIGNAL_ONLY", "SHADOW_TRADING"}
+        tenant["is_paper_trading"] = is_paper
+        portfolio = fetch_portfolio_balance(tenant)
+        if portfolio.get("api_error"):
+            raise ValueError("Portfolio unavailable")
+        equity = float(portfolio.get("total_usdt") or portfolio.get("total_usd") or 0.0)
+        cash = float(portfolio.get("free_usdt") or portfolio.get("free_usd") or 0.0)
+        holdings = portfolio.get("holdings_details") or {}
+        count = sum(k not in {"USDT", "TRY", "BNB", "USDC", "FDUSD"} and float(v.get("val_usd", 0)) > 5 for k, v in holdings.items())
+        exchange_id = "paper" if is_paper else str(tenant.get("exchange_id") or "binance")
+        result = check_tenant_circuit_breakers(
+            tenant_id=str(tenant.get("id") or tenant.get("telegram_chat_id") or ""), exchange_id=exchange_id,
+            is_simulated=is_paper, current_equity_usd=equity, current_active_positions_count=count)
+        cfg = get_strategy_config(use_cache=True)
+        result["max_entry_budget_usd"] = capped_entry_budget(
+            equity, cash, max(0.0, equity - cash), float(tenant.get("max_budget_percent") or cfg["max_budget_percent"]), cfg)
+        return result
+    except Exception as exc:
+        return _blocked("RISK_DATA_UNAVAILABLE", f"Emir öncesi hesap doğrulanamadı ({type(exc).__name__}).")
 
-        # 5. Son İşlemlerdeki Ardışık Zarar ve Cooldown Denetimi
-        recent_sells = today_sells
-        consecutive_losses = 0
-        last_stop_time = None
-        
-        for sell in recent_sells:
-            det = sell.get("execution_details") or {}
-            pnl_pct = float(det.get("realized_pnl_pct", 0.0)) or float(det.get("net_profit_pct", 0.0))
-            # 🛡️ Komisyon gürültüsü (-%0.20) ve başabaş çıkışları değil, yalnızca gerçek stop-loss kayıplarını (<= -%0.80) say
-            if pnl_pct <= -0.80:
-                consecutive_losses += 1
-                if not last_stop_time:
-                    last_stop_time = sell.get("created_at")
-            elif pnl_pct > 0.0:
-                break # Kârlı satış seriyi kesin kırar
-                
-        if consecutive_losses >= max_consecutive_losses:
-            # Cooldown kontrolü
-            if last_stop_time:
-                try:
-                    last_stop_dt = datetime.fromisoformat(last_stop_time.replace("Z", "+00:00"))
-                    elapsed_min = (now - last_stop_dt).total_seconds() / 60.0
-                    if elapsed_min < post_stop_cooldown_minutes:
-                        remaining_min = int(post_stop_cooldown_minutes - elapsed_min)
-                        return {
-                            "passed": False,
-                            "circuit_breaker": "CONSECUTIVE_LOSS_COOLDOWN_ACTIVE",
-                            "message": f"🛑 [Devre Kesici]: {consecutive_losses} ardışık stop sonrası soğuma devrede. Kalan süre: {remaining_min} dakika."
-                        }
-                except Exception:
-                    pass
-                    
-    except Exception as e:
-        print(f"⚠️ Circuit Breaker DB Uyarısı: {e}")
-        
-    return {
-        "passed": True,
-        "circuit_breaker": "NONE",
-        "message": "Tüm devre kesici ve risk kapıları açık."
-    }
 
 def get_adaptive_max_slots(total_equity_usd: float = 200.0, user_max_budget_pct: float = 30.0) -> int:
     """

@@ -69,9 +69,7 @@ def check_market_regime(is_scalp: bool = False) -> Dict[str, Any]:
             continue
 
     if not data or len(data) < 100:
-        if _last_market_regime:
-            return _last_market_regime
-        return {"is_bullish": True, "status": "NEUTRAL_FALLBACK", "reason": "Piyasa dengeli kabul edildi."}
+        return {"is_bullish": False, "status": "DATA_UNAVAILABLE", "reason": "BTC rejim verisi alınamadı; yeni alım kapalı."}
 
     try:
         # Kapanmış mumların kapanış fiyatları

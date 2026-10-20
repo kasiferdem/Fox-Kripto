@@ -1184,6 +1184,25 @@ def fetch_ticker_price(symbol: str = "BTC/USDT") -> Dict[str, Any]:
     except Exception:
         return {"symbol": symbol, "last_price": 0.0, "percentage_change": 0.0, "volume": 0.0}
 
+def fetch_entry_market_quality(symbol: str, amount_usd: float) -> Dict[str, Any]:
+    from balanced_spot_profile import assess_buy_orderbook
+    clean_symbol = symbol.replace("/", "").replace("_", "").upper()
+    quote_budget = float(amount_usd)
+    if clean_symbol.endswith("TRY"):
+        fx = get_live_usd_try_rate()
+        if fx <= 0:
+            raise ValueError("Missing TRY conversion")
+        quote_budget *= fx
+    for host in ("https://api.binance.com", "https://data-api.binance.vision"):
+        try:
+            response = requests.get(host + "/api/v3/depth", params={"symbol": clean_symbol, "limit": 100}, timeout=3)
+            if response.status_code == 200:
+                return assess_buy_orderbook(response.json(), quote_budget)
+        except (requests.RequestException, ValueError, TypeError, KeyError):
+            continue
+    raise ValueError("Entry liquidity could not be verified")
+
+
 def fetch_top_volume_gainers(limit: int = 20) -> list:
     """
     Borsadaki tüm aktif işlem gören (TRADING) altcoinleri REST API ile tarar;
@@ -1226,8 +1245,29 @@ def execute_spot_trade(
     tenant_config: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """İlgili kullanıcının (Tenant) kendi Binance hesabından Spot emri borsaya iletir."""
+    if str(side).upper() not in {"BUY", "SELL"} or not math.isfinite(amount_usd) or amount_usd <= 0:
+        return {"status": "REJECTED", "error": "Geçersiz emir yönü veya tutarı."}
     if not symbol or "AUTO" in symbol.upper():
         symbol = "BTC/USDT"
+
+    from db import get_strategy_config
+    cfg = get_strategy_config(use_cache=True) or {}
+    if side.upper() == "BUY" and cfg.get("require_market_preflight", False):
+        from circuit_breaker import check_entry_account_risk
+        risk = check_entry_account_risk(tenant_config or {})
+        if not risk.get("passed") or amount_usd > risk.get("max_entry_budget_usd", 0.0) + 0.01:
+            return {"status": "NO_TRADE", "error": "Hesap risk/bütçe sınırı yeni alımı engelledi."}
+        if not stop_loss_price or stop_loss_price <= 0:
+            return {"status": "NO_TRADE", "error": "Koruyucu stop fiyatı olmadan yeni alım yapılamaz."}
+        try:
+            quality = fetch_entry_market_quality(symbol, amount_usd)
+            stop_distance = (quality["best_ask"] - stop_loss_price) / quality["best_ask"] * 100.0
+            if not math.isfinite(stop_distance) or not 0 < stop_distance <= float(cfg.get("hard_stop_loss_pct", 2.2)) + 1e-6:
+                return {"status": "NO_TRADE", "error": "Stop mesafesi profil risk sınırına uygun değil."}
+            if quality["spread_pct"] > cfg["max_spread_pct"] or quality["slippage_pct"] > cfg["max_one_way_slippage_pct"]:
+                return {"status": "NO_TRADE", "error": "Spread veya kayma sınırı aşıldı."}
+        except Exception:
+            return {"status": "NO_TRADE", "error": "Canlı giriş likiditesi doğrulanamadı."}
         
     live_fx = get_live_usd_try_rate()
     if live_fx <= 0:

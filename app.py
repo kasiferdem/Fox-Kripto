@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from state import CryptoAgentState
 from graph import create_crypto_graph
@@ -646,11 +646,11 @@ class StrategyConfigRequest(BaseModel):
     max_daily_trades: Optional[int] = 2
     max_recent_gain_24h: float = 3.5
     min_ai_score: float = 7.5
-    max_budget_percent: float = 50.0
+    max_budget_percent: float = Field(default=20.0, gt=0, le=100)
     max_concurrent_positions: Optional[int] = 2
     trailing_callback_pct: float = 0.5
-    take_profit_pct: Optional[float] = 2.4
-    stop_loss_pct: Optional[float] = 1.0
+    take_profit_pct: Optional[float] = Field(default=4.5, gt=0, le=100)
+    stop_loss_pct: Optional[float] = Field(default=2.2, gt=0, lt=100)
     min_5m_volume_usd: Optional[float] = 25000.0
     first_pump_candle_entry_blocked: Optional[bool] = True
     retest_required: Optional[bool] = True
@@ -687,6 +687,10 @@ class StrategyConfigRequest(BaseModel):
     new_buy_orders_enabled: Optional[bool] = None
     existing_position_protection_enabled: Optional[bool] = True
     live_validation_status: Optional[str] = "NOT_TESTED"
+    daily_loss_limit_pct: Optional[float] = Field(default=None, gt=0, le=100)
+    daily_max_loss_usd: Optional[float] = Field(default=None, gt=0)
+    max_consecutive_losses: Optional[int] = Field(default=None, ge=1)
+    max_total_exposure_pct: Optional[float] = Field(default=None, gt=0, le=100)
 
 @app_api.get("/api/strategy-config", dependencies=[Depends(authenticate_admin)])
 def get_strategy_config_endpoint():
@@ -763,6 +767,16 @@ def save_strategy_config_endpoint(req: StrategyConfigRequest):
         "coin_dna_ambiguous_bar_threshold_pct": float(req.coin_dna_ambiguous_bar_threshold_pct or 0.10),
         "coin_dna_resistance_cluster_tolerance_pct": float(req.coin_dna_resistance_cluster_tolerance_pct or 0.8)
     }
+    from db import get_strategy_config
+    current_config = get_strategy_config(use_cache=False)
+    supplied = req.model_fields_set
+    payload = {**current_config, **{k: v for k, v in payload.items() if k in supplied},
+               "new_buy_orders_enabled": buys_enabled_val}
+    for key in ("daily_loss_limit_pct", "daily_max_loss_usd", "max_consecutive_losses", "max_total_exposure_pct"):
+        if key in supplied:
+            if key != "daily_max_loss_usd" and getattr(req, key) is None:
+                raise HTTPException(status_code=422, detail=f"{key} null olamaz")
+            payload[key] = getattr(req, key)
     ok = save_strategy_config(payload)
     set_system_setting("new_buy_orders_enabled", buys_enabled_val)
     if req.execution_mode:

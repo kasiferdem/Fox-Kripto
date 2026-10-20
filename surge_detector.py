@@ -135,6 +135,7 @@ def _evaluate_candidate(cand: Dict[str, Any], min_volume_usd: float, max_recent_
                 "daily_volatility": round(daily_range_pct, 2),
                 "volume_spike_ratio": round(spike_ratio, 1),
                 "recent_5m_volume_usd": round(v_curr, 0),
+                "quote_volume_24h": quote_volume_24h,
                 "momentum_score": momentum_score,
                 "taker_buy_ratio": round(tb_pct, 1),
                 "signal": f"👑 BÜYÜK ALTIN KIRILIM (Hacim: {spike_ratio:.1f}x | Taker Alış: %{tb_pct:.1f} | 5dk: +%{gain_5m:.1f} | Skor: {momentum_score}/10)",

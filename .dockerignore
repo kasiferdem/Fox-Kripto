@@ -8,3 +8,9 @@ __pycache__
 .vscode
 *.log
 debug.log
+.env
+.env.*
+!.env.example
+_archive
+scratch
+.claude

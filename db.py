@@ -355,7 +355,8 @@ def save_position_to_db(
             "stage": str(cur_stage),
             "partial_amount_sold": float(sold_amt),
             "is_simulated": bool(is_simulated),
-            "time": time.time()
+            "time": float(existing_info.get("time") or time.time()),
+            "last_peak_at": time.time() if float(h_price) > float(existing_info.get("highest_price") or 0.0) else float(existing_info.get("last_peak_at") or existing_info.get("time") or time.time())
         }
         client.table("crypto_agent_states").upsert({
             "session_id": session_id,
@@ -791,6 +792,15 @@ DEFAULT_STRATEGY_CONFIG = {
     "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 }
 
+from balanced_spot_profile import BALANCED_SPOT_PROFILE
+
+DEFAULT_STRATEGY_CONFIG.update(BALANCED_SPOT_PROFILE)
+STRATEGY_PRESETS["balanced_spot_v1"] = {
+    **BALANCED_SPOT_PROFILE,
+    "description": "Dengeli spot paper araştırma profili; günlük gerçekleşmiş net zarar eşiği %2. Getiri garantisi değildir."
+}
+
+
 def get_strategy_config(use_cache: bool = True) -> dict:
     """Veritabanından aktif strateji ve risk profilini çeker (15s cache + yerel yedek)."""
     global _cached_strategy_config, _cached_strategy_config_ts
@@ -909,4 +919,3 @@ if __name__ == "__main__":
             exchange_api_key=os.environ.get("EXCHANGE_API_KEY", ""),
             exchange_secret_key=os.environ.get("EXCHANGE_SECRET_KEY", "")
         )
-

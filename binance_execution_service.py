@@ -12,6 +12,7 @@ bu servis ve ExecutionGate olmadan borsaya emir gönderemez.
 import os
 import sys
 import time
+import math
 from typing import Dict, Any, Optional
 from exchange import (
     BinanceGlobalRESTClient, BinanceTRClient, get_exchange_for_tenant,
@@ -42,6 +43,8 @@ class BinanceExecutionService:
             clean_sym = f"{clean_sym}/USDT"
 
         side_clean = side.upper()
+        if not math.isfinite(amount_usd) or amount_usd <= 0:
+            return {"status": "REJECTED", "error": "Geçersiz emir tutarı"}
         if side_clean not in ["BUY", "SELL"]:
             return {"status": "REJECTED", "error": f"Geçersiz emir yönü: {side}"}
 
@@ -55,8 +58,6 @@ class BinanceExecutionService:
                     sim_price = float(ticker.get("last_price") or 0.0)
                 except Exception:
                     sim_price = 0.0
-                if sim_price <= 0:
-                    sim_price = float(entry_price or 0.0)
             else:
                 sim_price = float(entry_price or 0.0)
                 if sim_price <= 0:
@@ -65,8 +66,8 @@ class BinanceExecutionService:
                         sim_price = float(ticker.get("last_price") or 0.0)
                     except Exception:
                         sim_price = 0.0
-            if sim_price <= 0:
-                sim_price = 95.50
+            if not math.isfinite(sim_price) or sim_price <= 0:
+                return {"status": "FAILED", "error": "Sanal infaz fiyatı doğrulanamadı"}
                 
             sim_order_id = f"SIM_{int(time.time() * 1000)}"
             print(f"🧪 [BinanceExecutionService SIMÜLASYON]: {side_clean} {clean_sym} - ${amount_usd:.2f} @ ${sim_price:,.4f}")

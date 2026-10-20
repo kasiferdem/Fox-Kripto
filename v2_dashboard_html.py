@@ -19,6 +19,8 @@ def generate_v2_dashboard_html(
     logs = logs or []
     system_settings = system_settings or {}
     strategy_config = strategy_config or {}
+    import json
+    saved_preset_json = json.dumps(str(strategy_config.get("active_preset") or "whale_hunting_balanced")).replace("<", "\\u003c")
 
     trailing_checked = "checked" if system_settings.get("trailing_stop_enabled", True) else ""
     shadow_checked = "checked" if system_settings.get("anti_chop_shadow_mode", True) else ""
@@ -38,6 +40,8 @@ def generate_v2_dashboard_html(
 
     # Dynamic Execution Mode States
     current_execution_mode = str(kwargs.get("execution_mode") or system_settings.get("execution_mode") or strategy_config.get("execution_mode") or "PAPER_TRADING").upper()
+    if strategy_config.get("active_preset") == "balanced_spot_v1":
+        engine_badge_text = f"Dengeli Spot · {current_execution_mode} · Günlük net zarar eşiği %{float(strategy_config.get('daily_loss_limit_pct', 2)):g}"
     mode_signal_cls = "profile-btn active" if current_execution_mode == "SIGNAL_ONLY" else "profile-btn"
     mode_paper_cls = "profile-btn active" if current_execution_mode == "PAPER_TRADING" else "profile-btn"
     mode_shadow_cls = "profile-btn active" if current_execution_mode == "SHADOW_TRADING" else "profile-btn"
@@ -1426,7 +1430,7 @@ def generate_v2_dashboard_html(
     }}
 
     function getAuthHeaders() {{
-      return {{ 'Authorization': 'Basic ' + btoa('admin:foxkripto2026') }};
+      return {{}};
     }}
 
     function showToast(msg) {{
@@ -1444,13 +1448,14 @@ def generate_v2_dashboard_html(
 
     let currentEngine = '{active_engine}';
     let currentRisk = '{active_risk}';
+    let currentPreset = {saved_preset_json};
 
     const PRESETS_MAP = {{
       'VOLUME_SCALPING_AGGRESSIVE': {{ min_24h_vol: 1000000, min_vol: 2500, spike: 1.15, daily: 10, gain: 60.0, score: 4.5, budget: 50.0, slots: 3, tp: 2.5, sl: 1.2, cb: 0.6, min_rsi: 35.0, retest: false, firstpump: false }},
       'VOLUME_SCALPING_BALANCED':   {{ min_24h_vol: 1000000, min_vol: 4000, spike: 1.25, daily: 5, gain: 30.0, score: 5.5, budget: 33.0, slots: 3, tp: 2.8, sl: 1.2, cb: 0.6, min_rsi: 36.0, retest: false, firstpump: false }},
       'VOLUME_SCALPING_DEFENSIVE':  {{ min_24h_vol: 2000000, min_vol: 10000, spike: 1.5, daily: 3, gain: 15.0, score: 7.0, budget: 25.0, slots: 2, tp: 3.0, sl: 1.0, cb: 0.5, min_rsi: 40.0, retest: true, firstpump: true }},
       'WHALE_HUNTING_AGGRESSIVE':   {{ min_24h_vol: 1000000, min_vol: 2500, spike: 1.15, daily: 10, gain: 60.0, score: 4.5, budget: 50.0, slots: 3, tp: 2.5, sl: 1.2, cb: 0.6, min_rsi: 35.0, retest: false, firstpump: false }},
-      'WHALE_HUNTING_BALANCED':     {{ min_24h_vol: 1000000, min_vol: 4000, spike: 1.25, daily: 5, gain: 30.0, score: 5.5, budget: 33.0, slots: 3, tp: 2.8, sl: 1.2, cb: 0.6, min_rsi: 36.0, retest: false, firstpump: false }},
+      'WHALE_HUNTING_BALANCED':     {{ min_24h_vol: 10000000, min_vol: 50000, spike: 2.0, daily: 5, gain: 15.0, score: 7.5, budget: 20.0, slots: 3, tp: 4.5, sl: 2.2, cb: 0.7, min_rsi: 40.0, ema_tol: 1.0, trend_filter: true, cooldown: 60, retest: true, firstpump: true }},
       'WHALE_HUNTING_DEFENSIVE':    {{ min_24h_vol: 2000000, min_vol: 10000, spike: 1.5, daily: 3, gain: 15.0, score: 7.0, budget: 25.0, slots: 2, tp: 3.0, sl: 1.0, cb: 0.5, min_rsi: 40.0, retest: true, firstpump: true }}
     }};
 
@@ -1470,6 +1475,7 @@ def generate_v2_dashboard_html(
         setV('param_max_positions', p.slots || 1);
         setV('param_tp_pct', p.tp);
         setV('param_sl_pct', p.sl);
+        setV('param_trailing_callback', p.cb);
         setV('param_btc_min_rsi', p.min_rsi || 35.0);
         setV('param_btc_ema_tolerance', p.ema_tol || 10.0);
         if (document.getElementById('param_btc_trend_filter_enabled')) document.getElementById('param_btc_trend_filter_enabled').value = String(p.trend_filter === true);
@@ -1519,6 +1525,7 @@ def generate_v2_dashboard_html(
 
     function switchEngine(engine) {{
       currentEngine = engine;
+      currentPreset = currentEngine === 'WHALE_HUNTING' && currentRisk === 'BALANCED' ? 'balanced_spot_v1' : (currentEngine + '_' + currentRisk).toLowerCase();
       const btnScalp = document.getElementById('btn-engine-scalp');
       const btnWhale = document.getElementById('btn-engine-whale');
       const title = document.getElementById('engine-title');
@@ -1608,6 +1615,7 @@ def generate_v2_dashboard_html(
       const cusBtn = document.getElementById('pill-cus');
       if (cusBtn) cusBtn.classList.add('active');
       currentRisk = 'CUSTOM';
+      currentPreset = (currentEngine + '_custom').toLowerCase();
       const badge = document.getElementById('engine-badge');
       if (badge) badge.innerText = (currentEngine === 'VOLUME_SCALPING' ? '⚡ Scalp' : '🐋 Balina') + ' · ' + (curLang === 'tr' ? 'Özel Ayarlar' : 'Custom') + ' · v2.3 Aktif';
     }}
@@ -1640,6 +1648,7 @@ def generate_v2_dashboard_html(
 
     function switchRisk(risk) {{
       currentRisk = risk;
+      currentPreset = currentEngine === 'WHALE_HUNTING' && risk === 'BALANCED' ? 'balanced_spot_v1' : (currentEngine + '_' + risk).toLowerCase();
       document.querySelectorAll('.profile-btn').forEach(btn => {{
         btn.classList.toggle('active', btn.getAttribute('data-i18n') === ('prof_' + risk.toLowerCase().slice(0,3)));
       }});
@@ -1651,7 +1660,7 @@ def generate_v2_dashboard_html(
     }}
 
     function getAuthHeaders() {{
-      return {{ 'Authorization': 'Basic ' + btoa('admin:foxkripto2026') }};
+      return {{}};
     }}
 
     async function saveV2Strategy(mode) {{
@@ -1667,7 +1676,7 @@ def generate_v2_dashboard_html(
         }}
 
         const payload = {{
-          active_preset: (currentEngine || 'VOLUME_SCALPING').toLowerCase() + '_' + (currentRisk || 'BALANCED').toLowerCase(),
+          active_preset: currentPreset,
           execution_mode: executionMode,
           min_24h_quote_volume_usd: getVal('param_min_24h_vol', 'p_vol24', 5000000.0),
           min_volume_usd: getVal('param_min_volume_usd', 'p_vol', 100000),
@@ -1688,7 +1697,6 @@ def generate_v2_dashboard_html(
           retest_required: (document.getElementById('param_retest_required')?.value !== 'false'),
           new_buy_orders_enabled: (document.getElementById('param_new_buy_orders_enabled')?.value !== 'false'),
           cooldown_minutes: parseInt(getVal('param_cooldown_minutes', 'p_cd', 30)),
-          post_stop_cooldown_minutes: parseInt(getVal('param_cooldown_minutes', 'p_cd', 30)),
           require_futures_oi: false,
           hybrid_micro_cut_enabled: (document.getElementById('param_hybrid_micro_cut_enabled')?.value === 'true'),
           micro_cut_time_limit_minutes: parseInt(getVal('param_micro_cut_time_limit_minutes', 'p_mtime', 5)),
